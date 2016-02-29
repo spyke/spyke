@@ -6,6 +6,7 @@ from __future__ import division
 
 import sys
 import time
+from copy import copy
 import random
 import numpy as np
 
@@ -14,16 +15,99 @@ from PyQt4.QtCore import Qt
 getSaveFileName = QtGui.QFileDialog.getSaveFileName
 from OpenGL import GL, GLU
 
-#from plot import CLUSTERCOLOURSRGB, GREYRGB, CLUSTERCOLOURRGBDICT
-
-NPOINTS = 1000000
+NPOINTS = 100000
 VIEWDISTANCE = 2
 
+# copied from spyke/core.py:
+def iterable(x):
+    """Check if the input is iterable, stolen from numpy.iterable()"""
+    try:
+        iter(x)
+        return True
+    except TypeError:
+        return False
+
+# copied from spyke/core.py:
+def toiter(x):
+    """Convert to iterable. If input is iterable, returns it. Otherwise returns it in a list.
+    Useful when you want to iterate over something (like in a for loop),
+    and you don't want to have to do type checking or handle exceptions
+    when it isn't a sequence"""
+    if iterable(x):
+        return x
+    else:
+        return [x]
+
+# copied from spyke/core.py:
+def hex2rgb(hexcolours):
+    """Convert colours RGB hex string list into an RGB int array"""
+    hexcolours = toiter(hexcolours)
+    rgb = []
+    for s in hexcolours:
+        s = s[len(s)-6:len(s)] # get last 6 characters
+        r, g, b = s[0:2], s[2:4], s[4:6]
+        r, g, b = int(r, base=16), int(g, base=16), int(b, base=16)
+        rgb.append((r, g, b))
+    return np.uint8(rgb)
+
+# copied from spyke/core.py:
 def tocontig(x):
     """Return C contiguous copy of array x if it isn't C contiguous already"""
     if not x.flags.c_contiguous:
         x = x.copy()
     return x
+
+# colour stuff copied from spyke/plot.py:
+RED = '#ff0000'
+ORANGE = '#ff7f00'
+YELLOW = '#ffff00'
+GREEN = '#00ff00'
+CYAN = '#00ffff'
+LIGHTBLUE = '#007fff'
+BLUE = '#0000ff'
+VIOLET = '#9f3fff' # pure violet (7f00ff) is a little too dark on a black background
+MAGENTA = '#ff00ff'
+GREY = '#555555'
+WHITE = '#ffffff'
+BROWN = '#af5050'
+DARKGREY = '#303030'
+LIGHTBLACK = '#202020'
+
+SPIKELINEWIDTH = 1 # in points
+SPIKELINESTYLE = '-'
+NEURONLINEWIDTH = 1.5
+NEURONLINESTYLE = '-'
+ERRORALPHA = 0.15
+RASTERLINEWIDTH = 1
+RASTERLINESTYLE = '-'
+TREFANTIALIASED = True
+TREFLINEWIDTH = 0.5
+TREFCOLOUR = DARKGREY
+VREFANTIALIASED = True
+VREFLINEWIDTH = 0.5
+SELECTEDVREFLINEWIDTH = 3
+VREFCOLOUR = DARKGREY
+VREFSELECTEDCOLOUR = GREEN
+SCALE = 1000, 100 # scalebar size in (us, uV)
+SCALEXOFFSET = 25
+SCALEYOFFSET = 15
+SCALELINEWIDTH = 2
+SCALECOLOUR = WHITE
+CARETCOLOUR = LIGHTBLACK
+CHANVBORDER = 175 # uV, vertical border space between top and bottom chans and axes edge
+
+DEFUVPERUM = 20
+DEFUSPERUM = 100
+
+BACKGROUNDCOLOUR = 'black'
+
+PLOTCOLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA,
+               GREY, WHITE, BROWN]
+CLUSTERCOLOURS = copy(PLOTCOLOURS)
+CLUSTERCOLOURS.remove(GREY)
+
+CLUSTERCOLOURSRGB = hex2rgb(CLUSTERCOLOURS)
+GREYRGB = hex2rgb([GREY])[0] # pull it out of the list
 
 
 class ClusterWindow(QtGui.QMainWindow):
@@ -36,12 +120,24 @@ class ClusterWindow(QtGui.QMainWindow):
         self.glWidget = GLWidget(parent=self)
         self.setCentralWidget(self.glWidget)
 
-    def plot(self, X):
+    def keyPressEvent(self, event):
+        #key = event.key()
+        #if key == Qt.Key_F11:
+        #    SpykeToolWindow.keyPressEvent(self, event) # pass it up
+        #else:
+        self.glWidget.keyPressEvent(event) # pass it down
+        
+    def keyReleaseEvent(self, event):
+        self.glWidget.keyReleaseEvent(event) # pass it down
+
+    def plot(self, X, sids, nids):
         """Plot 3D projection of (possibly clustered) spike params in X"""
         X = tocontig(X) # ensure it's contig
         gw = self.glWidget
         gw.points = X
         gw.npoints = len(X)
+        gw.sids = sids
+        gw.nids = nids
         gw.colour() # set colours
         gw.updateGL()
 
@@ -49,11 +145,16 @@ class ClusterWindow(QtGui.QMainWindow):
 class GLWidget(QtOpenGL.QGLWidget):
     def __init__(self, parent=None):
         QtOpenGL.QGLWidget.__init__(self, parent)
+        #self.spw = self.parent().spykewindow
         #self.setMouseTracking(True) # req'd for tooltips purely on mouse motion, slow
+        self.lastPressPos = QtCore.QPoint()
         self.lastPos = QtCore.QPoint()
         self.focus = np.float32([0, 0, 0]) # init camera focus
         self.axes = 'both' # display both mini and focal xyz axes by default
         self.selecting = None # True (selecting), False (deselecting), or None
+        self.collected_sids = []
+        #self.update_sigma()
+        #self.spw.ui.sigmaSpinBox.valueChanged.connect(self.update_focal_axes)
 
         format = QtOpenGL.QGLFormat()
         format.setDoubleBuffer(True) # req'd for picking
@@ -80,10 +181,6 @@ class GLWidget(QtOpenGL.QGLWidget):
     def colour(self, sids=None, sat=1):
         """Set colours of points corresponding to sids according to their nids, with
         saturation level sat. Caller is responsible for calling self.updateGL()"""
-        self.colours = np.zeros((NPOINTS, 3), dtype=np.uint8)
-        self.colours.fill(255)
-        #import pdb; pdb.set_trace()
-        '''
         if sids == None: # init/overwrite self.colours
             nids = self.nids
             # uint8, single unit nids are 1-based:
@@ -95,7 +192,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             nids = self.nids[sidis]
             self.colours[sidis] = CLUSTERCOLOURSRGB[nids % len(CLUSTERCOLOURSRGB) - 1] * sat
             self.colours[sidis[nids < 1]] = GREYRGB * sat
-        '''
+
     def initializeGL(self):
         # these are the defaults anyway, but just to be thorough:
         GL.glClearColor(0.0, 0.0, 0.0, 1.0)
@@ -133,8 +230,8 @@ class GLWidget(QtOpenGL.QGLWidget):
             GL.glClear(GL.GL_DEPTH_BUFFER_BIT) # make axes paint on top of data points
             if self.axes in ['both', 'mini']:
                 self.paint_mini_axes()
-            if self.axes in ['both', 'focal']:
-                self.paint_focal_axes()
+            #if self.axes in ['both', 'focal']:
+                #self.paint_focal_axes()
 
         # doesn't seem to be necessary, even though I'm in double-buffered mode with the
         # back buffer for RGB sid encoding, but do it anyway for completeness
@@ -158,16 +255,20 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.setTranslation(vt) # restore translation vector to MV matrix
         GL.glViewport(0, 0, w, h) # restore full viewport
 
-    def paint_focal_axes(self):
-        """Paint xyz axes proportional in size to sigma, at focus"""
-        GL.glTranslate(*self.focus) # translate to focus
+    #def paint_focal_axes(self):
+        #"""Paint xyz axes proportional in size to sigma, at focus"""
+        #GL.glTranslate(*self.focus) # translate to focus
         #self.paint_axes(self.sigma)
-        GL.glTranslate(*-self.focus) # translate back
+        #GL.glTranslate(*-self.focus) # translate back
 
     def update_focal_axes(self):
         """Called every time sigma is changed in main spyke window"""
         #self.update_sigma()
         self.updateGL()
+
+    #def update_sigma(self):
+        #"""Update self.sigma from main spyke window"""
+        #self.sigma = self.spw.ui.sigmaSpinBox.value()
 
     def paint_axes(self, l=1):
         """Paint axes at origin, with lines of length l"""
@@ -473,42 +574,34 @@ class GLWidget(QtOpenGL.QGLWidget):
             self.selecting = True
             self.setMouseTracking(True) # while selecting
             self.selectPointsUnderCursor()
+        self.lastPressPos = QtCore.QPoint(event.pos())
         self.lastPos = QtCore.QPoint(event.pos())
-        #self.movement = False # no mouse movement yet
     
     def mouseReleaseEvent(self, event):
         # seems have to use event.button(), not event.buttons(). I guess you can't
         # release multiple buttons simultaneously the way you can press them simultaneously?
+        #sw = self.spw.windows['Sort']
         button = event.button()
         if button == QtCore.Qt.MiddleButton:
             if self.collected_sids:
-                self.spw.SelectSpikes(np.hstack(self.collected_sids), on=self.selecting)
+                #self.spw.SelectSpikes(np.hstack(self.collected_sids), on=self.selecting)
                 self.collected_sids = [] # clear it
             self.selecting = None
             self.setMouseTracking(False) # done selecting
-        '''
-        if not self.movement: # no mouse movement
-            if button == QtCore.Qt.LeftButton:
-                self.selectPointsUnderCursor()
-            elif button == QtCore.Qt.RightButton:
-                sids = self.selectPointsUnderCursor(on=False)
-                if sids == None: # clear current selection
-                    sw = self.spw.windows['Sort']
-                    sw.clear()
-        '''
-        #self.movement = False # clear mouse movement flag, for completeness
+        #elif button == QtCore.Qt.RightButton:
+            #if QtCore.QPoint(event.pos()) == self.lastPressPos: # mouse didn't move
+                #sw.on_actionSelectRandomSpikes_triggered()
     
-    def mouseDoubleClickEvent(self, event):
-        """Clear selection, if any"""
-        if event.button() == QtCore.Qt.RightButton:
-            sw = self.spw.windows['Sort']
-            sw.clear()
+    #def mouseDoubleClickEvent(self, event):
+        #"""Clear selection, if any"""
+        #if event.button() == QtCore.Qt.RightButton:
+            #sw = self.spw.windows['Sort']
+            #sw.clear()
     
     def mouseMoveEvent(self, event):
         buttons = event.buttons()
 
         if buttons != Qt.NoButton:
-            #self.movement = True # mouse has moved since mousePressEvent
             modifiers = event.modifiers()
             shift = modifiers == Qt.ShiftModifier # only modifier is shift
             ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
@@ -547,11 +640,9 @@ class GLWidget(QtOpenGL.QGLWidget):
         #if shift or ctrl: # modify sigma
         #    # event.delta() seems to always be a multiple of 120 for some reason:
         #    self.spw.ui.sigmaSpinBox.stepBy(5 * event.delta() / 120)
-        if 0:
-            pass
-        else: # zoom
-            self.zoom(event.delta() / 2000)
-            self.updateGL()
+        #else: # zoom
+        self.zoom(event.delta() / 2000)
+        self.updateGL()
 
     def keyPressEvent(self, event):
         key = event.key()
@@ -597,7 +688,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             if sid != None:
                 self.focus = self.points[self.sids.searchsorted(sid)]
                 self.panTo() # pan to new focus
-        elif key == Qt.Key_A: # cycle through xyz axes display
+        elif key == Qt.Key_A and ctrl: # cycle through xyz axes display, A on its own plots
             if self.axes == False:
                 self.axes = 'both'
             elif self.axes == 'both':
@@ -645,30 +736,27 @@ class GLWidget(QtOpenGL.QGLWidget):
         elif key == Qt.Key_V: # V for View
             self.showProjectionDialog()            
         elif key in [Qt.Key_Enter, Qt.Key_Return]:
-            pass
-            #sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
-        elif key == Qt.Key_F11:
-            self.parent().keyPressEvent(event) # pass it on to parent Cluster window
-        '''
-        elif key in [Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_G,
-                     Qt.Key_Equal, Qt.Key_Minus,
-                     Qt.Key_Slash, Qt.Key_P, Qt.Key_Backslash, Qt.Key_NumberSign, Qt.Key_R,
-                     Qt.Key_Space, Qt.Key_B, Qt.Key_Comma, Qt.Key_Period,
-                     Qt.Key_C, Qt.Key_T]:
-            sw.keyPressEvent(event) # pass it on to Sort window
-        '''
+            pass #sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
+        #elif key == Qt.Key_F11:
+        #    self.parent().keyPressEvent(event) # pass it on to parent Cluster window
+        #elif key in [Qt.Key_A, Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_G,
+                     #Qt.Key_Equal, Qt.Key_Minus,
+                     #Qt.Key_Slash, Qt.Key_P, Qt.Key_Backslash, Qt.Key_NumberSign, Qt.Key_R,
+                     #Qt.Key_Space, Qt.Key_B, Qt.Key_Comma, Qt.Key_Period,
+                     #Qt.Key_E, Qt.Key_C, Qt.Key_T, Qt.Key_W]:
+            #sw.keyPressEvent(event) # pass it on to Sort window
+
         self.updateGL()
 
     def keyReleaseEvent(self, event):
         key = event.key()
         modifiers = event.modifiers()
-        #sw = self.spw.windows['Sort']
         shift = Qt.ShiftModifier == modifiers # only modifier is shift
         if not event.isAutoRepeat() and not shift and key in [Qt.Key_S, Qt.Key_D]:
             # stop selecting/deselecting
-            #if self.collected_sids:
-            #    self.spw.SelectSpikes(np.hstack(self.collected_sids), on=self.selecting)
-            #    self.collected_sids = [] # clear it
+            if self.collected_sids:
+                #self.spw.SelectSpikes(np.hstack(self.collected_sids), on=self.selecting)
+                self.collected_sids = [] # clear it
             self.selecting = None
             self.setMouseTracking(False)
 
@@ -691,27 +779,27 @@ class GLWidget(QtOpenGL.QGLWidget):
         """Pop up a nid or sid tooltip at current mouse cursor position"""
         # hide first if you want tooltip to move even when text is unchanged:
         #QtGui.QToolTip.hideText()
-        spw = self.spw
-        sort = spw.sort
+        #spw = self.spw
+        #sort = spw.sort
         x, y = self.cursorPosGL()
         sid = self.pick(x, y)
         if sid != None:
-            spos = []
-            dims = spw.GetClusterPlotDims()
-            for dim in dims:
-                if dim.startswith('c') and dim[-1].isdigit(): # it's a CA dim
-                    compid = int(lstrip(dim, 'c'))
-                    sidi = self.sids.searchsorted(sid)
-                    spos.append(sort.X[sort.Xhash][sidi, compid])
-                else: # it's a standard dim stored in spikes array
-                    spos.append(sort.spikes[sid][dim])
+            #spos = []
+            #dims = spw.GetClusterPlotDims()
+            #for dim in dims:
+                #if dim.startswith('c') and dim[-1].isdigit(): # it's a CA dim
+                    #compid = int(lstrip(dim, 'c'))
+                    #sidi = self.sids.searchsorted(sid)
+                    #spos.append(sort.X[sort.Xhash][sidi, compid])
+                #else: # it's a standard dim stored in spikes array
+                    #spos.append(sort.spikes[sid][dim])
             tip = 'sid: %d' % sid
-            tip += '\n%s: %s' % (lst2shrtstr(dims), lst2shrtstr(spos))
-            nid = sort.spikes[sid]['nid']
+            #tip += '\n%s: %s' % (lst2shrtstr(dims), lst2shrtstr(spos))
+            nid = self.nids[self.sids.searchsorted(sid)]#nid = sort.spikes[sid]['nid']
             if nid != 0:
                 tip += '\nnid: %d' % nid
-                cpos = [ sort.neurons[nid].cluster.pos[dim] for dim in dims ]
-                tip += '\n%s: %s' % (lst2shrtstr(dims), lst2shrtstr(cpos))
+                #cpos = [ sort.neurons[nid].cluster.pos[dim] for dim in dims ]
+                #tip += '\n%s: %s' % (lst2shrtstr(dims), lst2shrtstr(cpos))
             globalPos = self.mapToGlobal(self.GLtoQt(x, y))
             QtGui.QToolTip.showText(globalPos, tip)
         else:
@@ -720,8 +808,8 @@ class GLWidget(QtOpenGL.QGLWidget):
     def selectPointsUnderCursor(self):
         """Update point selection with those currently under cursor, within pixel border pb.
         Call this method on S and D down, and on mouse motion when either S or D are down"""
-        spw = self.spw
-        sw = spw.windows['Sort']
+        #spw = self.spw
+        #sw = spw.windows['Sort']
         #if clear:
         #    sw.uslist.clearSelection()
         #    sw.nlist.clearSelection()
@@ -735,7 +823,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         #else:
         #    # for speed, while the mouse is held down and the sort panel is maxed out,
         #    # don't call SelectSpikes, only call it once when the mouse is released
-        #    self.collected_sids.append(sids)
+        self.collected_sids.append(sids)
         #print('SelectSpikes took %.3f sec' % (time.time()-t0))
         if self.selecting == True:
             sat = 0.2 # desaturate
@@ -775,5 +863,7 @@ if __name__ == '__main__':
     X = np.random.random((NPOINTS, 3)) - 0.5 # center them on 0
     X = np.float32(X)
     #import pdb; pdb.set_trace()
-    cw.plot(X)
+    sids = np.arange(NPOINTS)
+    nids = sids % len(CLUSTERCOLOURSRGB)
+    cw.plot(X, sids, nids)
     sys.exit(app.exec_())
