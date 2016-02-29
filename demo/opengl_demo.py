@@ -1,5 +1,7 @@
-"""Pared-down version of GLWidget from spyke/cluster.py. Very rough, still a work in
-progress"""
+"""Pared-down, free-standing version of GLWidget from spyke/cluster.py. For use as an OpenGL
+widget demo. Most of the keyboard commands should work, including the arrow keys, S and D for
+selection/deselection, F for focus, 0 for centering, and ? for a tooltip. You can zoom in and
+out with the mouse wheel or the right button. CTRL rotates, SHIFT pans."""
 
 from __future__ import division
 
