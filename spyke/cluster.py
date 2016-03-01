@@ -561,10 +561,14 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glVertexPointerf(self.points) # float32
         GL.glDrawArrays(GL.GL_POINTS, 0, self.npoints) # to back buffer
         GL.glClearColor(0.0, 0.0, 0.0, 1.0) # restore to default black
-        # grab back buffer
+        # grab back buffer:
         #GL.glReadBuffer(GL.GL_BACK) # defaults to back
-        # find rgb at or around cursor coords, decode sid
-        backbuffer = GL.glReadPixelsub(x-pb, y-pb, 2*pb+1, 2*pb+1, GL.GL_RGB) # unsigned byte
+        # find rgb at or around cursor coords, decode sid:
+        backbuffer = GL.glReadPixels(x=x-pb, y=y-pb, width=2*pb+1, height=2*pb+1,
+                                     format=GL.GL_RGB, type=GL.GL_UNSIGNED_BYTE,
+                                     array=None, outputType=None)
+        # NOTE: outputType kwarg above must be set to something other than str to ensure
+        # that an array is returned, instead of a string of bytes
         if (backbuffer == 255).all(): # no hit
             return
         if not multiple:
