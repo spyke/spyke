@@ -2403,6 +2403,7 @@ class SortWindow(SpykeToolWindow):
 
     def on_actionChanSplitClusters_triggered(self):
         """Split by channels button (/) click"""
+        ## TODO: make sure this works on .srf files! Why was chancombosplit being used?
         self.spykewindow.maxchansplit()
         #self.spykewindow.chancombosplit()
 
@@ -2851,7 +2852,14 @@ class SortWindow(SpykeToolWindow):
             # numpy implementation:
             #dirtysids = s.alignbest(sids, tis, selchans)
             # cython implementation:
-            dirtysids = util.alignbest_cy(s, sids, tis, np.asarray(selchans))
+            ## TODO: seems that trying to align older clusters (1 and 7) in the silico_0.tsf
+            ## sort is when the cython type error "ValueError: Buffer dtype mismatch, expected
+            ## 'int64_t' but got 'unsigned char'" is triggered. newer clusters don't have that
+            ## problem, so it's something to do with when those clusters were saved, and maybe
+            ## what their chans dtype is, or what the sort.selchans dtype is? Strange. Simple
+            ## fix here is to use int64 instead of asarray, but maybe I should try and find
+            ## the root cause:
+            dirtysids = util.alignbest_cy(s, sids, tis, np.int64(selchans))
         else: # to in ['min', 'max']
             print('aligning %d spikes to %s' % (len(sids), to))
             dirtysids = s.alignminmax(sids, to)
