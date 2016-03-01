@@ -2569,7 +2569,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Return sorted array of enabled chans"""
         chans = sorted(self._chans_enabled) # get the keys
         enables = [ self._chans_enabled[chan] for chan in chans ] # get the boolean values
-        return np.uint8([ chan for (chan, enable) in zip(chans, enables) if enable ])
+        return np.asarray([ chan for (chan, enable) in zip(chans, enables) if enable ])
 
     def set_chans_enabled(self, chans, enable=None):
         """Updates which chans are enabled in ._chans_enabled dict and in the
