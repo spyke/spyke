@@ -2291,9 +2291,9 @@ def WMLDR(data, wname="db4", maxlevel=6):
 
     So for sampfreq of 25 kHz and maxlevel of 6, the effective cutoff frequency is 195 Hz.
 
-    ## TODO: for now, this only returns highpass data. In the future, this probably
-    should return both low and highpass data, and not modify it in-place. The Discussion
-    in Wiltschko2008 suggests that this approach cannot be used to extract the LFP.
+    ## TODO: for now, this only returns highpass data. In the future, this probably should
+    return both low and highpass data (and not modify it in-place). However, the Discussion in
+    Wiltschko2008 suggests that this approach cannot be used to extract the LFP.
     """
     import pywt
 

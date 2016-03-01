@@ -1177,6 +1177,8 @@ class Sort(object):
             # Don't bother cutting out the correct nchans for each sid. At worst,
             # chan 0 (the "empty" chans array value) will be unnecessarily added to
             # unionchans:
+            ## TODO: I should probably do this properly and actually cut out the correct nchans
+            ## for each sid:
             unionchans = np.unique(spikes['chans'][group])
             if usemeanchans:
                 # now that we have the original unionchans of this group,

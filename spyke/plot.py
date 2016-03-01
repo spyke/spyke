@@ -329,8 +329,10 @@ class PlotPanel(FigureCanvas):
     """A QtWidget with an embedded mpl figure. Base class for Data and Sort panels"""
     # not necessarily constants
     uVperum = DEFUVPERUM
-    usperum = DEFUSPERUM # decreasing this increases horizontal overlap between spike chans
-                         # 17 gives roughly no horizontal overlap for self.tw[1] - self.tw[0] == 1000 us
+    # decreasing this increases horizontal overlap between spike chans. For .srf data, 17
+    # gives roughly no horizontal overlap for self.tw[1] - self.tw[0] == 1000 us:
+    usperum = DEFUSPERUM
+    
     def __init__(self, parent, tw=None, cw=None):
         self.figure = Figure() # resize later? can also set dpi here
         FigureCanvas.__init__(self, self.figure)
