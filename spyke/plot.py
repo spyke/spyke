@@ -65,8 +65,13 @@ SCALECOLOUR = WHITE
 CARETCOLOUR = LIGHTBLACK
 CHANVBORDER = 175 # uV, vertical border space between top and bottom chans and axes edge
 
+# TODO: turn these PERUM constants into variables with user controls:
+# for .srf data:
 DEFUVPERUM = 2
 DEFUSPERUM = 17
+# for Catalin Mitelut's .tsf 32 channel spikesortingtest.com simulated data:
+#DEFUVPERUM = 20
+#DEFUSPERUM = 100
 
 BACKGROUNDCOLOUR = 'black'
 

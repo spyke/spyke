@@ -61,9 +61,16 @@ from plot import SpikePanel, ChartPanel, LFPPanel
 from detect import Detector
 from extract import Extractor
 
+
+# TODO: turn some of these TW constants into variables with user controls:
+# for .srf data:
 DEFSPIKETW = -400, 600 # spike window temporal window (us)
 DEFCHARTTW = -25000, 25000 # chart window temporal window (us)
 DEFLFPTW = -500000, 500000 # lfp window temporal window (us)
+# for Catalin Mitelut's .tsf 32 channel spikesortingtest.com simulated data:
+#DEFSPIKETW = -1000, 2000 # spike window temporal window (us)
+#DEFCHARTTW = -75000, 75000 # chart window temporal window (us)
+
 SLIDERTRES = 100 # slider temporal resoluion (us), slider is limited to 2**32 ticks
 
 SCREENWIDTH = 1920 # TODO: this should be found programmatically
