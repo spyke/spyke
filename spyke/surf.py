@@ -2,6 +2,8 @@
 Some field names and comments are copied from Tim Blanche's Delphi program "SurfBawd".
 """
 
+from __future__ import division
+
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
 import numpy as np
