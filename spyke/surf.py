@@ -14,9 +14,7 @@ import re
 import time
 import datetime
 
-from core import Stream, iterable, toiter, issorted, intround
-
-NULL = '\x00'
+from core import Stream, iterable, toiter, issorted, intround, NULL
 
 DEFNHIGHPASSRECORDS = 50000
 DEFNLOWPASSRECORDS = 300000

@@ -39,6 +39,8 @@ import probes
 
 UNIXEPOCH = datetime.datetime(1970, 1, 1, 0, 0, 0) # UNIX epoch: Jan 1, 1970
 
+NULL = '\x00'
+
 MU = '\xb5' # greek mu symbol
 MICRO = 'u'
 
