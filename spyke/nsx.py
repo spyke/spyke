@@ -142,8 +142,8 @@ class DataPacket(object):
         #self.data.shape = -1, self.nchans # reshape, t in rows, chans in columns
         #self.data = self.data.T # reshape, chans in columns, t in rows
 
-        # load data on demand using np.memmap. Time is MSB, chan is LSB, so load in
-        # column-major (Fortran) order to get (chani, ti) array:
+        # load data on demand using np.memmap. Time is the outer loop, chan is the inner loop,
+        # so load in column-major (Fortran) order to get contiguous (chani, ti) array:
         self.data = np.memmap(f, dtype=np.int16, mode='r', offset=self.dataoffset,
                               shape=(self.nchans, self.nt), order='F')
 

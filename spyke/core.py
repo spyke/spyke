@@ -568,7 +568,7 @@ class Stream(object):
     def __call__(self, start, stop, chans=None):
         """Called when Stream object is called using (). start and stop indicate start
         and end timepoints in us. Returns the corresponding WaveForm object with just the
-        specificed chans"""
+        specified chans"""
         if chans == None:
             chans = self.chans
         if not set(chans).issubset(self.chans):
@@ -888,7 +888,7 @@ class SimpleStream(Stream):
     def __call__(self, start, stop, chans=None):
         """Called when Stream object is called using (). start and stop indicate start
         and end timepoints in us. Returns the corresponding WaveForm object with just the
-        specificed chans"""
+        specified chans"""
         if chans == None:
             chans = self.chans
         if not set(chans).issubset(self.chans):
@@ -2294,8 +2294,10 @@ def WMLDR(data, wname="db4", maxlevel=6):
     So for sampfreq of 25 kHz and maxlevel of 6, the effective cutoff frequency is 195 Hz.
 
     ## TODO: for now, this only returns highpass data. In the future, this probably should
-    return both low and highpass data (and not modify it in-place). However, the Discussion in
-    Wiltschko2008 suggests that this approach cannot be used to extract the LFP.
+    return both low and highpass data (and not modify it in-place). The Discussion in
+    Wiltschko2008 suggests that this approach cannot be used to extract the LFP, but
+    I don't see why you can't simply subtract the highpass data from the raw data to get the
+    lowpass data
     """
     import pywt
 
