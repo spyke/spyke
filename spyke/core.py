@@ -715,7 +715,7 @@ class Stream(object):
         data = np.empty((nchans, nt), dtype=np.int32)
         #print 'data.shape = %r' % (data.shape,)
         #tconvolve = time.time()
-        tconvolvesum = 0
+        #tconvolvesum = 0
         # Only the chans that are actually needed are resampled and returned.
         # Assume that chans index into ADchans. Normally they should map 1 to 1, ie chan 0
         # taps off of ADchan 0, but for probes like pt16a_HS27 and pt16b_HS27, it seems
