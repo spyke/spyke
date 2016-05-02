@@ -15,7 +15,7 @@ import cPickle
 from struct import Struct, unpack
 import datetime
 
-from core import Stream, NULL
+from core import Stream, NULL, rstripnonascii
 
 
 class File(object):
@@ -103,7 +103,7 @@ class FileHeader(object):
         self.version = unpack('BB', f.read(2)) # aka "File Spec", major and minor versions
         self.nbytes, = unpack('I', f.read(4)) # length of full header, in bytes
         self.label = f.read(16).rstrip(NULL) # sampling group label, null terminated
-        self.comment = f.read(256)#.rstrip(NULL) # some kind of comment, null terminated
+        self.comment = rstripnonascii(f.read(256)) # null terminated, junk bytes if empty (bug)
         # "Period", wrt 30 kHz sampling freq; sampling freq in Hz:
         self.decimation, self.sampfreq = unpack('II', f.read(8))
         # date and time corresponding to t=0

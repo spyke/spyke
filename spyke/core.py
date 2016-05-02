@@ -2067,6 +2067,20 @@ def lrstrip(s, lstr, rstr):
     """Strip lstr from start of s and rstr from end of s"""
     return rstrip(lstrip(s, lstr), rstr)
 
+def isascii(c):
+    """Check if character c is a printable character, TAB, LF, or CR"""
+    d = ord(c) # decimal representation
+    return 32 <= d <= 127 or d in [9, 10, 13]
+
+def rstripnonascii(s):
+    """Return a new string with all characters after the first non-ASCII character
+    stripped from the string"""
+    n = len(s)
+    for i, c in enumerate(s):
+        if not isascii(c):
+            return s[:i]
+    return s
+
 def pad(x, align=8):
     """Pad x with null bytes so it's a multiple of align bytes long"""
     if type(x) == str: # or maybe unicode?
