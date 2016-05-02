@@ -33,6 +33,7 @@ class File(object):
 
     def open(self):
         """(Re)open previously closed .nsx file"""
+        # the 'b' for binary is only necessary for MS Windows:
         self.f = open(self.join(self.fname), 'rb')
 
     def close(self):
@@ -75,9 +76,11 @@ class File(object):
         """Load the waveform data. Data are stored in packets. Normally, there is only one
         long contiguous data packet, but if there are pauses during the recording, the
         data is broken up into multiple packets, with a time gap between each one"""
-        self.datapacket = DataPacket(self.f, self.fileheader.nchans)
+        datapacket = DataPacket(self.f, self.fileheader.nchans)
         if self.f.tell() != self.filesize: # make sure we're at EOF
             raise NotImplementedError("Can't handle pauses in recording yet")
+        self.datapacket = datapacket
+        self.t0i, self.nt = datapacket.t0i, datapacket.nt # copy for convenience
 
     def get_data(self):
         try:
@@ -155,7 +158,8 @@ class DataPacket(object):
         #self._data.shape = -1, self.nchans # reshape, t in rows, chans in columns
         #self._data = self._data.T # reshape, chans in columns, t in rows
 
-        # load data on demand using np.memmap. Time is the outer loop, chan is the inner loop,
-        # so load in column-major (Fortran) order to get contiguous (chani, ti) array:
+        # load data on demand using np.memmap, numpy always assumes binary mode.
+        # Time is the outer loop, chan is the inner loop, so load in column-major (Fortran)
+        # order to get contiguous (chani, ti) array:
         self._data = np.memmap(f, dtype=np.int16, mode='r', offset=self.dataoffset,
                                shape=(self.nchans, self.nt), order='F')
