@@ -19,7 +19,7 @@ from core import Stream, NULL
 
 
 class File(object):
-    """Open an .nsx file and expose all of its headers and records as attribs"""
+    """Open an .nsx file and expose its header fields and data as attribs"""
     def __init__(self, fname, path):
         self.fname = fname
         self.path = path
@@ -37,6 +37,10 @@ class File(object):
 
     def close(self):
         """Close the .nsx file"""
+        # the only way to close a np.memmap is to close its underlying mmap and make sure
+        # there aren't any remaining handles to it
+        self.datapacket._data._mmap.close()
+        del self.datapacket._data
         self.f.close()
 
     def is_open(self):
@@ -55,6 +59,7 @@ class File(object):
         """Don't pickle open .nsx file handle on pickle. Also, save space (for .sort files)
         by not pickling all records unless explicitly signalled to do so (for .parse files)
         """
+        ## TODO: does datapacket need its own __getstate__ and remove _data?
         d = self.__dict__.copy() # copy it cuz we'll be making changes
         if 'f' in d:
             del d['f'] # exclude open .nsx file handle, if any
@@ -73,8 +78,15 @@ class File(object):
         self.datapacket = DataPacket(self.f, self.fileheader.nchans)
         if self.f.tell() != self.filesize: # make sure we're at EOF
             raise NotImplementedError("Can't handle pauses in recording yet")
-        self.data = self.datapacket.data # shortcut
-        
+
+    def get_data(self):
+        try:
+            return self.datapacket._data
+        except AttributeError:
+            raise RuntimeError('waveform data not available, file is closed/mmap deleted?')
+
+    data = property(get_data)
+
 
 class FileHeader(object):
     """.nsx file header. Takes an open file, parses in from current file
@@ -134,16 +146,16 @@ class DataPacket(object):
         self.nchans = nchans
         header, = unpack('B', f.read(1))
         assert header == 1
-        self.ti, self.nt = unpack('II', f.read(8))
+        # nsamples offset of first timepoint from t=0; number of timepoints:
+        self.t0i, self.nt = unpack('II', f.read(8))
         self.dataoffset = f.tell()
 
         # load all data into memory using np.fromfile. Time is MSB, chan is LSB:
-        #self.data = np.fromfile(f, dtype=np.int16, count=self.nt*nchans)
-        #self.data.shape = -1, self.nchans # reshape, t in rows, chans in columns
-        #self.data = self.data.T # reshape, chans in columns, t in rows
+        #self._data = np.fromfile(f, dtype=np.int16, count=self.nt*nchans)
+        #self._data.shape = -1, self.nchans # reshape, t in rows, chans in columns
+        #self._data = self._data.T # reshape, chans in columns, t in rows
 
         # load data on demand using np.memmap. Time is the outer loop, chan is the inner loop,
         # so load in column-major (Fortran) order to get contiguous (chani, ti) array:
-        self.data = np.memmap(f, dtype=np.int16, mode='r', offset=self.dataoffset,
-                              shape=(self.nchans, self.nt), order='F')
-
+        self._data = np.memmap(f, dtype=np.int16, mode='r', offset=self.dataoffset,
+                               shape=(self.nchans, self.nt), order='F')
