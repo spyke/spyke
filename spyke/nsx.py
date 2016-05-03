@@ -15,7 +15,8 @@ import cPickle
 from struct import Struct, unpack
 import datetime
 
-from core import Stream, NULL, rstripnonascii
+from core import NULL, rstripnonascii
+from stream import Stream
 
 
 class File(object):

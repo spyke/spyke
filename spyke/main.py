@@ -53,7 +53,8 @@ from struct import unpack
 
 import core
 from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
-from core import DJS, g, SimpleStream
+from core import DJS, g
+from stream import SimpleStream, TrackStream
 import surf
 from sort import Sort, SortWindow, NSLISTWIDTH
 from sort import MEANWAVEMAXSAMPLES
@@ -2018,8 +2019,8 @@ class SpykeWindow(QtGui.QMainWindow):
                     srff = surf.File(srffname, self.streampath)
                     srff.parse()
                     srffs.append(srff) # build up list of open and parsed surf File objects
-            self.hpstream = core.TrackStream(srffs, fname, kind='highpass')
-            self.lpstream = core.TrackStream(srffs, fname, kind='lowpass')
+            self.hpstream = TrackStream(srffs, fname, kind='highpass')
+            self.lpstream = TrackStream(srffs, fname, kind='lowpass')
         elif ext == '.tsf':
             self.hpstream, self.lpstream = self.OpenTSFFile(fname)
         elif ext == '.mat':

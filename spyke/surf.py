@@ -16,7 +16,8 @@ import re
 import time
 import datetime
 
-from core import Stream, iterable, toiter, issorted, intround, NULL
+from core import iterable, toiter, issorted, intround, NULL
+from stream import Stream
 
 DEFNHIGHPASSRECORDS = 50000
 DEFNLOWPASSRECORDS = 300000
