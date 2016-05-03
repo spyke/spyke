@@ -189,12 +189,12 @@ class File(object):
 
             if hasattr(self, 'highpassrecords'):
                 # highpass record (spike) stream:
-                self.hpstream = Stream(self, kind='highpass')
+                self.hpstream = SurfStream(self, kind='highpass')
             else:
                 self.hpstream = None
             if hasattr(self, 'lowpassmultichanrecords'):
                 # lowpassmultichan record (LFP) stream:
-                self.lpstream = Stream(self, kind='lowpass')
+                self.lpstream = SurfStream(self, kind='lowpass')
             else:
                 self.lpstream = None
 

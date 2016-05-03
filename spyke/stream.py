@@ -18,6 +18,10 @@ import probes
 
 
 class Stream(object):
+    pass
+
+
+class SurfStream(Stream):
     """Data stream object - provides convenient stream interface to .srf files.
     Maps from timestamps to record index of stream data to retrieve the
     approriate range of waveform data from disk"""
@@ -413,7 +417,7 @@ class Stream(object):
         return kernels
 
 
-class SimpleStream(Stream):
+class SimpleStream(SurfStream):
     """Simple Stream loaded fully in advance"""
     def __init__(self, fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
                  intgain, extgain, sampfreq=None, shcorrect=None, bitshift=4,
@@ -556,11 +560,11 @@ class SimpleStream(Stream):
         return WaveForm(data=data, ts=ts, chans=chans)
 
 
-class TrackStream(object):
-    """A collection of streams, all from the same track. This is used to simultaneously
-    cluster all spikes from many (or all) recordings from the same track. Designed to have
-    as similar an interface as possible to a normal Stream. srffs needs to be a list of
-    open and parsed surf.File objects, in temporal order"""
+class MultiStream(object):
+    """A collection of multiple streams, all from the same track/insertion/series. This is
+    used to simultaneously cluster all spikes from many (or all) recordings from the same
+    track. Designed to have as similar an interface as possible to a normal Stream. srffs
+    needs to be a list of open and parsed surf.File objects, in temporal order"""
     def __init__(self, srffs, trackfname, kind='highpass', sampfreq=None, shcorrect=None):
         # to prevent pickling problems, don't bind srffs
         self.fname = trackfname

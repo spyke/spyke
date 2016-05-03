@@ -1624,19 +1624,18 @@ def updatenpyfilerows(fname, rows, arr):
     f.close()
 
 
-"""For backward compatibility with .sort files created prior to 2016-05-03, which
-look for the following stream-related class definitions here in core.py. This
-has to come at the end of this file, to prevent circular import problems between
-core.py and stream.py. This is also the place to provide links from old stream
-class names to new stream class names, if any are renamed"""
+"""For backward compatibility with streams in .sort files created prior to 2016-05-03.
+Inheritance is used to map old stream class names to new stream class names. Because stream
+definitions have moved to their own module stream.py, these have to come at the end of this
+file, to prevent circular import problems between core.py and stream.py"""
 
 import stream
 
-class Stream(stream.Stream):
+class Stream(stream.SurfStream):
     pass
 
 class SimpleStream(stream.SimpleStream):
     pass
 
-class TrackStream(stream.TrackStream):
+class TrackStream(stream.MultiStream):
     pass
