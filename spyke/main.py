@@ -88,7 +88,7 @@ CLUSTERWINDOWHEIGHT = 700
 MAXRECENTFILES = 10 # anything > 10 will probably mess up keyboard accelerators
 WINDOWUPDATEORDER = ['Spike', 'LFP', 'Chart'] # chart goes last cuz it's slowest
 
-# if updating at least this many select spikes in .wave file, update them all
+# if updating at least this many selected spikes in .wave file, update them all
 # instead for speed:
 NDIRTYSIDSTHRESH = 200000
 

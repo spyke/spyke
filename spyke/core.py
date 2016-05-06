@@ -1627,7 +1627,13 @@ def updatenpyfilerows(fname, rows, arr):
 """For backward compatibility with streams in .sort files created prior to 2016-05-03.
 Inheritance is used to map old stream class names to new stream class names. Because stream
 definitions have moved to their own module stream.py, these have to come at the end of this
-file, to prevent circular import problems between core.py and stream.py"""
+file, to prevent circular import problems between core.py and stream.py. Another way to do
+this might be to increment the .sort version number, and during the upgrade on opening of an
+old .sort, assign a new .__class__ to each of the existing stream objects in the .sort, but
+this might be a little risky. See:
+
+http://stackoverflow.com/questions/4838145/assigning-to-an-instances-class-attribute-in-python
+"""
 
 import stream
 
