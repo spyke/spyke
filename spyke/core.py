@@ -1347,7 +1347,6 @@ def isascii(c):
 def rstripnonascii(s):
     """Return a new string with all characters after the first non-ASCII character
     stripped from the string"""
-    n = len(s)
     for i, c in enumerate(s):
         if not isascii(c):
             return s[:i]

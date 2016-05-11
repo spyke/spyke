@@ -110,7 +110,7 @@ class FileHeader(object):
         self.version = unpack('BB', f.read(2)) # aka "File Spec", major and minor versions
         self.nbytes, = unpack('I', f.read(4)) # length of full header, in bytes
         self.label = f.read(16).rstrip(NULL) # sampling group label, null terminated
-        self.comment = rstripnonascii(f.read(256)) # null terminated, junk bytes if empty (bug)
+        self.comment = rstripnonascii(f.read(256)) # null terminated, trailing junk bytes (bug)
         # "Period", wrt 30 kHz sampling freq; sampling freq in Hz:
         self.decimation, self.sampfreq = unpack('II', f.read(8))
         # date and time corresponding to t=0
