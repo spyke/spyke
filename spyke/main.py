@@ -2005,22 +2005,24 @@ class SpykeWindow(QtGui.QMainWindow):
             self.CloseStream() # in case a stream is already open
         ext = os.path.splitext(fname)[1]
         if ext == '.srf':
-            srff = surf.File(fname, self.streampath)
-            srff.parse() # TODO: parsing progress dialog
-            self.hpstream = srff.hpstream # highpass record (spike) stream
-            self.lpstream = srff.lpstream # lowpassmultichan record (LFP) stream
+            f = surf.File(fname, self.streampath)
+            f.parse() # TODO: parsing progress dialog
+            self.hpstream = f.hpstream # highpass record (spike) stream
+            self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
         elif ext == '.track':
-            srffs = []
+            fs = []
             with open(join(self.streampath, fname), 'r') as trackfile:
-                for line in trackfile: # one srf filename per line
+                for line in trackfile: # one filename per line
                     if line.startswith('#'): # it's a comment line
                         continue # skip it
-                    srffname = line.rstrip('\n')
-                    srff = surf.File(srffname, self.streampath)
-                    srff.parse()
-                    srffs.append(srff) # build up list of open and parsed surf File objects
-            self.hpstream = MultiStream(srffs, fname, kind='highpass')
-            self.lpstream = MultiStream(srffs, fname, kind='lowpass')
+                    fn = line.rstrip('\n')
+                    fext = os.path.splitext(fn)[1]
+                    if fext == '.srf':
+                        f = surf.File(fn, self.streampath)
+                    f.parse()
+                    fs.append(f) # build up list of open and parsed data file objects
+            self.hpstream = MultiStream(fs, fname, kind='highpass')
+            self.lpstream = MultiStream(fs, fname, kind='lowpass')
         elif ext == '.tsf':
             self.hpstream, self.lpstream = self.OpenTSFFile(fname)
         elif ext == '.mat':
@@ -2324,7 +2326,7 @@ class SpykeWindow(QtGui.QMainWindow):
             streamProbeType = type(self.hpstream.probe)
             if sortProbeType != streamProbeType:
                 self.CreateNewSort() # overwrite the failed Sort
-                raise RuntimeError(".sort file's probe type %r doesn't match .srf file's "
+                raise RuntimeError(".sort file's probe type %r doesn't match data file's "
                                    "probe type %r" % (sortProbeType, streamProbeType))
 
         self.OpenSpikeFile(sort.spikefname)
@@ -2974,7 +2976,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.seek(self.t + direction*self.hpstream.tres)
 
     def tell(self):
-        """Return current position in surf file"""
+        """Return current position in data file"""
         return self.t
 
     def plot(self, wintypes=None):

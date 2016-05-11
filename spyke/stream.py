@@ -22,24 +22,24 @@ class Stream(object):
 
 
 class SurfStream(Stream):
-    """Data stream object - provides convenient stream interface to .srf files.
+    """Data stream object - provides stream interface to .srf files.
     Maps from timestamps to record index of stream data to retrieve the
     approriate range of waveform data from disk"""
-    def __init__(self, srff, kind='highpass', sampfreq=None, shcorrect=None):
+    def __init__(self, f, kind='highpass', sampfreq=None, shcorrect=None):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
         sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords.
         sampfreq arg is useful for interpolation. Assumes that all HighPassRecords belong
-        to the same probe. srff must be open and parsed"""
-        self.srff = srff
+        to the same probe. f must be open and parsed"""
+        self.f = f
         self.kind = kind
         if kind == 'highpass':
-            self.records = srff.highpassrecords
+            self.records = f.highpassrecords
         elif kind == 'lowpass':
-            self.records = srff.lowpassmultichanrecords
+            self.records = f.lowpassmultichanrecords
         else: raise ValueError('Unknown stream kind %r' % kind)
 
         # assume same layout for all records of type "kind"
-        self.layout = self.srff.layoutrecords[self.records['Probe'][0]]
+        self.layout = self.f.layoutrecords[self.records['Probe'][0]]
         intgain = self.layout.intgain
         extgain = int(self.layout.extgain[0]) # assume same extgain for all chans in layout
         self.converter = Converter(intgain, extgain)
@@ -94,13 +94,13 @@ class SurfStream(Stream):
         self.t1 = self.tranges[-1, 1]
 
     def is_open(self):
-        return self.srff.is_open()
+        return self.f.is_open()
 
     def open(self):
-        self.srff.open()
+        self.f.open()
 
     def close(self):
-        self.srff.close()
+        self.f.close()
 
     def get_dt(self):
         """Get self's duration"""
@@ -109,14 +109,14 @@ class SurfStream(Stream):
     dt = property(get_dt)
 
     def get_fname(self):
-        return self.srff.fname
+        return self.f.fname
 
     fname = property(get_fname)
 
-    def get_srffnames(self):
-        return [self.srff.fname]
+    def get_fnames(self):
+        return [self.f.fname]
 
-    srffnames = property(get_srffnames)
+    fnames = property(get_fnames)
 
     def get_srcfnameroot(self):
         """Get root of filename of source data. Also filter it to make recording
@@ -151,7 +151,7 @@ class SurfStream(Stream):
     sampfreq = property(get_sampfreq, set_sampfreq)
 
     def get_masterclockfreq(self):
-        return self.srff.layoutrecords[0].MasterClockFreq
+        return self.f.layoutrecords[0].MasterClockFreq
         
     masterclockfreq = property(get_masterclockfreq)
 
@@ -169,12 +169,12 @@ class SurfStream(Stream):
     shcorrect = property(get_shcorrect, set_shcorrect)
 
     def get_datetime(self):
-        return self.srff.datetime
+        return self.f.datetime
 
     datetime = property(get_datetime)
 
     def pickle(self):
-        self.srff.pickle()
+        self.f.pickle()
 
     def __getitem__(self, key):
         """Called when Stream object is indexed into using [] or with a slice object,
@@ -246,7 +246,7 @@ class SurfStream(Stream):
         if self.kind == 'highpass': # straightforward
             chanis = self.layout.ADchanlist.searchsorted(chans)
             for record in records: # iterating over highpass records
-                d = self.srff.loadContinuousRecord(record)[chanis] # record's data on chans
+                d = self.f.loadContinuousRecord(record)[chanis] # record's data on chans
                 nt = d.shape[1]
                 t0i = record['TimeStamp'] // rawtres
                 t1i = t0i + nt
@@ -267,8 +267,8 @@ class SurfStream(Stream):
             d = np.zeros((nchans, nt), dtype=np.int32)
             for record in records: # iterating over lowpassmultichan records
                 for i, chani in enumerate(chanis):
-                    lprec = self.srff.lowpassrecords[record['lpreci']+chani]
-                    d[i] = self.srff.loadContinuousRecord(lprec)
+                    lprec = self.f.lowpassrecords[record['lpreci']+chani]
+                    d[i] = self.f.loadContinuousRecord(lprec)
                 t0i = record['TimeStamp'] // rawtres
                 t1i = t0i + nt
                 # source indices
@@ -384,7 +384,7 @@ class SurfStream(Stream):
         WARNING! TODO: not sure if say ADchan 4 will always have a delay of 4us, or only if
         it's preceded by AD chans 0, 1, 2 and 3 in the channel gain list - I suspect the latter
         is the case, but right now I'm coding the former. Note that there's a
-        srff.layout.sh_delay_offset field that describes the sh delay for first chan of probe.
+        f.layout.sh_delay_offset field that describes the sh delay for first chan of probe.
         Should probably take this into account, although it doesn't affect relative delays
         between chans, I think. I think it's usually 1us.
         """
@@ -563,26 +563,26 @@ class SimpleStream(SurfStream):
 class MultiStream(object):
     """A collection of multiple streams, all from the same track/insertion/series. This is
     used to simultaneously cluster all spikes from many (or all) recordings from the same
-    track. Designed to have as similar an interface as possible to a normal Stream. srffs
-    needs to be a list of open and parsed surf.File objects, in temporal order"""
-    def __init__(self, srffs, trackfname, kind='highpass', sampfreq=None, shcorrect=None):
-        # to prevent pickling problems, don't bind srffs
+    track. Designed to have as similar an interface as possible to a normal Stream. fs
+    needs to be a list of open and parsed data file objects, in temporal order"""
+    def __init__(self, fs, trackfname, kind='highpass', sampfreq=None, shcorrect=None):
+        # to prevent pickling problems, don't bind fs
         self.fname = trackfname
         self.kind = kind
         streams = []
         self.streams = streams # bind right away so setting sampfreq and shcorrect will work
-        # collect appropriate streams from srffs
+        # collect appropriate streams from fs
         if kind == 'highpass':
-            for srff in srffs:
-                streams.append(srff.hpstream)
+            for f in fs:
+                streams.append(f.hpstream)
         elif kind == 'lowpass':
-            for srff in srffs:
-                streams.append(srff.lpstream)
+            for f in fs:
+                streams.append(f.lpstream)
         else: raise ValueError('Unknown stream kind %r' % kind)
 
         datetimes = [stream.datetime for stream in streams]
         if not (np.diff(datetimes) >= timedelta(0)).all():
-            raise RuntimeError(".srf files aren't in temporal order")
+            raise RuntimeError("files aren't in temporal order")
 
         """Generate tranges, an array of all the contiguous data ranges in all the
         streams in self. These are relative to the start of acquisition (t=0) in the first
@@ -606,27 +606,27 @@ class MultiStream(object):
         self.layout = streams[0].layout # assume they're identical
         intgains = np.asarray([ stream.converter.intgain for stream in streams ])
         if max(intgains) != min(intgains):
-            import pdb; pdb.set_trace() # investigate which are the deviant .srf files
-            raise NotImplementedError("not all .srf files have the same intgain")
+            import pdb; pdb.set_trace() # investigate which are the deviant files
+            raise NotImplementedError("not all files have the same intgain")
             # TODO: find recording with biggest intgain, call that value maxintgain. For each
             # recording, scale its AD values by its intgain/maxintgain when returning a slice
             # from its stream. Note that this ratio should always be a factor of 2, so all you
             # have to do is bitshift, I think. Then, have a single converter for the
             # trackstream whose intgain value is set to maxintgain
         self.converter = streams[0].converter # they're identical
-        self.srffnames = [srff.fname for srff in srffs]
+        self.fnames = [f.fname for f in fs]
         self.rawsampfreq = streams[0].rawsampfreq # assume they're identical
         self.rawtres = streams[0].rawtres # assume they're identical
         contiguous = np.asarray([stream.contiguous for stream in streams])
         if not contiguous.all() and kind == 'highpass':
             # don't bother reporting again for lowpass
             fnames = [ s.fname for s, c in zip(streams, contiguous) if not c ]
-            print("some .srf files are non contiguous:")
+            print("some files are non contiguous:")
             for fname in fnames:
                 print(fname)
         probe = streams[0].probe
         if not np.all([type(probe) == type(stream.probe) for stream in streams]):
-            raise RuntimeError("some .srf files have different probe types")
+            raise RuntimeError("some files have different probe types")
         self.probe = probe # they're identical
 
         # set sampfreq and shcorrect for all streams
@@ -698,7 +698,7 @@ class MultiStream(object):
     datetime = property(get_datetime)
     '''
     def pickle(self):
-        """Just a way to pickle all the .srf files associated with self"""
+        """Just a way to pickle all the files associated with self"""
         for stream in self.streams:
             stream.pickle()
 
