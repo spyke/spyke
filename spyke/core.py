@@ -1623,25 +1623,21 @@ def updatenpyfilerows(fname, rows, arr):
         f.write(arr[row])
     f.close()
 
-
-"""For backward compatibility with streams in .sort files created prior to 2016-05-03.
-Inheritance is used to map old stream class names to new stream class names. Because stream
-definitions have moved to their own module stream.py, these have to come at the end of this
-file, to prevent circular import problems between core.py and stream.py. Another way to do
-this might be to increment the .sort version number, and during the upgrade on opening of an
-old .sort, assign a new .__class__ to each of the existing stream objects in the .sort, but
-this might be a little risky. See:
-
-http://stackoverflow.com/questions/4838145/assigning-to-an-instances-class-attribute-in-python
-"""
-
-import stream
-
-class Stream(stream.SurfStream):
-    pass
-
-class SimpleStream(stream.SimpleStream):
-    pass
-
-class TrackStream(stream.MultiStream):
-    pass
+def unpickler_find_global_0_7_to_0_8(oldmod, oldcls):
+    """Required for unpickling .sort version 0.7 files and upgrading them to version 0.8.
+    Rename class names that changed between the two versions. Unfortunately, you can't check
+    the .sort version number until after unpickling, so this has to be done for all .sort
+    files during unpickling - it can't be done after unpickling"""
+    old2new_streammod = {'core': 'stream'}
+    old2new_streamcls = {'Stream': 'SurfStream',
+                         'SimpleStream': 'SimpleStream',
+                         'TrackStream': 'MultiStream'}
+    try:
+        newmod = old2new_streammod[oldmod]
+        newcls = old2new_streamcls[oldcls]
+    except KeyError: # no old to new conversion
+        exec('import %s' % oldmod)
+        return eval('%s.%s' % (oldmod, oldcls))
+    print('Rename on unpickle: %s.%s -> %s.%s' % (oldmod, oldcls, newmod, newcls))
+    exec('import %s' % newmod)
+    return eval('%s.%s' % (newmod, newcls))

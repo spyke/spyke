@@ -430,6 +430,8 @@ class SpykeWindow(QtGui.QMainWindow):
             v = self.update_0_5_to_0_6()
         if v == 0.6:
             v = self.update_0_6_to_0_7()
+        if v == 0.7:
+            v = self.update_0_7_to_0_8()
         print('now save me!')
             
     def update_0_3_to_0_4(self):
@@ -516,6 +518,34 @@ class SpykeWindow(QtGui.QMainWindow):
         s.tw = -500, 500
         s.__version__ = '0.7' # update
         print('done updating sort from version 0.6 to 0.7')
+        return float(s.__version__)
+
+    def update_0_7_to_0_8(self):
+        """Update sort 0.7 to 0.8:
+            - rename/move classes (done by core.unpickler_find_global()):
+                - core.Stream -> stream.SurfStream
+                - core.SimpleStream -> stream.SimpleStream
+                - core.TrackStream -> stream.MultiStream
+            - rename Stream attrib .srff -> .f
+            - rename MultiStream attrib .srffnames -> .fnames
+        """
+        print('updating sort from version 0.7 to 0.8')
+        s = self.sort
+        stream = s.stream
+        classname = stream.__class__.__name__
+        if classname in ['SurfStream', 'SimpleStream']:
+            f = stream.srff
+            del stream.srff
+            stream.f = f
+        elif classname == 'MultiStream':
+            fnames = stream.srffnames
+            del stream.srffnames
+            stream.fnames = fnames
+        else:
+            raise RuntimeError("don't know how to upgrade stream type %r" % classname)
+
+        s.__version__ = '0.8' # update
+        print('done updating sort from version 0.7 to 0.8')
         return float(s.__version__)
 
     @QtCore.pyqtSlot()
@@ -2314,7 +2344,9 @@ class SpykeWindow(QtGui.QMainWindow):
         print('opening sort file %r' % fname)
         t0 = time.time()
         f = open(join(self.sortpath, fname), 'rb')
-        sort = cPickle.load(f)
+        unpickler = cPickle.Unpickler(f)
+        unpickler.find_global = core.unpickler_find_global_0_7_to_0_8
+        sort = unpickler.load()
         print('done opening sort file, took %.3f sec' % (time.time()-t0))
         print('sort file was %d bytes long' % f.tell())
         f.close()
