@@ -175,8 +175,8 @@ class File(object):
             self.unpickle()
             print('unpickling took %.3f sec' % (time.time()-t0))
         # parsing is being forced, or .parse file doesn't exist, or something's
-        # wrong with it. Parse the .srf file
-        except IOError:
+        # wrong with it (perhaps class names have changed). Parse the .srf file
+        except:
             print('Parsing %r' % self.fname)
             self._parseDRDBS()
             #cProfile.runctx('self._parseRecords()', globals(), locals())
@@ -483,9 +483,9 @@ class File(object):
         #self = cPickle.load(pf) # NOTE: this doesn't work as intended
         other = cPickle.load(pf)
         pf.close()
-        for stream in [other.hpstream, other.lpstream]:
-            if stream:
-                stream.srff = self # rebind self to other's non-None streams
+        for thisstream in [other.hpstream, other.lpstream]: # can't use module name `stream`
+            if thisstream:
+                thisstream.f = self # rebind self to other's non-None streams
         for name in other.__dict__:
             if name == 'f': # there should never be an other.f attrib
                 raise ValueError("pickled srff in .parse shouldn't have an .f attrib!")
@@ -499,7 +499,7 @@ class File(object):
         # (digitalsvalrecords is the occasional example for recordings <= ptc15)
         self._trimRecords()
         print('Recovered parse info from %r' % self.parsefname)
-        
+
 
 class FileHeader(object):
     """Surf file header. Takes an open file, parses in from current file
