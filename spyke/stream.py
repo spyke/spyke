@@ -8,7 +8,7 @@ __authors__ = ['Martin Spacek']
 import numpy as np
 
 from core import (Converter, Converter_TSF_1002, WaveForm, EmptyClass, intround, lrstrip,
-                  hamming)
+                  hamming, MU)
 from core import DEFHIGHPASSSAMPFREQ, DEFHIGHPASSSHCORRECT, NCHANSPERBOARD, KERNELSIZE
 import probes
 

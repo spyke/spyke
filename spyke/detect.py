@@ -40,8 +40,8 @@ IOError: [Errno 4] Interrupted system call
 
 which has to be caught and retried using _eintr_retry_call.
 '''
-import core
 from core import eucd, issorted, concatenate_destroy, intround, g2, cauchy2
+import stream
 
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
 
@@ -224,7 +224,7 @@ class Detector(object):
 
         # prevent out of memory errors due to copying of large stream.wavedata array
         # when spawning multiple processes
-        if type(self.sort.stream) == core.SimpleStream:
+        if type(self.sort.stream) == stream.SimpleStream:
             self.mpmethod = 'singleprocess'
 
         ncores = mp.cpu_count()

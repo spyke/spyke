@@ -279,7 +279,7 @@ class Sort(object):
         spikes = self.spikes
         exportdt = str(datetime.datetime.now()) # get an export datetime stamp
         exportdt = exportdt.split('.')[0] # ditch the us
-        try: # self.stream is a TrackStream?
+        try: # self.stream is a MultiStream?
             streams = self.stream.streams
         except AttributeError: # self.stream is a normal Stream
             streams = [self.stream]
@@ -360,7 +360,7 @@ class Sort(object):
         spikes = self.spikes
         exportdt = str(datetime.datetime.now()) # get an export datetime stamp
         exportdt = exportdt.split('.')[0] # ditch the us
-        try: # self.stream is a TrackStream?
+        try: # self.stream is a MultiStream?
             streams = self.stream.streams
         except AttributeError: # self.stream is a normal Stream
             streams = [self.stream]
@@ -486,7 +486,7 @@ class Sort(object):
 
     def exportdin(self, basepath):
         """Export stimulus din(s) to binary .din file(s) in basepath"""
-        try: # self.stream is a TrackStream?
+        try: # self.stream is a MultiStream?
             streams = self.stream.streams
         except AttributeError: # self.stream is a normal Stream
             streams = [self.stream]
@@ -534,7 +534,7 @@ class Sort(object):
 
     def exporttextheader(self, basepath):
         """Export stimulus text header(s) to .textheader file(s) in basepath"""
-        try: # self.stream is a TrackStream?
+        try: # self.stream is a MultiStream?
             streams = self.stream.streams
         except AttributeError: # self.stream is a normal Stream
             streams = [self.stream]

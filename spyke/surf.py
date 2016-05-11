@@ -17,7 +17,7 @@ import time
 import datetime
 
 from core import iterable, toiter, issorted, intround, NULL
-from stream import Stream
+from stream import SurfStream
 
 DEFNHIGHPASSRECORDS = 50000
 DEFNLOWPASSRECORDS = 300000
