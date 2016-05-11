@@ -18,6 +18,9 @@ import probes
 
 
 class Stream(object):
+
+
+class NSXStream(Stream):
     pass
 
 
@@ -612,7 +615,7 @@ class MultiStream(object):
             # recording, scale its AD values by its intgain/maxintgain when returning a slice
             # from its stream. Note that this ratio should always be a factor of 2, so all you
             # have to do is bitshift, I think. Then, have a single converter for the
-            # trackstream whose intgain value is set to maxintgain
+            # MultiStream whose intgain value is set to maxintgain
         self.converter = streams[0].converter # they're identical
         self.fnames = [f.fname for f in fs]
         self.rawsampfreq = streams[0].rawsampfreq # assume they're identical

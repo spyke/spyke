@@ -55,9 +55,8 @@ import core
 from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
 from core import DJS, g
 from stream import SimpleStream, MultiStream
-import surf
-from sort import Sort, SortWindow, NSLISTWIDTH
-from sort import MEANWAVEMAXSAMPLES
+import surf, nsx
+from sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES
 from plot import SpikePanel, ChartPanel, LFPPanel
 from detect import Detector
 from extract import Extractor
@@ -129,7 +128,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
         self.dirtysids = set() # sids whose waveforms in .wave file are out of date
         
-        # disable most widgets until a .srf or .sort file is opened
+        # disable most widgets until a data or .sort file is opened
         self.EnableStreamWidgets(False)
         self.EnableSortWidgets(False)
         
@@ -168,8 +167,8 @@ class SpykeWindow(QtGui.QMainWindow):
         getOpenFileName = QtGui.QFileDialog.getOpenFileName
         fname = getOpenFileName(self, caption="Open stream or sort",
                                 directory=self.streampath,
-                                filter="Surf, track, tsf, mat & sort files "
-                                       "(*.srf *.track *.tsf *.mat *.sort );;"
+                                filter="Surf, nsx, track, tsf, mat & sort files "
+                                       "(*.srf *.ns6 *.track *.tsf *.mat *.sort );;"
                                        "All files (*.*)")
         fname = str(fname)
         if fname:
@@ -2017,7 +2016,7 @@ class SpykeWindow(QtGui.QMainWindow):
         head, tail = os.path.split(fname)
         assert head # make sure fname has a path to it
         ext = os.path.splitext(tail)[1]
-        if ext in ['.srf', '.track', '.tsf', '.mat']:
+        if ext in ['.srf', '.ns6', '.track', '.tsf', '.mat']:
             self.streampath = head
             self.OpenStreamFile(tail)
         elif ext == '.sort':
@@ -2025,17 +2024,22 @@ class SpykeWindow(QtGui.QMainWindow):
             self.OpenSortFile(tail)
         else:
             critical = QtGui.QMessageBox.critical
-            critical(self, "Error", "%s is not a .srf, .track, .tsf, .mat or .sort file"
+            critical(self, "Error", "%s is not a .srf, .ns6, .track, .tsf, .mat or .sort file"
                      % fname)
 
     def OpenStreamFile(self, fname):
-        """Open a stream (.srf, .track, or .tsf file) and update display accordingly.
+        """Open a stream (.srf, .nsx, .track, or .tsf file) and update display accordingly.
         fname is assumed to be relative to self.streampath"""
         if self.hpstream != None:
             self.CloseStream() # in case a stream is already open
         ext = os.path.splitext(fname)[1]
         if ext == '.srf':
             f = surf.File(fname, self.streampath)
+            f.parse() # TODO: parsing progress dialog
+            self.hpstream = f.hpstream # highpass record (spike) stream
+            self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
+        elif ext == '.ns6':
+            f = nsx.File(fname, self.streampath)
             f.parse() # TODO: parsing progress dialog
             self.hpstream = f.hpstream # highpass record (spike) stream
             self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
@@ -2049,6 +2053,8 @@ class SpykeWindow(QtGui.QMainWindow):
                     fext = os.path.splitext(fn)[1]
                     if fext == '.srf':
                         f = surf.File(fn, self.streampath)
+                    elif fext == 'ns6':
+                        f = nsx.File(fn, self.streampath)
                     f.parse()
                     fs.append(f) # build up list of open and parsed data file objects
             self.hpstream = MultiStream(fs, fname, kind='highpass')

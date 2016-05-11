@@ -73,6 +73,9 @@ class File(object):
         self.fileheader.parse(self.f)
         #print('Parsed fileheader')
 
+    def parse(self):
+        pass # nothing to do here, everything happens in __init__
+
     def load(self):
         """Load the waveform data. Data are stored in packets. Normally, there is only one
         long contiguous data packet, but if there are pauses during the recording, the
