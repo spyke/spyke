@@ -18,6 +18,72 @@ import probes
 
 
 class Stream(object):
+    ## TODO: factor out methods from SurfStream common to all streams?
+
+    def is_open(self):
+        return self.f.is_open()
+
+    def open(self):
+        self.f.open()
+
+    def close(self):
+        self.f.close()
+
+    def get_dt(self):
+        """Get self's duration"""
+        return self.t1 - self.t0
+
+    dt = property(get_dt)
+
+    def get_fname(self):
+        return self.f.fname
+
+    fname = property(get_fname)
+
+    def get_fnames(self):
+        return [self.f.fname]
+
+    fnames = property(get_fnames)
+
+    def get_nchans(self):
+        return len(self.chans)
+
+    nchans = property(get_nchans)
+
+    def get_sampfreq(self):
+        return self._sampfreq
+
+    def set_sampfreq(self, sampfreq):
+        """On .sampfreq change, delete .kernels (if set), and update .tres"""
+        self._sampfreq = sampfreq
+        try:
+            del self.kernels
+        except AttributeError:
+            pass
+        self.tres = intround(1 / self.sampfreq * 1e6) # us, for convenience
+
+    sampfreq = property(get_sampfreq, set_sampfreq)
+
+    def get_shcorrect(self):
+        return self._shcorrect
+
+    def set_shcorrect(self, shcorrect):
+        """On .shcorrect change, deletes .kernels (if set)"""
+        self._shcorrect = shcorrect
+        try:
+            del self.kernels
+        except AttributeError:
+            pass
+
+    shcorrect = property(get_shcorrect, set_shcorrect)
+
+    def get_datetime(self):
+        return self.f.datetime
+
+    datetime = property(get_datetime)
+
+    def pickle(self):
+        self.f.pickle()
 
 
 class NSXStream(Stream):
@@ -45,7 +111,7 @@ class SurfStream(Stream):
         self.layout = self.f.layoutrecords[self.records['Probe'][0]]
         intgain = self.layout.intgain
         extgain = int(self.layout.extgain[0]) # assume same extgain for all chans in layout
-        self.converter = Converter(intgain, extgain)
+        self.converter = core.Converter(intgain, extgain)
         self.nADchans = self.layout.nchans # always constant
         self.rawsampfreq = self.layout.sampfreqperchan
         self.rawtres = intround(1 / self.rawsampfreq * 1e6) # us
@@ -96,31 +162,6 @@ class SurfStream(Stream):
         self.t0 = self.tranges[0, 0]
         self.t1 = self.tranges[-1, 1]
 
-    def is_open(self):
-        return self.f.is_open()
-
-    def open(self):
-        self.f.open()
-
-    def close(self):
-        self.f.close()
-
-    def get_dt(self):
-        """Get self's duration"""
-        return self.t1 - self.t0
-
-    dt = property(get_dt)
-
-    def get_fname(self):
-        return self.f.fname
-
-    fname = property(get_fname)
-
-    def get_fnames(self):
-        return [self.f.fname]
-
-    fnames = property(get_fnames)
-
     def get_srcfnameroot(self):
         """Get root of filename of source data. Also filter it to make recording
         names from older .srf files more succint"""
@@ -134,50 +175,10 @@ class SurfStream(Stream):
 
     srcfnameroot = property(get_srcfnameroot)
 
-    def get_nchans(self):
-        return len(self.chans)
-
-    nchans = property(get_nchans)
-
-    def get_sampfreq(self):
-        return self._sampfreq
-
-    def set_sampfreq(self, sampfreq):
-        """On .sampfreq change, delete .kernels (if set), and update .tres"""
-        self._sampfreq = sampfreq
-        try:
-            del self.kernels
-        except AttributeError:
-            pass
-        self.tres = intround(1 / self.sampfreq * 1e6) # us, for convenience
-
-    sampfreq = property(get_sampfreq, set_sampfreq)
-
     def get_masterclockfreq(self):
         return self.f.layoutrecords[0].MasterClockFreq
         
     masterclockfreq = property(get_masterclockfreq)
-
-    def get_shcorrect(self):
-        return self._shcorrect
-
-    def set_shcorrect(self, shcorrect):
-        """On .shcorrect change, deletes .kernels (if set)"""
-        self._shcorrect = shcorrect
-        try:
-            del self.kernels
-        except AttributeError:
-            pass
-
-    shcorrect = property(get_shcorrect, set_shcorrect)
-
-    def get_datetime(self):
-        return self.f.datetime
-
-    datetime = property(get_datetime)
-
-    def pickle(self):
-        self.f.pickle()
 
     def __getitem__(self, key):
         """Called when Stream object is indexed into using [] or with a slice object,
@@ -451,9 +452,9 @@ class SimpleStream(SurfStream):
         self.extgain = extgain
         self.intgain = intgain
         if tsfversion == 1002:
-            self.converter = Converter_TSF_1002(intgain, extgain)
+            self.converter = core.Converter_TSF_1002(intgain, extgain)
         else:
-            self.converter = Converter(intgain, extgain)
+            self.converter = core.Converter(intgain, extgain)
         self.sampfreq = sampfreq or DEFHPSRFSAMPFREQ # desired sampling frequency
         self.shcorrect = shcorrect
         self.bitshift = bitshift
