@@ -15,8 +15,8 @@ import cPickle
 from struct import Struct, unpack
 import datetime
 
-from core import NULL, rstripnonascii
-from stream import Stream
+from core import NULL, rstripnonascii, intround
+from stream import NSXStream
 
 
 class File(object):
@@ -85,6 +85,11 @@ class File(object):
             raise NotImplementedError("Can't handle pauses in recording yet")
         self.datapacket = datapacket
         self.t0i, self.nt = datapacket.t0i, datapacket.nt # copy for convenience
+        self.t0 = self.t0i * self.fileheader.tres # us
+        self.t1 = (self.t0i + self.nt - 1) * self.fileheader.tres # us
+
+        self.hpstream = NSXStream(self, kind='highpass')
+        self.lpstream = NSXStream(self, kind='lowpass')
 
     def get_data(self):
         try:

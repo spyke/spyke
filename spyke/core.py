@@ -66,9 +66,9 @@ class EmptyClass(object):
 
 
 class Converter(object):
-    """Store intgain and extgain values and provide methods to
-    convert between AD and uV values, even when a Stream (where intgain and extgain
-    are stored) isn't available"""
+    """Store intgain and extgain values and provide methods to convert between AD and uV
+    values for .srf files, even when a Stream (where intgain and extgain are stored) isn't
+    available"""
     def __init__(self, intgain, extgain):
         self.intgain = intgain
         self.extgain = extgain
@@ -104,6 +104,21 @@ class Converter_TSF_1002(object):
     def uV2AD(self, uV, inttype=np.int16):
         """Convert float32 uV to signed AD values of type inttype"""
         return inttype(np.round(uV / (self.intgain * self.extgain)))
+
+
+class NSXConverter(object):
+    """Store conversion factors between AD values and uV values for .nsx files, and provide
+    methods to convert between AD and uV values, even when a Stream (where intgain and extgain
+    are stored) isn't available"""
+    def __init__(self, AD2uVx):
+        self.AD2uVx = AD2uVx
+        self.uV2ADx = 1 / AD2uVx
+
+    def AD2uV(self, AD):
+        return self.AD2uVx * AD
+        
+    def uV2AD(self, uV):
+        return self.uV2ADx * uV
 
 
 class WaveForm(object):

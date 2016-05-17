@@ -87,7 +87,42 @@ class Stream(object):
 
 
 class NSXStream(Stream):
-    pass
+    def __init__(self, f, kind='highpass', sampfreq=None, shcorrect=None):
+        self.f = f
+        self.kind = kind
+        if kind == 'highpass':
+            pass
+        elif kind == 'lowpass':
+            pass
+        else: raise ValueError('Unknown stream kind %r' % kind)
+
+        self.converter = core.NSXConverter(f.fileheader.AD2uVx)
+
+        probename = f.fileheader.comment # maybe the comment specifies the probe type?
+        if probename == '':
+            probename = probes.DEFNSXPROBETYPE # A1x32
+        probetype = eval('probes.' + probename) # yucky. TODO: switch to a dict with keywords?
+        self.probe = probetype()
+
+        # ignore decimation, should be set to 1 anyway, see nsx.FileHeader:
+        #self.rawsampfreq = intround(f.fileheader.sampfreq / f.fileheader.decimation) # Hz
+        self.rawsampfreq = f.fileheader.sampfreq
+        self.rawtres = intround(1 / self.rawsampfreq * 1e6) # us
+
+        if kind == 'highpass':
+            self.sampfreq = sampfreq or DEFHPNSXSAMPFREQ # desired sampling frequency
+            self.shcorrect = shcorrect or DEFHPSHCORRECT
+        else: # kind == 'lowpass'
+            self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
+            self.shcorrect = shcorrect or False # don't s+h correct by default
+
+        self.chans = f.fileheader.chans
+
+        ## TODO: finish filling this in:
+
+        # can probably use f.t0i and f.nt for this:
+        self.t0 = f.t0
+        self.t1 = f.t1
 
 
 class SurfStream(Stream):
