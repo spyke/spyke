@@ -124,13 +124,26 @@ class FileHeader(object):
         self.nchans, = unpack('I', f.read(4))
 
         # "extended" headers, each one describing a channel
-        self.chans = {}
+        self.chanheaders = {}
         for chani in range(self.nchans):
             chanheader = ChanHeader()
             chanheader.parse(f)
-            self.chans[chanheader.id] = chanheader
-        assert len(self.chans) == self.nchans # make sure each chan ID is unique
+            self.chanheaders[chanheader.id] = chanheader
+        assert len(self.chanheaders) == self.nchans # make sure each chan ID is unique
         assert len(self) == f.tell() # header should be of expected length
+        self.chans = sorted(self.chanheaders) # sorted list of keys
+
+        # check AD2uV params of all chans:
+        c0 = self.chanheaders[self.chans[0]] # reference channel for comparing AD2uV params
+        assert c0.units == 'uV' # assumed later during AD2uV conversion
+        assert c0.maxaval == abs(c0.minaval) # not strictly necessary, but check anyway
+        assert c0.maxdval == abs(c0.mindval)
+        ref = c0.units, c0.maxaval, c0.minaval, c0.maxdval, c0.mindval
+        for c in self.chanheaders.values():
+            if (c.units, c.maxaval, c.minaval, c.maxdval, c.mindval) != ref:
+                raise ValueError('not all chans have the same AD2uV params')
+        # calculate AD2uV conversion factor:
+        self.AD2uVx = (c0.maxaval-c0.minaval) / float(c0.maxdval-c0.mindval)
 
 
 class ChanHeader(object):
