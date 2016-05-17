@@ -41,8 +41,8 @@ NULL = '\x00'
 MU = '\xb5' # greek mu symbol
 MICRO = 'u'
 
-DEFHIGHPASSSAMPFREQ = 50000 # default (possibly interpolated) high pass sample freq, Hz
 DEFHIGHPASSSHCORRECT = True
+DEFHPSRFSAMPFREQ = 50000 # default (possibly interpolated) high pass sample freq, Hz
 # apparently KERNELSIZE == number of kernel zero crossings, but that seems to depend on
 # the phase of the kernel, some have one less. Anyway, total number of points in the
 # kernel is this plus 1 (for the middle point) - see Blanche2006
