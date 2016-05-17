@@ -10,6 +10,8 @@ __authors__ = ['Martin Spacek']
 
 import numpy as np
 
+DEFNSXPROBETYPE = 'A1x32'
+
 
 class Probe(object):
     """self.SiteLoc maps probe chan id to (x, y) position of site in um"""
@@ -493,5 +495,48 @@ class IMEC30(Probe):
         self.SiteLoc = sl
 
 
+class A1x32(Probe):
+    """A1x32, 25 um spacing, single column"""
+    def __init__(self):
+        self.layout = 'A1x32'
+        self.name = 'A1x32'
+        self.nchans = 32
+        self.ncols = 1
+        sl = {}
+        '''
+        sl[0] =
+        sl[1] =
+        sl[2] =
+        sl[3] =
+        sl[4] =
+        sl[5] =
+        sl[6] =
+        sl[7] =
+        sl[8] =
+        sl[9] =
+        sl[10] =
+        sl[11] =
+        sl[12] =
+        sl[13] =
+        sl[14] =
+        sl[15] =
+        sl[16] =
+        sl[17] =
+        sl[18] =
+        sl[19] =
+        sl[20] =
+        sl[21] =
+        sl[22] =
+        sl[23] =
+        sl[24] =
+        sl[25] =
+        sl[26] =
+        sl[27] =
+        sl[28] =
+        sl[29] =
+        '''
+        self.SiteLoc = sl
+        
+
 TYPES = [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b,
-         pt16a_HS27, pt16b_HS27, single, IMEC30]
+         pt16a_HS27, pt16b_HS27, single, IMEC30, A1x32]
