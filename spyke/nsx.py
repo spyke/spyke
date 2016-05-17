@@ -118,6 +118,8 @@ class FileHeader(object):
         self.comment = rstripnonascii(f.read(256)) # null terminated, trailing junk bytes (bug)
         # "Period", wrt 30 kHz sampling freq; sampling freq in Hz:
         self.decimation, self.sampfreq = unpack('II', f.read(8))
+        assert self.decimation == 1 # doesn't have to be, but probably should for neural data
+        self.tres = intround(1 / self.sampfreq * 1e6) # us
         # date and time corresponding to t=0
         year, month, dow, day, hour, m, s, ms = unpack('HHHHHHHH', f.read(16))
         self.datetime = datetime.datetime(year, month, day, hour, m, s, ms)
