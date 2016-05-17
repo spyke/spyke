@@ -57,8 +57,8 @@ class SurfStream(Stream):
             # probe chans, as opposed to AD chans. Most probe types are contiguous from 0,
             # but there are some exceptions (like pt16a_HS27 and pt16b_HS27):
             self.chans = np.arange(self.nADchans)
-            self.shcorrect = shcorrect or DEFHIGHPASSSHCORRECT
             self.sampfreq = sampfreq or DEFHPSRFSAMPFREQ # desired sampling frequency
+            self.shcorrect = shcorrect or DEFHPSHCORRECT
         else: # kind == 'lowpass'
             # probe chan values are already parsed from LFP probe description
             self.chans = self.layout.chans
@@ -634,8 +634,8 @@ class MultiStream(object):
 
         # set sampfreq and shcorrect for all streams
         if kind == 'highpass':
-            self.shcorrect = shcorrect or DEFHIGHPASSSHCORRECT
             self.sampfreq = sampfreq or DEFHPSRFSAMPFREQ # desired sampling frequency
+            self.shcorrect = shcorrect or DEFHPSHCORRECT
         else: # kind == 'lowpass'
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
             self.shcorrect = shcorrect or False # don't s+h correct by default
