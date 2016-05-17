@@ -7,9 +7,9 @@ __authors__ = ['Martin Spacek']
 
 import numpy as np
 
-from core import (Converter, Converter_TSF_1002, WaveForm, EmptyClass, intround, lrstrip,
-                  hamming, MU)
-from core import DEFHIGHPASSSAMPFREQ, DEFHIGHPASSSHCORRECT, NCHANSPERBOARD, KERNELSIZE
+import core
+from core import (WaveForm, EmptyClass, intround, lrstrip, hamming, MU)
+from core import DEFHPSRFSAMPFREQ, DEFHPNSXSAMPFREQ, DEFHPSHCORRECT, NCHANSPERBOARD, KERNELSIZE
 import probes
 
 ## TODO: rename Stream to SurfStream, factor out stuff common to all the single streams
