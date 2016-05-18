@@ -1,6 +1,11 @@
 """Spatial layouts of various electrophys (generally silicon polytrode) probe designs.
-Spatial origin is at center top of each probe. Right now, spyke assumes that all
-probe designs have contiguous channel indices starting from 0"""
+Spatial origin is at center top of each probe.
+
+TODO: is this still the case?:
+
+Right now, spyke assumes that all probe designs have contiguous channel
+indices starting from 0.
+"""
 
 # TODO: add pt16c, and pt16x layouts (with 16 to HS-27 adapter)
 
@@ -14,7 +19,7 @@ DEFNSXPROBETYPE = 'A1x32'
 
 
 class Probe(object):
-    """self.SiteLoc maps probe chan id to (x, y) position of site in um"""
+    """self.SiteLoc maps probe chan id to spatial position, usually (x, y) in um"""
     def siteloc_arr(self):
         #return np.asarray(self.SiteLoc.values()) # doesn't ensure sorted channel order
         # ensure sorted channel order:
@@ -23,7 +28,7 @@ class Probe(object):
         return np.asarray([ self.SiteLoc[chan] for chan in chans ])
 
     def unique_coords(self, axis=1):
-        """Return sorted unique xcoords or ycoords"""
+        """Return sorted unique coords along axis"""
         sa = self.siteloc_arr()
         coords = np.unique(sa[:, axis]) # comes out sorted
         return coords
