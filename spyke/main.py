@@ -2672,10 +2672,13 @@ class SpykeWindow(QtGui.QMainWindow):
         if self.hpstream != None:
             self.hpstream.chans = self.chans_enabled
         if self.lpstream != None:
-            # take intersection of lpstream.layout.chans and chans_enabled,
-            # conserving ordering in lpstream.layout.chans
-            self.lpstream.chans = [ chan for chan in self.lpstream.layout.chans if
-                                    chan in self.chans_enabled ]
+            try: # is it a Surf-like lpstream with a .layout attrib?
+                # take intersection of lpstream.layout.chans and chans_enabled,
+                # conserving ordering in lpstream.layout.chans
+                self.lpstream.chans = [ chan for chan in self.lpstream.layout.chans if
+                                        chan in self.chans_enabled ]
+            except AttributeError: # treat it the same as an hpstream
+                self.lpstream.chans = self.chans_enabled
 
         self.plot() # replot
 
