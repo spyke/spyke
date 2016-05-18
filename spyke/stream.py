@@ -12,13 +12,9 @@ from core import (WaveForm, EmptyClass, intround, lrstrip, hamming, MU)
 from core import DEFHPSRFSAMPFREQ, DEFHPNSXSAMPFREQ, DEFHPSHCORRECT, NCHANSPERBOARD, KERNELSIZE
 import probes
 
-## TODO: rename Stream to SurfStream, factor out stuff common to all the single streams
-## into a Stream class. Also, rename TrackStream to Streams? or MultiStream? Note that this
-## kind of renaming might cause problems with pickled streams in the .sort files
-
 
 class Stream(object):
-    ## TODO: factor out methods from SurfStream common to all streams?
+    """Base class for all streams"""
 
     def is_open(self):
         return self.f.is_open()
@@ -82,9 +78,6 @@ class Stream(object):
 
     datetime = property(get_datetime)
 
-    def pickle(self):
-        self.f.pickle()
-
 
 class NSXStream(Stream):
     def __init__(self, f, kind='highpass', sampfreq=None, shcorrect=None):
@@ -119,10 +112,9 @@ class NSXStream(Stream):
         self.chans = f.fileheader.chans
 
         ## TODO: finish filling this in:
-
-        # can probably use f.t0i and f.nt for this:
         self.t0 = f.t0
         self.t1 = f.t1
+        self.tranges = np.int64([[self.t0, self.t1]])
 
 
 class SurfStream(Stream):
@@ -214,6 +206,9 @@ class SurfStream(Stream):
         return self.f.layoutrecords[0].MasterClockFreq
         
     masterclockfreq = property(get_masterclockfreq)
+
+    def pickle(self):
+        self.f.pickle()
 
     def __getitem__(self, key):
         """Called when Stream object is indexed into using [] or with a slice object,

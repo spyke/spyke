@@ -133,7 +133,7 @@ class FileHeader(object):
             self.chanheaders[chanheader.id] = chanheader
         assert len(self.chanheaders) == self.nchans # make sure each chan ID is unique
         assert len(self) == f.tell() # header should be of expected length
-        self.chans = sorted(self.chanheaders) # sorted list of keys
+        self.chans = np.asarray(sorted(self.chanheaders)) # sorted array of keys
 
         # check AD2uV params of all chans:
         c0 = self.chanheaders[self.chans[0]] # reference channel for comparing AD2uV params
