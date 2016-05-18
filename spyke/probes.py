@@ -22,23 +22,25 @@ class Probe(object):
         chans.sort()
         return np.asarray([ self.SiteLoc[chan] for chan in chans ])
 
-    def unique_coords(self, axis='x'):
+    def unique_coords(self, axis=1):
         """Return sorted unique xcoords or ycoords"""
-        axis2col = {'x': 0, 'y': 1}
         sa = self.siteloc_arr()
-        coords = np.unique(sa[:, axis2col[axis]]) # comes out sorted
+        coords = np.unique(sa[:, axis]) # comes out sorted
         return coords
 
-    def separation(self, axis='x'):
-        """Return x or y separation of columns, assuming uniform spacing along axis"""
+    def separation(self, axis=1):
+        """Return site separation along axis (0:x, 1:y, 2:z), assuming uniform spacing
+        along axis"""
         coords = self.unique_coords(axis)
         sep = np.unique(np.diff(coords))
-        if len(sep) != 1:
+        if len(sep) == 0:
+            return 0
+        elif len(sep) > 1:
             raise ValueError("non-uniform spacing along axis %r" % axis)
             # take mean maybe?
         return sep[0] # pull scalar out of array
 
-    def maxseparation(self, axis='x'):
+    def maxseparation(self, axis=1):
         """Return maximum site separation along axis"""
         coords = self.unique_coords(axis) # comes out sorted
         return coords[-1] - coords[0]
@@ -496,45 +498,45 @@ class IMEC30(Probe):
 
 
 class A1x32(Probe):
-    """A1x32, 25 um spacing, single column"""
+    """A1x32, 25 um spacing, single column, 1-based channel IDs"""
     def __init__(self):
         self.layout = 'A1x32'
         self.name = 'A1x32'
         self.nchans = 32
         self.ncols = 1
         sl = {}
-        '''
-        sl[0] =
-        sl[1] =
-        sl[2] =
-        sl[3] =
-        sl[4] =
-        sl[5] =
-        sl[6] =
-        sl[7] =
-        sl[8] =
-        sl[9] =
-        sl[10] =
-        sl[11] =
-        sl[12] =
-        sl[13] =
-        sl[14] =
-        sl[15] =
-        sl[16] =
-        sl[17] =
-        sl[18] =
-        sl[19] =
-        sl[20] =
-        sl[21] =
-        sl[22] =
-        sl[23] =
-        sl[24] =
-        sl[25] =
-        sl[26] =
-        sl[27] =
-        sl[28] =
-        sl[29] =
-        '''
+        sl[1] = 0, 775
+        sl[2] = 0, 725
+        sl[3] = 0, 675
+        sl[4] = 0, 625
+        sl[5] = 0, 575
+        sl[6] = 0, 525
+        sl[7] = 0, 475
+        sl[8] = 0, 425
+        sl[9] = 0, 375
+        sl[10] = 0, 325
+        sl[11] = 0, 275
+        sl[12] = 0, 225
+        sl[13] = 0, 175
+        sl[14] = 0, 125
+        sl[15] = 0, 75
+        sl[16] = 0, 25
+        sl[17] = 0, 0
+        sl[18] = 0, 50
+        sl[19] = 0, 100
+        sl[20] = 0, 150
+        sl[21] = 0, 200
+        sl[22] = 0, 250
+        sl[23] = 0, 300
+        sl[24] = 0, 350
+        sl[25] = 0, 400
+        sl[26] = 0, 450
+        sl[27] = 0, 500
+        sl[28] = 0, 550
+        sl[29] = 0, 600
+        sl[30] = 0, 650
+        sl[31] = 0, 700
+        sl[32] = 0, 750
         self.SiteLoc = sl
         
 
