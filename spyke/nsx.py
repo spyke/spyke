@@ -86,8 +86,9 @@ class File(object):
             raise NotImplementedError("Can't handle pauses in recording yet")
         self.datapacket = datapacket
         self.t0i, self.nt = datapacket.t0i, datapacket.nt # copy for convenience
+        self.t1i = self.t0i + self.nt - 1
         self.t0 = self.t0i * self.fileheader.tres # us
-        self.t1 = (self.t0i + self.nt - 1) * self.fileheader.tres # us
+        self.t1 = self.t1i * self.fileheader.tres # us
 
         self.hpstream = NSXStream(self, kind='highpass')
         self.lpstream = NSXStream(self, kind='lowpass')
