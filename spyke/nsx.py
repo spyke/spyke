@@ -38,12 +38,13 @@ class File(object):
         self.f = open(self.join(self.fname), 'rb')
 
     def close(self):
-        """Close the .nsx file"""
-        # the only way to close a np.memmap is to close its underlying mmap and make sure
-        # there aren't any remaining handles to it
-        self.datapacket._data._mmap.close()
-        del self.datapacket._data
-        self.f.close()
+        """Close the .nsx file, don't do anything if already closed"""
+        if self.is_open():
+            # the only way to close a np.memmap is to close its underlying mmap and make sure
+            # there aren't any remaining handles to it
+            self.datapacket._data._mmap.close()
+            del self.datapacket._data
+            self.f.close()
 
     def is_open(self):
         try:
