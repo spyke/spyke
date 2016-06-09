@@ -6,6 +6,7 @@ from __future__ import division
 __authors__ = ['Martin Spacek']
 
 import numpy as np
+import time
 
 import core
 from core import (WaveForm, EmptyClass, intround, lrstrip, hamming, MU, WMLDR)
@@ -117,10 +118,78 @@ class NSXStream(Stream):
 
         self.chans = f.fileheader.chans
 
-        ## TODO: finish filling this in:
-        self.t0 = f.t0
-        self.t1 = f.t1
+        self.t0, self.t1 = f.t0, f.t1
         self.tranges = np.int64([[self.t0, self.t1]])
+
+    def __getitem__(self, key):
+        """Called when Stream object is indexed into using [] or with a slice object,
+        indicating start and end timepoints in us wrt t=0. Returns the corresponding WaveForm
+        object with the full set of chans"""
+        if key.step not in [None, 1]:
+            raise ValueError('unsupported slice step size: %s' % key.step)
+        return self(key.start, key.stop, self.chans)
+
+    def __call__(self, start, stop, chans=None):
+        """Called when Stream object is called using (). start and stop indicate start and end
+        timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
+        specified chans"""
+        if chans == None:
+            chans = self.chans
+        if not set(chans).issubset(self.chans):
+            raise ValueError("requested chans %r are not a subset of available enabled "
+                             "chans %r in %s stream" % (chans, self.chans, self.kind))
+        nchans = len(chans)
+        chanis = self.f.fileheader.chans.searchsorted(chans)
+
+        rawtres = self.rawtres
+        resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
+        if resample:
+            # excess data in us at either end, to eliminate interpolation distortion at
+            # key.start and key.stop
+            xs = KERNELSIZE * rawtres
+        else:
+            xs = 0
+        print('xs: %d, rawtres: %d' % (xs, rawtres))
+        # stream limits, in us and in sample indices, wrt t=0 and sample=0
+        t0, t1, nt = self.t0, self.t1, self.f.nt
+        t0i, t1i = self.f.t0i, self.f.t1i
+        # get a slightly greater range of raw data (with xs) than might be needed:
+        t0xsi = (start - xs) // rawtres # round down to nearest mult of rawtres
+        t1xsi = ((stop + xs) // rawtres) + 1 # round up to nearest mult of rawtres
+        # stay within stream limits, thereby avoiding interpolation edge effects:
+        t0xsi = max(t0xsi, t0i)
+        t1xsi = min(t1xsi, t1i)
+        # convert back to nearest integer us:
+        t0xs = intround(t0xsi * rawtres)
+        t1xs = intround(t1xsi * rawtres)
+        tsxs = np.arange(t0xs, t1xs, rawtres)
+        ntxs = len(tsxs)
+        print('ntxs: %d' % ntxs)
+
+        # init data as int32 so we have bitwidth to rescale and zero, then convert to int16
+        dataxs = np.zeros((nchans, ntxs), dtype=np.int32) # any gaps will have zeros
+
+        tload = time.time()
+
+        # load up data+excess, same data for high and low pass, difference will only be in the
+        # filtering. It would be convenient to immediately subsample to get lowpass, but that's
+        # not a valid thing to do: you can only subsample after filtering.
+        # source indices
+        st0i = max(t0xsi - t0i, 0)
+        st1i = min(t1xsi - t0i, nt)
+        assert st1i-st0i == ntxs
+        dataxs[:, :] = self.f.data[chanis, st0i:st1i]
+       
+        print('data load took %.3f sec' % (time.time()-tload))
+
+        # now trim down to just the requested time range:
+        lo, hi = tsxs.searchsorted([start, stop])
+        data = dataxs[:, lo:hi]
+        ts = tsxs[lo:hi]
+
+        # should be safe to convert back down to int16 now:
+        data = np.int16(data)
+        return WaveForm(data=data, ts=ts, chans=chans)
 
 
 class SurfStream(Stream):
