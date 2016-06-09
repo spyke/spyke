@@ -8,8 +8,9 @@ __authors__ = ['Martin Spacek']
 import numpy as np
 
 import core
-from core import (WaveForm, EmptyClass, intround, lrstrip, hamming, MU)
-from core import DEFHPSRFSAMPFREQ, DEFHPNSXSAMPFREQ, DEFHPSHCORRECT, NCHANSPERBOARD, KERNELSIZE
+from core import (WaveForm, EmptyClass, intround, lrstrip, hamming, MU, WMLDR)
+from core import (DEFHPSRFSAMPFREQ, DEFHPNSXSAMPFREQ, DEFHPSHCORRECT, DEFHPNSXSHCORRECT,
+                  NCHANSPERBOARD, KERNELSIZE)
 import probes
 
 
@@ -104,10 +105,15 @@ class NSXStream(Stream):
 
         if kind == 'highpass':
             self.sampfreq = sampfreq or DEFHPNSXSAMPFREQ # desired sampling frequency
-            self.shcorrect = shcorrect or DEFHPSHCORRECT
+            self.shcorrect = shcorrect or DEFHPNSXSHCORRECT
         else: # kind == 'lowpass'
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
             self.shcorrect = shcorrect or False # don't s+h correct by default
+
+        # no need for shcorrect for .nsx because the Blackrock Cerebrus NSP system has a
+        # 1 GHz multiplexer for every bank of 32 channels, according to Kian Torab
+        # <support@blackrock.com>
+        assert self.shcorrect == False
 
         self.chans = f.fileheader.chans
 

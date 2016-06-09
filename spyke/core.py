@@ -44,6 +44,7 @@ MICRO = 'u'
 DEFHPSRFSAMPFREQ = 50000 # default (possibly interpolated) high pass sample freq, Hz
 DEFHPNSXSAMPFREQ = 60000 # default (possibly interpolated) high pass sample freq, Hz
 DEFHPSHCORRECT = True
+DEFHPNSXSHCORRECT = False # no need for .nsx files, s+h delay is only 1 ns between chans
 # apparently KERNELSIZE == number of kernel zero crossings, but that seems to depend on
 # the phase of the kernel, some have one less. Anyway, total number of points in the
 # kernel is this plus 1 (for the middle point) - see Blanche2006
