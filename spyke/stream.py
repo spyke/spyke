@@ -177,10 +177,18 @@ class NSXStream(Stream):
         # source indices
         st0i = max(t0xsi - t0i, 0)
         st1i = min(t1xsi - t0i, nt)
-        assert st1i-st0i == ntxs
-        dataxs[:, :] = self.f.data[chanis, st0i:st1i]
+        # destination indices
+        dt0i = max(t0i - t0xsi, 0)
+        dt1i = min(t1i - t0xsi, ntxs)
+        dataxs[:, dt0i:dt1i] = self.f.data[chanis, st0i:st1i]
        
         print('data load took %.3f sec' % (time.time()-tload))
+
+        # do any resampling if necessary:
+        if resample:
+            #tresample = time.time()
+            dataxs, tsxs = self.resample(dataxs, tsxs, chans)
+            #print('resample took %.3f sec' % (time.time()-tresample))
 
         # now trim down to just the requested time range:
         lo, hi = tsxs.searchsorted([start, stop])
