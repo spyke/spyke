@@ -21,6 +21,7 @@ getSaveFileName = QtGui.QFileDialog.getSaveFileName
 
 import numpy as np
 from numpy import pi
+import scipy.signal
 
 import matplotlib as mpl
 
@@ -1585,6 +1586,47 @@ def DJS(p, q):
     p, q = normpdf(np.asarray(p)), normpdf(np.asarray(q))
     m = (p + q) / 2
     return (DKL(p, m) + DKL(q, m)) / 2
+
+def filter(data, sampfreq=1000, f0=0, f1=7, fr=0.5, gpass=0.01, gstop=30, ftype='ellip'):
+    """Bandpass filter data on row indices chanis, between f0 and f1 (Hz), with filter
+    rolloff (?) fr (Hz).
+
+    ftype: 'ellip', 'butter', 'cheby1', 'cheby2', 'bessel'
+    """
+    w0 = f0 / (sampfreq / 2) # fraction of Nyquist frequency == 1/2 sampling rate
+    w1 = f1 / (sampfreq / 2)
+    wr = fr / (sampfreq / 2)
+    if w0 == 0:
+        wp = w1
+        ws = w1+wr
+    elif w1 == 0:
+        wp = w0
+        ws = w0-wr
+    else:
+        wp = [w0, w1]
+        ws = [w0-wr, w1+wr]
+    b, a = scipy.signal.iirdesign(wp, ws, gpass=gpass, gstop=gstop, analog=0, ftype=ftype)
+    data = scipy.signal.lfilter(b, a, data)
+    return data, b, a
+
+def filterord(data, sampfreq=1000, f0=300, f1=None, order=4, rp=None, rs=None,
+              btype='highpass', ftype='butter'):
+    """Bandpass filter data by specifying filter order and btype, instead of gpass and gstop.
+
+    btype: 'lowpass', 'highpass', 'bandpass', 'bandstop'
+    ftype: 'ellip', 'butter', 'cheby1', 'cheby2', 'bessel'
+
+    For 'ellip', need to also specify passband and stopband ripple with rp and rs.
+    """
+    if f1 != None:
+        fn = np.array([f0, f1])
+    else:
+        fn = f0
+    wn = fn / (sampfreq / 2)
+    b, a = scipy.signal.iirfilter(order, wn, rp=None, rs=None, btype=btype, analog=0,
+                                  ftype=ftype, output='ba')
+    data = scipy.signal.lfilter(b, a, data)
+    return data, b, a
 
 def WMLDR(data, wname="db4", maxlevel=6, mode='sym'):
     """Perform wavelet multi-level decomposition and reconstruction (WMLDR) on multichannel
