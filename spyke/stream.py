@@ -10,8 +10,8 @@ import time
 
 import core
 from core import (WaveForm, EmptyClass, intround, lrstrip, hamming, MU, WMLDR)
-from core import (DEFHPSRFSAMPFREQ, DEFHPNSXSAMPFREQ, DEFHPSHCORRECT, DEFHPNSXSHCORRECT,
                   NCHANSPERBOARD, KERNELSIZE)
+from core import (DEFHPSRFSAMPFREQ, DEFHPSRFSHCORRECT, DEFHPNSXSAMPFREQ, DEFHPNSXSHCORRECT,
 import probes
 
 
@@ -234,7 +234,7 @@ class SurfStream(Stream):
             # but there are some exceptions (like pt16a_HS27 and pt16b_HS27):
             self.chans = np.arange(self.nADchans)
             self.sampfreq = sampfreq or DEFHPSRFSAMPFREQ # desired sampling frequency
-            self.shcorrect = shcorrect or DEFHPSHCORRECT
+            self.shcorrect = shcorrect or DEFHPSRFSHCORRECT
         else: # kind == 'lowpass'
             # probe chan values are already parsed from LFP probe description
             self.chans = self.layout.chans
@@ -749,7 +749,7 @@ class MultiStream(object):
         # set sampfreq and shcorrect for all streams
         if kind == 'highpass':
             self.sampfreq = sampfreq or DEFHPSRFSAMPFREQ # desired sampling frequency
-            self.shcorrect = shcorrect or DEFHPSHCORRECT
+            self.shcorrect = shcorrect or DEFHPSRFSHCORRECT
         else: # kind == 'lowpass'
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
             self.shcorrect = shcorrect or False # don't s+h correct by default
