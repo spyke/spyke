@@ -233,6 +233,8 @@ class SurfStream(Stream):
             self.records = f.lowpassmultichanrecords
         else: raise ValueError('Unknown stream kind %r' % kind)
 
+        self.filtmeth = None
+
         # assume same layout for all records of type "kind"
         self.layout = self.f.layoutrecords[self.records['Probe'][0]]
         intgain = self.layout.intgain
@@ -552,11 +554,14 @@ class SurfStream(Stream):
 
 class SimpleStream(SurfStream):
     """Simple Stream loaded fully in advance"""
+    ## TODO: once methods are factored out of SurfStream to Stream, this should inherit
+    ## from Stream instead of SurfStream
     def __init__(self, fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
                  intgain, extgain, sampfreq=None, shcorrect=None, bitshift=4,
                  tsfversion=None):
         self._fname = fname
         self.wavedata = wavedata
+        self.filtmeth = None
         nchans, nt = wavedata.shape
         self.chans = np.arange(nchans) # this sets self.nchans
         self.nt = nt
