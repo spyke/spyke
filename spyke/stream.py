@@ -9,9 +9,9 @@ import numpy as np
 import time
 
 import core
-from core import (WaveForm, EmptyClass, intround, lrstrip, hamming, MU, WMLDR)
-                  NCHANSPERBOARD, KERNELSIZE)
+from core import (WaveForm, EmptyClass, intround, lrstrip, hamming, MU, filterord, WMLDR)
 from core import (DEFHPSRFSAMPFREQ, DEFHPSRFSHCORRECT, DEFHPNSXSAMPFREQ, DEFHPNSXSHCORRECT,
+                  DEFNSXFILTMETH, NCHANSPERBOARD, KERNELSIZE)
 import probes
 
 
@@ -82,7 +82,7 @@ class Stream(object):
 
 
 class NSXStream(Stream):
-    def __init__(self, f, kind='highpass', sampfreq=None, shcorrect=None):
+    def __init__(self, f, kind='highpass', filtmeth=None, sampfreq=None, shcorrect=None):
         self.f = f
         self.kind = kind
         if kind == 'highpass':
@@ -90,6 +90,8 @@ class NSXStream(Stream):
         elif kind == 'lowpass':
             pass
         else: raise ValueError('Unknown stream kind %r' % kind)
+
+        self.filtmeth = filtmeth or DEFNSXFILTMETH
 
         self.converter = core.NSXConverter(f.fileheader.AD2uVx)
 
@@ -143,13 +145,12 @@ class NSXStream(Stream):
 
         rawtres = self.rawtres
         resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
-        if resample:
-            # excess data in us at either end, to eliminate interpolation distortion at
-            # key.start and key.stop
-            xs = KERNELSIZE * rawtres
-        else:
-            xs = 0
+        # excess data in us at either end, to eliminate filtering and interpolation
+        # edge effects
+        # going from 200 to 500 points doesn't make a difference, 128 to 200 does though
+        xs = 200 * rawtres
         print('xs: %d, rawtres: %d' % (xs, rawtres))
+
         # stream limits, in us and in sample indices, wrt t=0 and sample=0
         t0, t1, nt = self.t0, self.t1, self.f.nt
         t0i, t1i = self.f.t0i, self.f.t1i
@@ -174,15 +175,30 @@ class NSXStream(Stream):
         # load up data+excess, same data for high and low pass, difference will only be in the
         # filtering. It would be convenient to immediately subsample to get lowpass, but that's
         # not a valid thing to do: you can only subsample after filtering.
-        # source indices
+        # source indices:
         st0i = max(t0xsi - t0i, 0)
         st1i = min(t1xsi - t0i, nt)
-        # destination indices
+        # destination indices:
         dt0i = max(t0i - t0xsi, 0)
         dt1i = min(t1i - t0xsi, ntxs)
         dataxs[:, dt0i:dt1i] = self.f.data[chanis, st0i:st1i]
        
         print('data load took %.3f sec' % (time.time()-tload))
+
+        if self.filtmeth == None:
+            pass
+        elif self.filtmeth == 'BW':
+            # high-pass filter data using 4th order butterworth filter:
+            f0, f1 = 300, None
+            order, btype, ftype = 4, 'highpass', 'butter'
+            rp, rs = None, None
+            dataxs, b, a = filterord(dataxs, sampfreq=self.rawsampfreq, f0=f0, f1=f1,
+                                     order=order, rp=None, rs=None, btype=btype, ftype=ftype)
+        elif self.filtmeth == 'WMLDR':
+            # high-pass filter data using wavelets:
+            dataxs = WMLDR(dataxs)
+        else:
+            raise ValueError('unknown filter method %s' % self.filtmeth)
 
         # do any resampling if necessary:
         if resample:

@@ -1939,9 +1939,18 @@ or remove all duplicate spikes from selected neurons
     <addaction name="actionAboutSpyke"/>
     <addaction name="actionAboutQt"/>
    </widget>
+   <widget class="QMenu" name="menuFiltering">
+    <property name="title">
+     <string>Filtering</string>
+    </property>
+    <addaction name="actionFiltmethNone"/>
+    <addaction name="actionFiltmethBW"/>
+    <addaction name="actionFiltmethWMLDR"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
    <addaction name="menuView"/>
+   <addaction name="menuFiltering"/>
    <addaction name="menuSampling"/>
    <addaction name="menuHelp"/>
   </widget>
@@ -2477,6 +2486,36 @@ or remove all duplicate spikes from selected neurons
   <action name="actionExportLFPCSVFiles">
    <property name="text">
     <string>lfp.csv Files</string>
+   </property>
+  </action>
+  <action name="actionFiltmethNone">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>None</string>
+   </property>
+  </action>
+  <action name="actionFiltmethBW">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Butterworth</string>
+   </property>
+   <property name="toolTip">
+    <string>Butterworth</string>
+   </property>
+  </action>
+  <action name="actionFiltmethWMLDR">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Wavelet multi-level decomposition and reconstruction</string>
+   </property>
+   <property name="toolTip">
+    <string>Wavelet multi-level decomposition and reconstruction</string>
    </property>
   </action>
  </widget>

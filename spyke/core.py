@@ -42,6 +42,7 @@ NULL = '\x00'
 MU = '\xb5' # greek mu symbol
 MICRO = 'u'
 
+DEFNSXFILTMETH = 'BW'
 DEFHPSRFSAMPFREQ = 50000 # default (possibly interpolated) high pass sample freq, Hz
 DEFHPNSXSAMPFREQ = 60000 # default (possibly interpolated) high pass sample freq, Hz
 DEFHPSRFSHCORRECT = True

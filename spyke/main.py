@@ -99,6 +99,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui = SpykeUi()
         self.ui.setupUi(self) # lay it out
         self.groupMenuSamplingRates()
+        self.groupMenuFiltmeth()
         self.addRecentFileActions()
         self.updateRecentFiles()
         
@@ -157,6 +158,16 @@ class SpykeWindow(QtGui.QMainWindow):
         samplingGroup.addAction(ui.action60kHz)
         samplingGroup.addAction(ui.action80kHz)
         samplingGroup.addAction(ui.action100kHz)
+
+    def groupMenuFiltmeth(self):
+        """Group filtering methods in filtering menu into a QActionGroup such that only
+        one is ever active at a time. This isn't possible to do from within
+        QtDesigner 4.7, so it's done here manually instead"""
+        ui = self.ui
+        filteringGroup = QtGui.QActionGroup(self)
+        filteringGroup.addAction(ui.actionFiltmethNone)
+        filteringGroup.addAction(ui.actionFiltmethBW)
+        filteringGroup.addAction(ui.actionFiltmethWMLDR)
 
     @QtCore.pyqtSlot()
     def on_actionNew_triggered(self):
@@ -668,6 +679,21 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ToggleRef('Caret')
 
     @QtCore.pyqtSlot()
+    def on_actionFiltmethNone_triggered(self):
+        """None filtering menu choice event"""
+        self.SetFiltmeth(None)
+
+    @QtCore.pyqtSlot()
+    def on_actionFiltmethBW_triggered(self):
+        """Butterworth filtering menu choice event"""
+        self.SetFiltmeth('BW')
+
+    @QtCore.pyqtSlot()
+    def on_actionFiltmethWMLDR_triggered(self):
+        """WMLDR filtering menu choice event"""
+        self.SetFiltmeth('WMLDR')
+
+    @QtCore.pyqtSlot()
     def on_action20kHz_triggered(self):
         """20kHz menu choice event"""
         self.SetSampfreq(20000)
@@ -765,12 +791,13 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_detectButton_clicked(self):
         """Detect pane Detect button click"""
-        sort = self.CreateNewSort() # create a new Sort
+        sort = self.CreateNewSort() # create a new Sort, with bound .stream
         self.get_detector() # update Sort's current detector with new one from widgets
         if sort.detector.extractparamsondetect:
             self.init_extractor() # init the Extractor
         sort.spikes, sort.wavedata = sort.detector.detect() # struct array of spikes, 3D array
         sort.update_usids()
+        sort.filtmeth = sort.stream.filtmeth # lock down filtmeth attrib
         sort.sampfreq = sort.stream.sampfreq # lock down sampfreq and shcorrect attribs
         sort.shcorrect = sort.stream.shcorrect
 
@@ -2074,6 +2101,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.updateTitle()
         self.updateRecentFiles(join(self.streampath, fname))
 
+        self.ui.__dict__['actionFiltmeth%s' % self.hpstream.filtmeth ].setChecked(True)
         self.ui.__dict__['action%dkHz' % (self.hpstream.sampfreq / 1000)].setChecked(True)
         self.ui.actionSampleAndHoldCorrect.setChecked(self.hpstream.shcorrect)
 
@@ -2376,6 +2404,12 @@ class SpykeWindow(QtGui.QMainWindow):
         # restore Sort's tw to self and to spike and sort windows, if applicable:
         #print('sort.tw is %r' % (sort.tw,))
         self.update_spiketw(sort.tw)
+        # restore filtering method:
+        try:
+            filtmeth = sort.filtmeth
+        except AttributeError: # sort has no filtmeth
+            filtmeth = None
+        self.setFiltmeth(filtmeth)
         # restore sampling variables:
         self.SetSampfreq(sort.sampfreq)
         self.SetSHCorrect(sort.shcorrect)
@@ -2829,6 +2863,13 @@ class SpykeWindow(QtGui.QMainWindow):
         for wintype, window in self.windows.items():
             if wintype in ['Spike', 'Chart', 'LFP', 'Sort']:
                 window.panel.show_ref(ref, enable=enable)
+
+    def SetFiltmeth(self, filtmeth):
+        """Set highpass filter method"""
+        if self.hpstream != None:
+            self.hpstream.filtmeth = filtmeth
+            self.plot()
+        self.ui.__dict__['actionFiltmeth%s' % filtmeth].setChecked(True)
 
     def SetSampfreq(self, sampfreq):
         """Set highpass stream sampling frequency, update widgets"""

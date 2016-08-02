@@ -123,13 +123,14 @@ class Sort(object):
         return self._stream
 
     def set_stream(self, stream=None):
-        """Restore sampfreq and shcorrect to stream when binding/modifying
+        """Restore filtmeth, sampfreq and shcorrect to stream when binding/modifying
         stream to self"""
         try:
+            stream.filtmeth = self.filtmeth
             stream.sampfreq = self.sampfreq
             stream.shcorrect = self.shcorrect
         except AttributeError:
-            pass # either stream is None or self.sampfreq/shcorrect aren't bound
+            pass # either stream is None or self.filtmeth/sampfreq/shcorrect aren't bound
         self._stream = stream
         # now that tres is known, calculate window timepoints wrt spike time:
         self.calc_twts_twi()
