@@ -442,6 +442,8 @@ class SpykeWindow(QtGui.QMainWindow):
             v = self.update_0_6_to_0_7()
         if v == 0.7:
             v = self.update_0_7_to_0_8()
+        if v == 0.8:
+            v = self.update_0_8_to_0_9()
         print('now save me!')
             
     def update_0_3_to_0_4(self):
@@ -556,6 +558,19 @@ class SpykeWindow(QtGui.QMainWindow):
 
         s.__version__ = '0.8' # update
         print('done updating sort from version 0.7 to 0.8')
+        return float(s.__version__)
+
+    def update_0_8_to_0_9(self):
+        """Update sort 0.8 to 0.9:
+            - add sort.filtmeth attrib, init to None
+        """
+        s = self.sort
+        try:
+            s.filtmeth
+        except AttributeError:
+            s.filtmeth = None
+        s.__version__ = '0.9' # update
+        print('done updating sort from version 0.8 to 0.9')
         return float(s.__version__)
 
     @QtCore.pyqtSlot()

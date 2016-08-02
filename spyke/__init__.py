@@ -4,7 +4,7 @@ Some of its functionality is inherited from Tim Blanche's Delphi program "SurfBa
 """
 
 __authors__ = 'Martin Spacek, Reza Lotun'
-__version__ = '0.8'
+__version__ = '0.9'
 
 
 import core
