@@ -2424,7 +2424,7 @@ class SpykeWindow(QtGui.QMainWindow):
             filtmeth = sort.filtmeth
         except AttributeError: # sort has no filtmeth
             filtmeth = None
-        self.setFiltmeth(filtmeth)
+        self.SetFiltmeth(filtmeth)
         # restore sampling variables:
         self.SetSampfreq(sort.sampfreq)
         self.SetSHCorrect(sort.shcorrect)
@@ -2540,7 +2540,7 @@ class SpykeWindow(QtGui.QMainWindow):
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.sort'
         try: s.spikefname
-        except AttributeError: # corresponding .spike filename hasn't been gemerated yet
+        except AttributeError: # corresponding .spike filename hasn't been generated yet
             s.spikefname = os.path.splitext(fname)[0] + '.spike'
         self.SaveSpikeFile(s.spikefname) # always (re)save .spike when saving .sort
         print('saving sort file %r' % fname)
