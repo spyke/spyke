@@ -2420,11 +2420,7 @@ class SpykeWindow(QtGui.QMainWindow):
         #print('sort.tw is %r' % (sort.tw,))
         self.update_spiketw(sort.tw)
         # restore filtering method:
-        try:
-            filtmeth = sort.filtmeth
-        except AttributeError: # sort has no filtmeth
-            filtmeth = None
-        self.SetFiltmeth(filtmeth)
+        self.SetFiltmeth(sort.filtmeth)
         # restore sampling variables:
         self.SetSampfreq(sort.sampfreq)
         self.SetSHCorrect(sort.shcorrect)
