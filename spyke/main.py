@@ -545,10 +545,13 @@ class SpykeWindow(QtGui.QMainWindow):
         s = self.sort
         stream = s.stream
         classname = stream.__class__.__name__
-        if classname in ['SurfStream', 'SimpleStream']:
+        if classname == 'SurfStream':
             f = stream.srff
             del stream.srff
             stream.f = f
+        elif classname == 'SimpleStream':
+            # don't think any existing saved SimpleStreams had a .srff attrib:
+            pass
         elif classname == 'MultiStream':
             fnames = stream.srffnames
             del stream.srffnames
