@@ -80,6 +80,130 @@ class Stream(object):
 
     datetime = property(get_datetime)
 
+    def __getitem__(self, key):
+        """Called when Stream object is indexed into using [] or with a slice object,
+        indicating start and end timepoints in us wrt t=0. Return the corresponding WaveForm
+        object with the full set of chans"""
+        if key.step not in [None, 1]:
+            raise ValueError('unsupported slice step size: %s' % key.step)
+        return self(key.start, key.stop, self.chans)
+
+    def resample(self, rawdata, rawts, chans):
+        """Return potentially sample-and-hold corrected and Nyquist interpolated
+        data and timepoints. See Blanche & Swindale, 2006"""
+        #print('sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' %
+        #      (self.sampfreq, self.rawsampfreq, self.shcorrect))
+        rawtres = self.rawtres # us
+        tres = self.tres # us
+        # resample factor: n output resampled points per input raw point:
+        resamplex = intround(self.sampfreq / self.rawsampfreq)
+        assert resamplex >= 1, 'no decimation allowed'
+        N = KERNELSIZE
+
+        # check if kernels have been generated already
+        try:
+            self.kernels
+        except AttributeError:
+            self.kernels = self.get_kernels(self.layout.ADchanlist, resamplex, N)
+
+        # convolve the data with each kernel
+        nrawts = len(rawts)
+        nchans = len(chans)
+        # all the interpolated points have to fit in between the existing raw
+        # points, so there's nrawts - 1 of each of the interpolated points:
+        #nt = nrawts + (resamplex-1) * (nrawts - 1)
+        # the above can be simplified to:
+        nt = nrawts*resamplex - resamplex + 1
+        tstart = rawts[0]
+        ts = np.arange(tstart, tstart+tres*nt, tres) # generate interpolated timepoints
+        #print 'len(ts) is %r' % len(ts)
+        assert len(ts) == nt
+        # resampled data, leave as int32 for convolution, then convert to int16:
+        data = np.empty((nchans, nt), dtype=np.int32)
+        #print 'data.shape = %r' % (data.shape,)
+        #tconvolve = time.time()
+        #tconvolvesum = 0
+        # Only the chans that are actually needed are resampled and returned.
+        # Assume that chans index into ADchans. Normally they should map 1 to 1, ie chan 0
+        # taps off of ADchan 0, but for probes like pt16a_HS27 and pt16b_HS27, it seems
+        # ADchans start at 4. However, because self.kernels is indexed into using chans, and
+        # chans are always assumed to be contiguous from 0, this shouldn't cause a problem
+        for chani, chan in enumerate(chans):
+            for point, kernel in enumerate(self.kernels[chan]):
+                """np.convolve(a, v, mode)
+                for mode='same', only the K middle values are returned starting at n = (M-1)/2
+                where K = len(a)-1 and M = len(v) - 1 and K >= M
+                for mode='valid', you get the middle len(a) - len(v) + 1 number of values"""
+                #tconvolveonce = time.time()
+                row = np.convolve(rawdata[chani], kernel, mode='same')
+                #tconvolvesum += (time.time()-tconvolveonce)
+                #print 'len(rawdata[chani]) = %r' % len(rawdata[chani])
+                #print 'len(kernel) = %r' % len(kernel)
+                #print 'len(row): %r' % len(row)
+                # interleave by assigning from point to end in steps of resamplex
+                # index to start filling data from for this kernel's points:
+                ti0 = (resamplex - point) % resamplex
+                # index of first data point to use from convolution result 'row':
+                rowti0 = int(point > 0)
+                # discard the first data point from interpolant's convolutions, but not for
+                # raw data's convolutions, since interpolated values have to be bounded on both
+                # sides by raw values?
+                data[chani, ti0::resamplex] = row[rowti0:]
+        #print('convolve loop took %.3f sec' % (time.time()-tconvolve))
+        #print('convolve calls took %.3f sec total' % (tconvolvesum))
+        #tundoscaling = time.time()
+        data >>= 16 # undo kernel scaling, shift 16 bits right in place, same as //= 2**16
+        #print('undo kernel scaling took %.3f sec total' % (time.time()-tundoscaling))
+        return data, ts
+
+    def get_kernels(self, ADchans, resamplex, N):
+        """Generate a different set of kernels for each ADchan to correct each ADchan's
+        s+h delay. ADchans may not always be contiguous from 0, but chans are assumed
+        to always be, and to always be in same order as ADchans.
+
+        TODO: when resamplex > 1 and shcorrect == False, you only need resamplex - 1 kernels.
+        You don't need a kernel for the original raw data points. Those won't be shifted,
+        so you can just interleave appropriately.
+
+        TODO: take DIN channel into account, might need to shift all highpass ADchans
+        by 1us, see line 2412 in SurfBawdMain.pas. I think the layout.sh_delay_offset field
+        may tell you if and by how much you should take this into account
+
+        WARNING! TODO: not sure if say ADchan 4 will always have a delay of 4us, or only if
+        it's preceded by AD chans 0, 1, 2 and 3 in the channel gain list - I suspect the latter
+        is the case, but right now I'm coding the former. Note that there's a
+        f.layout.sh_delay_offset field that describes the sh delay for first chan of probe.
+        Should probably take this into account, although it doesn't affect relative delays
+        between chans, I think. I think it's usually 1us.
+        """
+        # ordinal position of each ADchan in the hold queue of its ADC board:
+        i = ADchans % NCHANSPERBOARD
+        if self.shcorrect:
+            ## TODO: stop hard-coding 1 masterclockfreq tick delay per ordinal position
+            # per channel delays, us, usually 1 us/chan:
+            dis = 1000000 / self.masterclockfreq * i
+        else:
+            dis = 0 * i
+        ds = dis / self.rawtres # normalized per channel delays
+        wh = hamming # window function
+        h = np.sinc # sin(pi*t) / pi*t
+        kernels = [] # list of array of kernels, indexed by [chan][resample point]
+        for d in ds: # delay for this ADchan
+            kernelrow = []
+            for point in xrange(resamplex): # iterate over resampled points per raw point
+                t0 = point/resamplex # some fraction of 1
+                tstart = -N/2 - t0 - d
+                tend = tstart + (N+1)
+                # kernel sample timepoints, all of length N+1, float32s to match voltage
+                # data type
+                t = np.arange(tstart, tend, 1, dtype=np.float32)
+                kernel = wh(t, N) * h(t) # windowed sinc, sums to 1.0, max val is 1.0
+                # rescale to get values up to 2**16, convert to int32
+                kernel = np.int32(np.round(kernel * 2**16))
+                kernelrow.append(kernel)
+            kernels.append(kernelrow)
+        return kernels
+
 
 class NSXStream(Stream):
     def __init__(self, f, kind='highpass', filtmeth=None, sampfreq=None, shcorrect=None):
@@ -122,14 +246,6 @@ class NSXStream(Stream):
 
         self.t0, self.t1 = f.t0, f.t1
         self.tranges = np.int64([[self.t0, self.t1]])
-
-    def __getitem__(self, key):
-        """Called when Stream object is indexed into using [] or with a slice object,
-        indicating start and end timepoints in us wrt t=0. Returns the corresponding WaveForm
-        object with the full set of chans"""
-        if key.step not in [None, 1]:
-            raise ValueError('unsupported slice step size: %s' % key.step)
-        return self(key.start, key.stop, self.chans)
 
     def __call__(self, start, stop, chans=None):
         """Called when Stream object is called using (). start and stop indicate start and end
@@ -311,17 +427,9 @@ class SurfStream(Stream):
     def pickle(self):
         self.f.pickle()
 
-    def __getitem__(self, key):
-        """Called when Stream object is indexed into using [] or with a slice object,
-        indicating start and end timepoints in us. Returns the corresponding WaveForm
-        object with the full set of chans"""
-        if key.step not in [None, 1]:
-            raise ValueError('unsupported slice step size: %s' % key.step)
-        return self(key.start, key.stop, self.chans)
-
     def __call__(self, start, stop, chans=None):
-        """Called when Stream object is called using (). start and stop indicate start
-        and end timepoints in us. Returns the corresponding WaveForm object with just the
+        """Called when Stream object is called using (). start and stop indicate start and end
+        timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
         specified chans"""
         if chans == None:
             chans = self.chans
@@ -435,124 +543,8 @@ class SurfStream(Stream):
         data = np.int16(data)
         return WaveForm(data=data, ts=ts, chans=chans)
 
-    def resample(self, rawdata, rawts, chans):
-        """Return potentially sample-and-hold corrected and Nyquist interpolated
-        data and timepoints. See Blanche & Swindale, 2006"""
-        #print('sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' %
-        #      (self.sampfreq, self.rawsampfreq, self.shcorrect))
-        rawtres = self.rawtres # us
-        tres = self.tres # us
-        # resample factor: n output resampled points per input raw point:
-        resamplex = intround(self.sampfreq / self.rawsampfreq)
-        assert resamplex >= 1, 'no decimation allowed'
-        N = KERNELSIZE
 
-        # check if kernels have been generated already
-        try:
-            self.kernels
-        except AttributeError:
-            self.kernels = self.get_kernels(self.layout.ADchanlist, resamplex, N)
-
-        # convolve the data with each kernel
-        nrawts = len(rawts)
-        nchans = len(chans)
-        # all the interpolated points have to fit in between the existing raw
-        # points, so there's nrawts - 1 of each of the interpolated points:
-        #nt = nrawts + (resamplex-1) * (nrawts - 1)
-        # the above can be simplified to:
-        nt = nrawts*resamplex - resamplex + 1
-        tstart = rawts[0]
-        ts = np.arange(tstart, tstart+tres*nt, tres) # generate interpolated timepoints
-        #print 'len(ts) is %r' % len(ts)
-        assert len(ts) == nt
-        # resampled data, leave as int32 for convolution, then convert to int16:
-        data = np.empty((nchans, nt), dtype=np.int32)
-        #print 'data.shape = %r' % (data.shape,)
-        #tconvolve = time.time()
-        #tconvolvesum = 0
-        # Only the chans that are actually needed are resampled and returned.
-        # Assume that chans index into ADchans. Normally they should map 1 to 1, ie chan 0
-        # taps off of ADchan 0, but for probes like pt16a_HS27 and pt16b_HS27, it seems
-        # ADchans start at 4. However, because self.kernels is indexed into using chans, and
-        # chans are always assumed to be contiguous from 0, this shouldn't cause a problem
-        for chani, chan in enumerate(chans):
-            for point, kernel in enumerate(self.kernels[chan]):
-                """np.convolve(a, v, mode)
-                for mode='same', only the K middle values are returned starting at n = (M-1)/2
-                where K = len(a)-1 and M = len(v) - 1 and K >= M
-                for mode='valid', you get the middle len(a) - len(v) + 1 number of values"""
-                #tconvolveonce = time.time()
-                row = np.convolve(rawdata[chani], kernel, mode='same')
-                #tconvolvesum += (time.time()-tconvolveonce)
-                #print 'len(rawdata[chani]) = %r' % len(rawdata[chani])
-                #print 'len(kernel) = %r' % len(kernel)
-                #print 'len(row): %r' % len(row)
-                # interleave by assigning from point to end in steps of resamplex
-                # index to start filling data from for this kernel's points:
-                ti0 = (resamplex - point) % resamplex
-                # index of first data point to use from convolution result 'row':
-                rowti0 = int(point > 0)
-                # discard the first data point from interpolant's convolutions, but not for
-                # raw data's convolutions, since interpolated values have to be bounded on both
-                # sides by raw values?
-                data[chani, ti0::resamplex] = row[rowti0:]
-        #print('convolve loop took %.3f sec' % (time.time()-tconvolve))
-        #print('convolve calls took %.3f sec total' % (tconvolvesum))
-        #tundoscaling = time.time()
-        data >>= 16 # undo kernel scaling, shift 16 bits right in place, same as //= 2**16
-        #print('undo kernel scaling took %.3f sec total' % (time.time()-tundoscaling))
-        return data, ts
-
-    def get_kernels(self, ADchans, resamplex, N):
-        """Generate a different set of kernels for each ADchan to correct each ADchan's
-        s+h delay. ADchans may not always be contiguous from 0, but chans are assumed
-        to always be, and to always be in same order as ADchans.
-
-        TODO: when resamplex > 1 and shcorrect == False, you only need resamplex - 1 kernels.
-        You don't need a kernel for the original raw data points. Those won't be shifted,
-        so you can just interleave appropriately.
-
-        TODO: take DIN channel into account, might need to shift all highpass ADchans
-        by 1us, see line 2412 in SurfBawdMain.pas. I think the layout.sh_delay_offset field
-        may tell you if and by how much you should take this into account
-
-        WARNING! TODO: not sure if say ADchan 4 will always have a delay of 4us, or only if
-        it's preceded by AD chans 0, 1, 2 and 3 in the channel gain list - I suspect the latter
-        is the case, but right now I'm coding the former. Note that there's a
-        f.layout.sh_delay_offset field that describes the sh delay for first chan of probe.
-        Should probably take this into account, although it doesn't affect relative delays
-        between chans, I think. I think it's usually 1us.
-        """
-        # ordinal position of each ADchan in the hold queue of its ADC board:
-        i = ADchans % NCHANSPERBOARD
-        if self.shcorrect:
-            ## TODO: stop hard-coding 1 masterclockfreq tick delay per ordinal position
-            # per channel delays, us, usually 1 us/chan:
-            dis = 1000000 / self.masterclockfreq * i
-        else:
-            dis = 0 * i
-        ds = dis / self.rawtres # normalized per channel delays
-        wh = hamming # window function
-        h = np.sinc # sin(pi*t) / pi*t
-        kernels = [] # list of array of kernels, indexed by [chan][resample point]
-        for d in ds: # delay for this ADchan
-            kernelrow = []
-            for point in xrange(resamplex): # iterate over resampled points per raw point
-                t0 = point/resamplex # some fraction of 1
-                tstart = -N/2 - t0 - d
-                tend = tstart + (N+1)
-                # kernel sample timepoints, all of length N+1, float32s to match voltage
-                # data type
-                t = np.arange(tstart, tend, 1, dtype=np.float32)
-                kernel = wh(t, N) * h(t) # windowed sinc, sums to 1.0, max val is 1.0
-                # rescale to get values up to 2**16, convert to int32
-                kernel = np.int32(np.round(kernel * 2**16))
-                kernelrow.append(kernel)
-            kernels.append(kernelrow)
-        return kernels
-
-
-class SimpleStream(SurfStream):
+class SimpleStream(Stream):
     """Simple Stream loaded fully in advance"""
     ## TODO: once methods are factored out of SurfStream to Stream, this should inherit
     ## from Stream instead of SurfStream
@@ -616,8 +608,6 @@ class SimpleStream(SurfStream):
 
     datetime = property(get_datetime)
 
-    # override masterclockfreq property in base Stream class, make it behave like a simple
-    # attribute:
     def get_masterclockfreq(self):
         return self._masterclockfreq
 
@@ -634,17 +624,9 @@ class SimpleStream(SurfStream):
         except KeyError: pass
         return d
 
-    def __getitem__(self, key):
-        """Called when Stream object is indexed into using [] or with a slice object,
-        indicating start and end timepoints in us. Returns the corresponding WaveForm
-        object with the full set of chans"""
-        if key.step not in [None, 1]:
-            raise ValueError('unsupported slice step size: %s' % key.step)
-        return self(key.start, key.stop, self.chans)
-
     def __call__(self, start, stop, chans=None):
-        """Called when Stream object is called using (). start and stop indicate start
-        and end timepoints in us. Returns the corresponding WaveForm object with just the
+        """Called when Stream object is called using (). start and stop indicate start and end
+        timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
         specified chans"""
         if chans == None:
             chans = self.chans
