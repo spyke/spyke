@@ -1924,6 +1924,7 @@ or remove all duplicate spikes from selected neurons
     </property>
     <addaction name="action20kHz"/>
     <addaction name="action25kHz"/>
+    <addaction name="action30kHz"/>
     <addaction name="action40kHz"/>
     <addaction name="action50kHz"/>
     <addaction name="action60kHz"/>
@@ -2305,6 +2306,14 @@ or remove all duplicate spikes from selected neurons
    </property>
    <property name="text">
     <string>25 kHz</string>
+   </property>
+  </action>
+  <action name="action30kHz">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>30 kHz</string>
    </property>
   </action>
   <action name="action40kHz">

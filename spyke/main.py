@@ -153,6 +153,7 @@ class SpykeWindow(QtGui.QMainWindow):
         samplingGroup = QtGui.QActionGroup(self)
         samplingGroup.addAction(ui.action20kHz)
         samplingGroup.addAction(ui.action25kHz)
+        samplingGroup.addAction(ui.action30kHz)
         samplingGroup.addAction(ui.action40kHz)
         samplingGroup.addAction(ui.action50kHz)
         samplingGroup.addAction(ui.action60kHz)
@@ -720,6 +721,11 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_action25kHz_triggered(self):
         """25kHz menu choice event"""
         self.SetSampfreq(25000)
+
+    @QtCore.pyqtSlot()
+    def on_action30kHz_triggered(self):
+        """30kHz menu choice event"""
+        self.SetSampfreq(30000)
 
     @QtCore.pyqtSlot()
     def on_action40kHz_triggered(self):
