@@ -98,6 +98,9 @@ class Stream(object):
         #      (self.sampfreq, self.rawsampfreq, self.shcorrect))
         rawtres = self.rawtres # us
         tres = self.tres # us
+        if self.sampfreq % self.rawsampfreq != 0:
+            raise ValueError('only integer multiples of rawsampfreq allowed for interpolated '
+                             'sampfreq')
         # resample factor: n output resampled points per input raw point:
         resamplex = intround(self.sampfreq / self.rawsampfreq)
         assert resamplex >= 1, 'no decimation allowed'
