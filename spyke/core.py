@@ -42,9 +42,8 @@ NULL = '\x00'
 MU = '\xb5' # greek mu symbol
 MICRO = 'u'
 
-DEFNSXFILTMETH = 'BW'
-DEFHPSRFSAMPFREQ = 50000 # default (possibly interpolated) high pass sample freq, Hz
-DEFHPNSXSAMPFREQ = 60000 # default (possibly interpolated) high pass sample freq, Hz
+DEFNSXFILTMETH = 'BW' # default .nsx filter method
+DEFHPRESAMPLEX = 2 # default highpass resampling factor for all stream types
 DEFHPSRFSHCORRECT = True
 DEFHPNSXSHCORRECT = False # no need for .nsx files, s+h delay is only 1 ns between chans
 # apparently KERNELSIZE == number of kernel zero crossings, but that seems to depend on

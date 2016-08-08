@@ -10,8 +10,8 @@ import time
 
 import core
 from core import (WaveForm, EmptyClass, intround, lrstrip, hamming, MU, filterord, WMLDR)
-from core import (DEFHPSRFSAMPFREQ, DEFHPSRFSHCORRECT, DEFHPNSXSAMPFREQ, DEFHPNSXSHCORRECT,
-                  DEFNSXFILTMETH, NCHANSPERBOARD, KERNELSIZE)
+from core import (DEFHPRESAMPLEX, DEFHPSRFSHCORRECT, DEFHPNSXSHCORRECT, DEFNSXFILTMETH,
+                  NCHANSPERBOARD, KERNELSIZE)
 import probes
 
 
@@ -231,7 +231,7 @@ class NSXStream(Stream):
         self.rawtres = intround(1 / self.rawsampfreq * 1e6) # us
 
         if kind == 'highpass':
-            self.sampfreq = sampfreq or DEFHPNSXSAMPFREQ # desired sampling frequency
+            self.sampfreq = sampfreq or DEFHPRESAMPLEX * self.rawsampfreq
             self.shcorrect = shcorrect or DEFHPNSXSHCORRECT
         else: # kind == 'lowpass'
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
@@ -367,7 +367,7 @@ class SurfStream(Stream):
             # probe chans, as opposed to AD chans. Most probe types are contiguous from 0,
             # but there are some exceptions (like pt16a_HS27 and pt16b_HS27):
             self.chans = np.arange(self.nADchans)
-            self.sampfreq = sampfreq or DEFHPSRFSAMPFREQ # desired sampling frequency
+            self.sampfreq = sampfreq or DEFHPRESAMPLEX * self.rawsampfreq
             self.shcorrect = shcorrect or DEFHPSRFSHCORRECT
         else: # kind == 'lowpass'
             # probe chan values are already parsed from LFP probe description
@@ -581,7 +581,7 @@ class SimpleStream(Stream):
             self.converter = core.Converter_TSF_1002(intgain, extgain)
         else:
             self.converter = core.Converter(intgain, extgain)
-        self.sampfreq = sampfreq or DEFHPSRFSAMPFREQ # desired sampling frequency
+        self.sampfreq = sampfreq or DEFHPRESAMPLEX * self.rawsampfreq
         self.shcorrect = shcorrect
         self.bitshift = bitshift
         self.t0 = 0 # us
