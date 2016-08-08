@@ -66,7 +66,10 @@ class Stream(object):
         return self._shcorrect
 
     def set_shcorrect(self, shcorrect):
-        """On .shcorrect change, deletes .kernels (if set)"""
+        """On .shcorrect change, delete .kernels (if set)"""
+        if shcorrect == True and self.masterclockfreq == None:
+            raise ValueError("can't sample & hold correct data stream with no master "
+                             "clock frequency")
         self._shcorrect = shcorrect
         try:
             del self.kernels
