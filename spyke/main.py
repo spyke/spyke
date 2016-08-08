@@ -2909,19 +2909,24 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def EnableSortWidgets(self, enable):
         """Enable/disable all widgets that require a sort"""
+        self.EnableFilteringMenu(not enable)
         self.EnableSamplingMenu(not enable)
         self.ui.actionRasters.setEnabled(enable)
         self.ShowRasters(enable)
         self.ui.tabWidget.setCurrentIndex(int(enable)) # select cluster or detect tab
         self.EnableSpikeWidgets(enable)
 
+    def EnableFilteringMenu(self, enable):
+        """Enable/disable all items in Filtering menu, while still allowing
+        the menu to be opened and its contents viewed"""
+        for action in self.ui.menuFiltering.actions():
+            action.setEnabled(enable)
+
     def EnableSamplingMenu(self, enable):
         """Enable/disable all items in Sampling menu, while still allowing
         the menu to be opened and its contents viewed"""
-        self.ui.action25kHz.setEnabled(enable)
-        self.ui.action50kHz.setEnabled(enable)
-        self.ui.action100kHz.setEnabled(enable)
-        self.ui.actionSampleAndHoldCorrect.setEnabled(enable)
+        for action in self.ui.menuSampling.actions():
+            action.setEnabled(enable)
 
     def EnableSpikeWidgets(self, enable):
         """Enable/disable all widgets that require the current Sort to have spikes"""
