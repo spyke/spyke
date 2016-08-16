@@ -347,7 +347,7 @@ class Detector(object):
             self.thresh = noise * self.noisemult # float AD units
             self.thresh = np.int16(np.round(self.thresh)) # int16 AD units
             # clip so that fixedthresh <= self.thresh <= self.thresh.max()
-            self.thresh = self.thresh.clip(self.fixedthresh, self.thresh.max())
+            self.thresh = np.int16(self.thresh.clip(self.fixedthresh, self.thresh.max()))
             # peak-to-peak threshold, abs, in AD units
             self.ppthresh = np.int16(np.round(self.thresh * self.ppthreshmult))
             #AD2uV = self.sort.converter.AD2uV
@@ -662,8 +662,8 @@ class Detector(object):
         for trange in tranges: # iterate over contiguous time ranges
             br = [] # list of blockranges for this trange
             # constrain in case self.trange falls within just one trange
-            t0 = max(trange[0], self.trange[0])
-            t1 = min(trange[1], self.trange[1])
+            t0 = intround(max(trange[0], self.trange[0]))
+            t1 = intround(min(trange[1], self.trange[1]))
             es = range(t0, t1, bs) # left edges of data blocks
             for e in es:
                 br.append([e-bx, e+bs+bx]) # time range to give to .searchblock()
