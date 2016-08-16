@@ -110,17 +110,17 @@ class Converter_TSF_1002(object):
 
 class NSXConverter(object):
     """Store conversion factors between AD values and uV values for .nsx files, and provide
-    methods to convert between AD and uV values, even when a Stream (where intgain and extgain
-    are stored) isn't available"""
+    methods to convert between AD and uV values, even when an NSXStream (where AD2uVx is also
+    stored) isn't available"""
     def __init__(self, AD2uVx):
         self.AD2uVx = AD2uVx
         self.uV2ADx = 1 / AD2uVx
 
     def AD2uV(self, AD):
-        return self.AD2uVx * AD
+        return self.AD2uVx * np.float32(AD)
         
-    def uV2AD(self, uV):
-        return self.uV2ADx * uV
+    def uV2AD(self, uV, inttype=np.int16):
+        return inttype(np.round(self.uV2ADx * uV))
 
 
 class WaveForm(object):
