@@ -9,7 +9,8 @@ import numpy as np
 import time
 
 import core
-from core import (WaveForm, EmptyClass, intround, lrstrip, hamming, MU, filterord, WMLDR)
+from core import (WaveForm, EmptyClass, intround, intfloor, intceil, lrstrip, MU,
+                  hamming, filterord, WMLDR)
 from core import (DEFHPRESAMPLEX, DEFHPSRFSHCORRECT, DEFHPNSXSHCORRECT, DEFNSXFILTMETH,
                   NCHANSPERBOARD, KERNELSIZE)
 import probes
@@ -281,42 +282,43 @@ class NSXStream(Stream):
         # excess data in us at either end, to eliminate filtering and interpolation
         # edge effects
         # going from 200 to 500 points doesn't make a difference, 128 to 200 does though
-        xs = 200 * rawtres
-        print('xs: %d, rawtres: %d' % (xs, rawtres))
+        NXSPOINTS = 200
+        print('NXSPOINTS: %d' % NXSPOINTS)
+        xs = intround(NXSPOINTS * rawtres)
+        #print('xs: %d, rawtres: %g' % (xs, rawtres))
 
         # stream limits, in us and in sample indices, wrt t=0 and sample=0
         t0, t1, nt = self.t0, self.t1, self.f.nt
         t0i, t1i = self.f.t0i, self.f.t1i
         # get a slightly greater range of raw data (with xs) than might be needed:
-        t0xsi = (start - xs) // rawtres # round down to nearest mult of rawtres
-        t1xsi = ((stop + xs) // rawtres) + 1 # round up to nearest mult of rawtres
+        t0xsi = intfloor((start - xs) / rawtres) # round down to nearest mult of rawtres
+        t1xsi = intceil((stop + xs) / rawtres) # round up to nearest mult of rawtres
         # stay within stream limits, thereby avoiding interpolation edge effects:
         t0xsi = max(t0xsi, t0i)
         t1xsi = min(t1xsi, t1i)
-        # convert back to nearest integer us:
-        t0xs = intround(t0xsi * rawtres)
-        t1xs = intround(t1xsi * rawtres)
-        tsxs = np.arange(t0xs, t1xs, rawtres)
-        ntxs = len(tsxs)
-        print('ntxs: %d' % ntxs)
+        # convert back to nearest float us:
+        t0xs = t0xsi * rawtres
+        t1xs = t1xsi * rawtres
+        ntxs = t1xsi - t0xsi # these are slice indices, so don't add 1
+        tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*rawtres, ntxs)
+        #print('ntxs: %d' % ntxs)
 
         # init data as int32 so we have bitwidth to rescale and zero, then convert to int16
         dataxs = np.zeros((nchans, ntxs), dtype=np.int32) # any gaps will have zeros
 
-        tload = time.time()
-
+        #tload = time.time()
         # load up data+excess, same data for high and low pass, difference will only be in the
         # filtering. It would be convenient to immediately subsample to get lowpass, but that's
         # not a valid thing to do: you can only subsample after filtering.
         # source indices:
         st0i = max(t0xsi - t0i, 0)
         st1i = min(t1xsi - t0i, nt)
+        assert st1i-st0i == ntxs
         # destination indices:
         dt0i = max(t0i - t0xsi, 0)
         dt1i = min(t1i - t0xsi, ntxs)
         dataxs[:, dt0i:dt1i] = self.f.data[chanis, st0i:st1i]
-       
-        print('data load took %.3f sec' % (time.time()-tload))
+        #print('data load took %.3f sec' % (time.time()-tload))
 
         if self.filtmeth == None:
             pass

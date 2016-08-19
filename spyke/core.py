@@ -917,6 +917,22 @@ def intround(n):
     else: # it's a scalar, return as normal Python int
         return int(round(n))
 
+def intfloor(n):
+    """Round down to the nearest integer, return an integer. Works on arrays.
+    Saves on parentheses, nothing more"""
+    if iterable(n): # it's a sequence, return as an int64 array
+        return np.int64(np.floor(n))
+    else: # it's a scalar, return as normal Python int
+        return int(np.floor(n))
+
+def intceil(n):
+    """Round up to the nearest integer, return an integer. Works on arrays.
+    Saves on parentheses, nothing more"""
+    if iterable(n): # it's a sequence, return as an int64 array
+        return np.int64(np.ceil(n))
+    else: # it's a scalar, return as normal Python int
+        return int(np.ceil(n))
+
 def iterable(x):
     """Check if the input is iterable, stolen from numpy.iterable()"""
     try:
