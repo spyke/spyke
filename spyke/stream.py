@@ -107,11 +107,14 @@ class Stream(object):
         assert resamplex >= 1, 'no decimation allowed'
         N = KERNELSIZE
 
-        # check if kernels have been generated already
+        # generate kernels if necessary:
         try:
             self.kernels
         except AttributeError:
-            self.kernels = self.get_kernels(self.layout.ADchanlist, resamplex, N)
+            ADchans = None
+            if self.shcorrect:
+                ADchans = self.layout.ADchanlist
+            self.kernels = self.get_kernels(resamplex, N, chans, ADchans=ADchans)
 
         # convolve the data with each kernel
         nrawts = len(rawts)
@@ -138,8 +141,7 @@ class Stream(object):
         # Only the chans that are actually needed are resampled and returned.
         # Assume that chans index into ADchans. Normally they should map 1 to 1, ie chan 0
         # taps off of ADchan 0, but for probes like pt16a_HS27 and pt16b_HS27, it seems
-        # ADchans start at 4. However, because self.kernels is indexed into using chans, and
-        # chans are always assumed to be contiguous from 0, this shouldn't cause a problem
+        # ADchans start at 4.
         for chani, chan in enumerate(chans):
             for point, kernel in enumerate(self.kernels[chan]):
                 """np.convolve(a, v, mode)
@@ -168,10 +170,11 @@ class Stream(object):
         #print('undo kernel scaling took %.3f sec total' % (time.time()-tundoscaling))
         return data, ts
 
-    def get_kernels(self, ADchans, resamplex, N):
-        """Generate a different set of kernels for each ADchan to correct each ADchan's
-        s+h delay. ADchans may not always be contiguous from 0, but chans are assumed
-        to always be, and to always be in same order as ADchans.
+    def get_kernels(self, resamplex, N, chans, ADchans=None):
+        """Return dict of kernels, one per channel in chans, to convolve with raw data to get
+        interpolated signal. Return a potentially different kernel for each ADchan to correct
+        each ADchan's s+h delay. chans and ADchans may not always be contiguous from 0, but are
+        assumed to always be in corresponding order.
 
         TODO: when resamplex > 1 and shcorrect == False, you only need resamplex - 1 kernels.
         You don't need a kernel for the original raw data points. Those won't be shifted,
@@ -188,19 +191,21 @@ class Stream(object):
         Should probably take this into account, although it doesn't affect relative delays
         between chans, I think. I think it's usually 1us.
         """
-        # ordinal position of each ADchan in the hold queue of its ADC board:
-        i = ADchans % NCHANSPERBOARD
-        if self.shcorrect:
+        if ADchans == None: # no per-channel delay:
+            assert self.shcorrect == False
+            dis = np.zeros(self.nchans, dtype=np.int64)
+        else:
+            assert self.shcorrect == True
+            # ordinal position of each ADchan in the hold queue of its ADC board:
+            i = ADchans % NCHANSPERBOARD
             ## TODO: stop hard-coding 1 masterclockfreq tick delay per ordinal position
             # per channel delays, us, usually 1 us/chan:
             dis = 1000000 / self.masterclockfreq * i
-        else:
-            dis = 0 * i
         ds = dis / self.rawtres # normalized per channel delays
         wh = hamming # window function
         h = np.sinc # sin(pi*t) / pi*t
-        kernels = [] # list of array of kernels, indexed by [chan][resample point]
-        for d in ds: # delay for this ADchan
+        kernels = {} # dict of array of kernels, indexed by [chan][resample point]
+        for chan, d in zip(chans, ds): # chans and corresponding delays
             kernelrow = []
             for point in xrange(resamplex): # iterate over resampled points per raw point
                 t0 = point/resamplex # some fraction of 1
@@ -213,7 +218,7 @@ class Stream(object):
                 # rescale to get values up to 2**16, convert to int32
                 kernel = np.int32(np.round(kernel * 2**16))
                 kernelrow.append(kernel)
-            kernels.append(kernelrow)
+            kernels[chan] = kernelrow
         return kernels
 
 
