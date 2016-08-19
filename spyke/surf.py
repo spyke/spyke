@@ -767,7 +767,8 @@ class LayoutRecord(object):
         # if any) (25000, 1000)
         self.sampfreqperchan, = unpack('i', f.read(4))
         # us, store it here for convenience
-        self.tres = intround(1 / float(self.sampfreqperchan) * 1e6) # us
+        self.tres = 1 / self.sampfreqperchan * 1e6 # float us
+        #print('LayoutRecord.tres = %f' % self.tres)
         # MOVE BACK TO AFTER SHOFFSET WHEN FINISHED WITH CAT 9!!! added May 21, 1999
         # only the first self.nchans are filled (5000), the rest are junk values that
         # pad to 64 channels

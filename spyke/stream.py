@@ -58,7 +58,8 @@ class Stream(object):
             del self.kernels
         except AttributeError:
             pass
-        self.tres = intround(1 / self.sampfreq * 1e6) # us, for convenience
+        self.tres = 1 / self.sampfreq * 1e6 # float us
+        #print('Stream.tres = %g' % self.tres)
 
     sampfreq = property(get_sampfreq, set_sampfreq)
 
@@ -121,8 +122,13 @@ class Stream(object):
         # the above can be simplified to:
         nt = nrawts*resamplex - resamplex + 1
         tstart = rawts[0]
-        ts = np.arange(tstart, tstart+tres*nt, tres) # generate interpolated timepoints
-        #print 'len(ts) is %r' % len(ts)
+        # generate interpolated timepoints, use intfloor in case tres is a float, otherwise
+        # arange might give one too many timepoints:
+        #ts = np.arange(tstart, intfloor(tstart+tres*nt), tres)
+        # safer to user linspace in case of float tres, deals with endpoints better and gives
+        # slightly more accurate output float timestamps:
+        ts = np.linspace(tstart, tstart+(nt-1)*tres, nt)
+        #print('len(ts) is %r' % len(ts))
         assert len(ts) == nt
         # resampled data, leave as int32 for convolution, then convert to int16:
         data = np.empty((nchans, nt), dtype=np.int32)
@@ -234,7 +240,7 @@ class NSXStream(Stream):
         # ignore decimation, should be set to 1 anyway, see nsx.FileHeader:
         #self.rawsampfreq = intround(f.fileheader.sampfreq / f.fileheader.decimation) # Hz
         self.rawsampfreq = f.fileheader.sampfreq
-        self.rawtres = intround(1 / self.rawsampfreq * 1e6) # us
+        self.rawtres = 1 / self.rawsampfreq * 1e6 # float us
 
         if kind == 'highpass':
             self.sampfreq = sampfreq or DEFHPRESAMPLEX * self.rawsampfreq
