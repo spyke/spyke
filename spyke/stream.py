@@ -575,8 +575,6 @@ class SurfStream(Stream):
 
 class SimpleStream(Stream):
     """Simple Stream loaded fully in advance"""
-    ## TODO: once methods are factored out of SurfStream to Stream, this should inherit
-    ## from Stream instead of SurfStream
     def __init__(self, fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
                  intgain, extgain, sampfreq=None, shcorrect=None, bitshift=4,
                  tsfversion=None):

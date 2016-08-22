@@ -98,8 +98,8 @@ class SpykeWindow(QtGui.QMainWindow):
         QtGui.QMainWindow.__init__(self)
         self.ui = SpykeUi()
         self.ui.setupUi(self) # lay it out
-        self.groupMenuSamplingRates()
         self.groupMenuFiltmeth()
+        self.groupMenuSamplingRates()
         self.addRecentFileActions()
         self.updateRecentFiles()
         
