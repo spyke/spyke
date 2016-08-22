@@ -12,7 +12,7 @@ import core
 from core import (WaveForm, EmptyClass, intround, intfloor, intceil, lrstrip, MU,
                   hamming, filterord, WMLDR)
 from core import (DEFHPRESAMPLEX, DEFHPSRFSHCORRECT, DEFHPNSXSHCORRECT, DEFNSXFILTMETH,
-                  NCHANSPERBOARD, KERNELSIZE, NSXXSPOINTS)
+                  BWF0, BWORDER, NCHANSPERBOARD, KERNELSIZE, NSXXSPOINTS)
 import probes
 
 
@@ -323,14 +323,12 @@ class NSXStream(Stream):
         if self.filtmeth == None:
             pass
         elif self.filtmeth == 'BW':
-            # high-pass filter data using 4th order butterworth filter:
-            f0, f1 = 300, None
-            order, btype, ftype = 4, 'highpass', 'butter'
-            rp, rs = None, None
-            dataxs, b, a = filterord(dataxs, sampfreq=self.rawsampfreq, f0=f0, f1=f1,
-                                     order=order, rp=None, rs=None, btype=btype, ftype=ftype)
+            # high-pass filter using butterworth filter:
+            dataxs, b, a = filterord(dataxs, sampfreq=self.rawsampfreq, f0=BWF0, f1=None,
+                                     order=BWORDER, rp=None, rs=None,
+                                     btype='highpass', ftype='butter')
         elif self.filtmeth == 'WMLDR':
-            # high-pass filter data using wavelets:
+            # high-pass filter using wavelet multi-level decomposition and reconstruction:
             ## TODO: fix weird slow wobbling of amplitude as a function of exactly what
             ## the WMLDR filtering time range happens to be. Setting a much bigger xs
             ## helps, but only until you move xs amount of time away from the start of

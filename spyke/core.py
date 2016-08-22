@@ -42,7 +42,10 @@ NULL = '\x00'
 MU = '\xb5' # greek mu symbol
 MICRO = 'u'
 
-DEFNSXFILTMETH = 'BW' # default .nsx filter method
+DEFNSXFILTMETH = 'BW' # default .nsx filter method: None, 'BW', 'WMLDR'
+BWF0 = 300 # low-frequency butterworth filter cutoff, Hz
+BWORDER = 4 # butterworth filter order
+
 DEFHPRESAMPLEX = 2 # default highpass resampling factor for all stream types
 DEFHPSRFSHCORRECT = True
 DEFHPNSXSHCORRECT = False # no need for .nsx files, s+h delay is only 1 ns between chans
