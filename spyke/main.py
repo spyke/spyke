@@ -132,6 +132,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # disable most widgets until a data or .sort file is opened
         self.EnableStreamWidgets(False)
         self.EnableSortWidgets(False)
+        self.EnableFilteringMenu(False) # disable by default, few file types need filtering
         
     def addRecentFileActions(self):
         """Init recent file QActions and insert them into the right place in the
@@ -2094,6 +2095,7 @@ class SpykeWindow(QtGui.QMainWindow):
             f.parse() # TODO: parsing progress dialog
             self.hpstream = f.hpstream # highpass record (spike) stream
             self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
+            self.EnableFilteringMenu(True) # .ns6 is for now only one that needs filtering
         elif ext == '.track':
             fs = []
             with open(join(self.streampath, fname), 'r') as trackfile:
