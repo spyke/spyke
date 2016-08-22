@@ -12,7 +12,7 @@ import core
 from core import (WaveForm, EmptyClass, intround, intfloor, intceil, lrstrip, MU,
                   hamming, filterord, WMLDR)
 from core import (DEFHPRESAMPLEX, DEFHPSRFSHCORRECT, DEFHPNSXSHCORRECT, DEFNSXFILTMETH,
-                  NCHANSPERBOARD, KERNELSIZE)
+                  NCHANSPERBOARD, KERNELSIZE, NSXXSPOINTS)
 import probes
 
 
@@ -121,8 +121,8 @@ class Stream(object):
         nrawts = len(rawts)
         nchans = len(chans)
         # all the interpolated points have to fit in between the existing raw
-        # points, so there's nrawts - 1 of each of the interpolated points:
-        #nt = nrawts + (resamplex-1) * (nrawts - 1)
+        # points, so there are nrawts - 1 interpolated points:
+        #nt = nrawts + (resamplex - 1) * (nrawts - 1)
         # the above can be simplified to:
         nt = nrawts*resamplex - resamplex + 1
         tstart = rawts[0]
@@ -281,10 +281,8 @@ class NSXStream(Stream):
         resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
         # excess data in us at either end, to eliminate filtering and interpolation
         # edge effects
-        # going from 200 to 500 points doesn't make a difference, 128 to 200 does though
-        NXSPOINTS = 200
-        print('NXSPOINTS: %d' % NXSPOINTS)
-        xs = intround(NXSPOINTS * rawtres)
+        #print('NSXXSPOINTS: %d' % NSXXSPOINTS)
+        xs = intround(NSXXSPOINTS * rawtres)
         #print('xs: %d, rawtres: %g' % (xs, rawtres))
 
         # stream limits, in us and in sample indices, wrt t=0 and sample=0

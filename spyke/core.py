@@ -46,11 +46,19 @@ DEFNSXFILTMETH = 'BW' # default .nsx filter method
 DEFHPRESAMPLEX = 2 # default highpass resampling factor for all stream types
 DEFHPSRFSHCORRECT = True
 DEFHPNSXSHCORRECT = False # no need for .nsx files, s+h delay is only 1 ns between chans
-# apparently KERNELSIZE == number of kernel zero crossings, but that seems to depend on
-# the phase of the kernel, some have one less. Anyway, total number of points in the
-# kernel is this plus 1 (for the middle point) - see Blanche2006
+# Apparently KERNELSIZE == number of kernel zero crossings, but that seems to depend on
+# the phase of the kernel, some have one less, depending on the channel (when doing sample
+# and hold correction). Anyway, total number of points in the kernel is KERNELSIZE plus 1
+# (for the middle point) - see Blanche2006.
+# Should kernel size depend on the sampling rate? No, but perhaps the minimum kernel
+# size depends on the Nyquist rate.
 KERNELSIZE = 12
-assert KERNELSIZE % 2 == 0 # I think kernel size needs to be even
+assert KERNELSIZE % 2 == 0 # kernel size needs to be even, otherwise there's a slight but
+                           # undesireable time shift, perhaps because sampfreq always
+                           # needs to be an integer multiple of rawsampfreq
+NSXXSPOINTS = 200 # number of xs raw datapoints to include on either side of each NXSStream
+                  # slice call, separate for NSXStream because filtering requires more
+                  # excess
 NCHANSPERBOARD = 32 # TODO: stop hard coding this
 
 MAXLONGLONG = 2**63-1
