@@ -107,6 +107,7 @@ class Stream(object):
         resamplex = intround(self.sampfreq / self.rawsampfreq)
         assert resamplex >= 1, 'no decimation allowed'
         N = KERNELSIZE
+        #print('N = %d' % N)
 
         # generate kernels if necessary:
         try:
@@ -280,7 +281,7 @@ class NSXStream(Stream):
         rawtres = self.rawtres
         resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
         # excess data in us at either end, to eliminate filtering and interpolation
-        # edge effects
+        # edge effects:
         #print('NSXXSPOINTS: %d' % NSXXSPOINTS)
         xs = intround(NSXXSPOINTS * rawtres)
         #print('xs: %d, rawtres: %g' % (xs, rawtres))
@@ -318,6 +319,7 @@ class NSXStream(Stream):
         dataxs[:, dt0i:dt1i] = self.f.data[chanis, st0i:st1i]
         #print('data load took %.3f sec' % (time.time()-tload))
 
+        #print('filtmeth: %s' % self.filtmeth)
         if self.filtmeth == None:
             pass
         elif self.filtmeth == 'BW':
@@ -329,6 +331,10 @@ class NSXStream(Stream):
                                      order=order, rp=None, rs=None, btype=btype, ftype=ftype)
         elif self.filtmeth == 'WMLDR':
             # high-pass filter data using wavelets:
+            ## TODO: fix weird slow wobbling of amplitude as a function of exactly what
+            ## the WMLDR filtering time range happens to be. Setting a much bigger xs
+            ## helps, but only until you move xs amount of time away from the start of
+            ## the recording
             dataxs = WMLDR(dataxs)
         else:
             raise ValueError('unknown filter method %s' % self.filtmeth)
@@ -339,10 +345,16 @@ class NSXStream(Stream):
             dataxs, tsxs = self.resample(dataxs, tsxs, chans)
             #print('resample took %.3f sec' % (time.time()-tresample))
 
+        #nresampletxs = len(tsxs)
+        #print('ntxs, nresampletxs: %d, %d' % (ntxs, nresampletxs))
+        #assert ntxs == len(tsxs)
+
         # now trim down to just the requested time range:
         lo, hi = tsxs.searchsorted([start, stop])
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
+
+        #print(0, lo, hi, nresampletxs)
 
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
