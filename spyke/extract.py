@@ -236,7 +236,7 @@ class Extractor(object):
 
     def __getstate__(self):
         d = self.__dict__.copy() # copy it cuz we'll be making changes
-        del d['weights2spatial'] # can't pickle an instance method, not sure why it even bothers trying
+        del d['weights2spatial'] # can't pickle an instance method, not sure why it even tries
         return d
 
     def __setstate__(self, d):
@@ -281,7 +281,8 @@ class Extractor(object):
             #chanis = det.chans.searchsorted(chans) # det.chans are always sorted
             #wd = wd[:nchans] # unnecessary?
             V = wd[maxchani]
-            wcs[spike['id']] = np.concatenate(pywt.wavedec(V, wavelet)) # flat array of wavelet coeffs
+            # flat array of wavelet coeffs:
+            wcs[spike['id']] = np.concatenate(pywt.wavedec(V, wavelet))
             #wcs[spike['id']] = np.concatenate(pywt.wavedec(V, wavelet))[self.ksis]
             #wcs[spike['id']] = self.wavedata2wcs(wd, maxchani)
         ks = np.zeros(ncoeffs)
@@ -336,7 +337,8 @@ class Extractor(object):
             wcs[maxchan] = np.asarray(wcs[maxchan])
             for i in range(ncoeffs):
                 ks[maxchani, i], p[maxchani, i] = scipy.stats.kstest(wcs[maxchan][:, i], 'norm')
-        # TODO: weight the KS value from each maxchan according to the nspikes for that maxchan!!!!!
+        ## TODO: weight the KS value from each maxchan according to the nspikes for that
+        ## maxchan!!!!!
         ks = ks.mean(axis=0)
         p = p.mean(axis=0)
         ksis = ks.argsort()[::-1] # ks indices sorted from biggest to smallest ks values
@@ -374,7 +376,7 @@ class Extractor(object):
             assert len(sort.detections) == 1
             det = sort.detector
             ncpus = min(mp.cpu_count(), 4) # 1 per core, max of 4, ie don't allow 8 "cores"
-            pool = mp.Pool(ncpus, initializer, (self, det)) # sends pickled copies to each process
+            pool = mp.Pool(ncpus, initializer, (self, det)) # send pickled copies to processes
             args = zip(spikeslist, wavedata)
             results = pool.map(callspike2XY, args) # using chunksize=1 is a bit slower
             print('done with pool.map()')
@@ -534,7 +536,7 @@ class Extractor(object):
             assert len(sort.detections) == 1
             det = sort.detector
             ncpus = min(mp.cpu_count(), 4) # 1 per core, max of 4, ie don't allow 8 "cores"
-            pool = mp.Pool(ncpus, initializer, (self, det)) # sends pickled copies to each process
+            pool = mp.Pool(ncpus, initializer, (self, det)) # send pickled copies to processes
             args = zip(spikeslist, wavedata)
             results = pool.map(callspike2XY, args) # using chunksize=1 is a bit slower
             print('done with pool.map()')
@@ -664,7 +666,7 @@ class Extractor(object):
         xi = x.argsort()
         w, x, y = w[xi], x[xi], y[xi] # sort points by x values
         ux = np.unique(x)
-        yw = np.empty(len(ux)) # these end up being the max interpolated weight values in each column
+        yw = np.empty(len(ux)) # these become the max interpolated weight values in each column
         y0s = np.empty(len(ux))
         xis = x.searchsorted(ux) # start indices of coords with identical x values
         # iterate over columns:
@@ -675,7 +677,9 @@ class Extractor(object):
             except IndexError:
                 endi = len(x)
             yc, wc = y[starti:endi], w[starti:endi] # y and w values for this column
-            if len(yc) < 3: # not enough chans in this column to interpolate vertically, just find the max?
+            if len(yc) < 3:
+                # not enough chans in this column to interpolate vertically,
+                # find the max instead?
                 assert len(yc) > 0
                 yi = yc.argmax()
                 yw[coli] = wc[yi]
@@ -683,7 +687,7 @@ class Extractor(object):
             else:
                 #k = min(max(3, len(yc)-2), 5)
                 k = min(3, len(yc)-1)
-                yi = yc.argsort() # UnivariateSpline requires monotonically ascending coordinates
+                yi = yc.argsort() # UnivariateSpline requires monotonically ascending coords
                 try:
                     us = UnivariateSpline(yc[yi], wc[yi], k=k)
                 except UserWarning:
