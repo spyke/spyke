@@ -2092,7 +2092,6 @@ class SpykeWindow(QtGui.QMainWindow):
             self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
         elif ext == '.ns6':
             f = nsx.File(fname, self.streampath)
-            f.parse() # TODO: parsing progress dialog
             self.hpstream = f.hpstream # highpass record (spike) stream
             self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
             self.EnableFilteringMenu(True) # .ns6 is for now only one that needs filtering

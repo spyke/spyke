@@ -26,8 +26,16 @@ class File(object):
         self.path = path
         self.filesize = os.stat(self.join(fname))[6] # in bytes
         self.open()
-        self._parseFileHeader()
+        self.parse()
         self.load()
+
+        self.datapacketoffset = self.datapacket.offset # save for unpickling
+        self.t0i, self.nt = self.datapacket.t0i, self.datapacket.nt # copy for convenience
+        self.t1i = self.t0i + self.nt - 1
+        self.t0 = self.t0i * self.fileheader.tres # us
+        self.t1 = self.t1i * self.fileheader.tres # us
+        self.hpstream = NSXStream(self, kind='highpass')
+        self.lpstream = NSXStream(self, kind='lowpass')
 
     def join(self, fname):
         return os.path.join(self.path, fname)
@@ -58,24 +66,14 @@ class File(object):
 
     datetime = property(get_datetime)
 
-    def __getstate__(self):
-        """Don't pickle open .nsx file handle on pickle. Also, save space (for .sort files)
-        by not pickling all records unless explicitly signalled to do so (for .parse files)
-        """
-        ## TODO: does datapacket need its own __getstate__ and remove _data?
-        d = self.__dict__.copy() # copy it cuz we'll be making changes
-        if 'f' in d:
-            del d['f'] # exclude open .nsx file handle, if any
-        return d
+    def parse(self):
+        self._parseFileHeader()
 
     def _parseFileHeader(self):
         """Parse the .nsx file header"""
         self.fileheader = FileHeader()
         self.fileheader.parse(self.f)
         #print('Parsed fileheader')
-
-    def parse(self):
-        pass # nothing to do here, everything happens in __init__
 
     def load(self):
         """Load the waveform data. Data are stored in packets. Normally, there is only one
@@ -85,13 +83,6 @@ class File(object):
         if self.f.tell() != self.filesize: # make sure we're at EOF
             raise NotImplementedError("Can't handle pauses in recording yet")
         self.datapacket = datapacket
-        self.t0i, self.nt = datapacket.t0i, datapacket.nt # copy for convenience
-        self.t1i = self.t0i + self.nt - 1
-        self.t0 = self.t0i * self.fileheader.tres # us
-        self.t1 = self.t1i * self.fileheader.tres # us
-
-        self.hpstream = NSXStream(self, kind='highpass')
-        self.lpstream = NSXStream(self, kind='lowpass')
 
     def get_data(self):
         try:
@@ -100,6 +91,21 @@ class File(object):
             raise RuntimeError('waveform data not available, file is closed/mmap deleted?')
 
     data = property(get_data)
+
+    def __getstate__(self):
+        """Don't pickle open .nsx file handle or datapacket with open mmap"""
+        d = self.__dict__.copy() # copy it cuz we'll be making changes
+        try: del d['f'] # exclude open .nsx file handle, if any
+        except KeyError: pass
+        try: del d['datapacket'] # avoid pickling datapacket._data mmap
+        except KeyError: pass
+        return d
+        
+    def __setstate__(self, d):
+        self.__dict__ = d
+        self.open()
+        self.f.seek(self.datapacketoffset) # skip over FileHeader
+        self.load()
 
 
 class FileHeader(object):
@@ -174,6 +180,7 @@ class DataPacket(object):
     """.nsx data packet"""
     
     def __init__(self, f, nchans):
+        self.offset = f.tell()
         self.nchans = nchans
         header, = unpack('B', f.read(1))
         assert header == 1
