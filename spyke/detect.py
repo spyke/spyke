@@ -382,9 +382,8 @@ class Detector(object):
         sort = self.sort
         AD2uV = sort.converter.AD2uV
         if self.extractparamsondetect:
-            weights2f = sort.extractor.weights2f
-            f = g2 # 2D Gaussian
-            #f = cauchy2 # 2D Cauchy
+            weights2f = sort.extractor.weights2spatial
+            f = sort.extractor.f
         # holds time indices for each enabled chan until which each enabled chani is
         # locked out, updated on every found spike
         lockouts = np.zeros(self.nchans, dtype=np.int64)

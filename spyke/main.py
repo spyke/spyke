@@ -835,7 +835,11 @@ class SpykeWindow(QtGui.QMainWindow):
     def init_extractor(self):
         """Initialize Extractor"""
         #XYmethod = self.XY_extract_radio_box.GetStringSelection()
-        XYmethod = 'Gaussian fit' # hard code for now, don't really need extract pane
+        # hard code XYmethod for now, don't really need extract pane:
+        if self.sort.probe.ncols == 1:
+            XYmethod = 'Gaussian 1D'
+        else:
+            XYmethod = 'Gaussian 2D'
         ext = Extractor(self.sort, XYmethod) # or eventually, self.get_extractor()
         self.sort.extractor = ext
         #self.update_extractor(ext) # eventually, update extractor from multiple Extract pane widgets

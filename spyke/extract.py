@@ -17,7 +17,7 @@ import scipy.stats
 
 import pylab as pl
 
-from core import g
+from core import g, g2, cauchy2
 
 
 DEFSX = 50 # default spatial decay along x axis, in um
@@ -73,6 +73,49 @@ class SpatialLeastSquares(object):
             print('%d iterations' % self.infodict['nfev'])
             print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
+    def calc_y0(self, f, y, V):
+        t0 = time.clock()
+        try:
+            result = leastsq(self.cost_y0, self.p0, args=(f, y, V),
+                             full_output=True,)
+                             #ftol=1e-3)
+                             #Dfun=None, full_output=True, col_deriv=False,
+                             #maxfev=50, xtol=0.0001,
+                             #diag=None)
+        except Exception as err:
+            print(err)
+            import pdb; pdb.set_trace()
+        self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+        self.y0, = self.p
+        if self.debug:
+            print('iters took %.3f sec' % (time.clock()-t0))
+            print('p0 = %r' % self.p0)
+            print('p = %r' % self.p)
+            print('%d iterations' % self.infodict['nfev'])
+            print('mesg=%r, ier=%r' % (self.mesg, self.ier))
+
+    def calc_sy(self, f, y, V):
+        t0 = time.clock()
+        try:
+            result = leastsq(self.cost_sy, self.p0, args=(f, y, V),
+                             full_output=True,)
+                             #ftol=1e-3)
+                             #Dfun=None, full_output=True, col_deriv=False,
+                             #maxfev=50, xtol=0.0001,
+                             #diag=None)
+        except Exception as err:
+            print(err)
+            import pdb; pdb.set_trace()
+        self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+        s, = abs(self.p) # keep sigma +ve
+        self.sx, self.sy = s, s
+        if self.debug:
+            print('iters took %.3f sec' % (time.clock()-t0))
+            print('p0 = %r' % self.p0)
+            print('p = %r' % self.p)
+            print('%d iterations' % self.infodict['nfev'])
+            print('mesg=%r, ier=%r' % (self.mesg, self.ier))
+
     def calc_s(self, f, x, y, V):
         t0 = time.clock()
         try:
@@ -120,6 +163,14 @@ class SpatialLeastSquares(object):
         """Distance of each point to the model function"""
         return self.model_x0y0(p, f, x, y) - V
 
+    def cost_y0(self, p, f, y, V):
+        """Distance of each point to the model function"""
+        return self.model_y0(p, f, y) - V
+
+    def cost_sy(self, p, f, y, V):
+        """Distance of each point to the model function"""
+        return self.model_sy(p, f, y) - V
+
     def cost_s(self, p, f, x, y, V):
         """Distance of each point to the model function"""
         return self.model_s(p, f, x, y) - V
@@ -132,6 +183,16 @@ class SpatialLeastSquares(object):
         """2D Gaussian, with x0 and y0 free"""
         x0, y0 = p
         return self.A * f(x0, y0, self.sx, self.sy, x, y)
+
+    def model_y0(self, p, f, y):
+        """1D Gaussian along y, with y0 free"""
+        y0, = p
+        return self.A * f(y0, self.sy, y)
+
+    def model_sy(self, p, f, y):
+        """1D Gaussian along y, with s free"""
+        s, = p
+        return self.A * f(self.y0, s, y)
 
     def model_s(self, p, f, x, y):
         """2D Gaussian, with s (sx == sy) free"""
@@ -225,12 +286,17 @@ class Extractor(object):
         #self.ksis = [41, 11, 39, 40, 20]
 
     def choose_XY_fun(self):
-        if self.XYmethod.lower() == 'gaussian fit':
-            self.weights2spatial = self.weights2f
-        elif self.XYmethod.lower() == 'spatial mean':
-            self.weights2spatial = self.weights2spatialmean
-        elif self.XYmethod.lower() == 'splines 1d fit':
+        if self.XYmethod == 'Gaussian 1D':
+            self.weights2spatial = self.weights2f_1D
+            self.f = g # 1D Gaussian
+        elif self.XYmethod in ['Gaussian 2D', 'Gaussian fit']:
+            self.weights2spatial = self.weights2f_2D
+            self.f = g2 # 2D Gaussian
+        elif self.XYmethod == 'Splines 1D':
             self.weights2spatial = self.weights2splines
+            self.f = cauchy2 # 2D Cauchy
+        elif self.XYmethod == 'Spatial mean':
+            self.weights2spatial = self.weights2spatialmean
         else:
             raise ValueError("Unknown XY parameter extraction method %r" % self.XYmethod)
 
@@ -712,7 +778,40 @@ class Extractor(object):
         y0 = (yw * y0s).sum()
         return x0, y0
 
-    def weights2f(self, f, w, x, y, maxchani):
+    def weights2f_1D(self, f, w, x, y, maxchani):
+        """Use least squares to fit spatial location and spread of 1D function f to the
+        weights, with location initialized using spatial mean, and spread initialized with
+        constant global values. Spread and location are fit sequentially, in that order, as in
+        weights2f_1D, because there presumably isn't enough data from a single spike to fit
+        them both simultaneously and expect to get reasonable results. Otherwise, LM ends up
+        using the tail of the 1D distrib to get min sum squared error"""
+        if len(w) == 1: # only one chan, return its coords and the default sigmas
+            return int(x), int(y), DEFSX, DEFSY
+
+        sls = self.sls
+        x0, y0 = self.weights2spatialmean(w, x, y)
+        sls.A, sls.x0, sls.y0, sls.sx, sls.sy = w[maxchani], x0, y0, DEFSX, DEFSY
+        sls.p0 = np.array([sls.sx])
+        sls.calc_sy(f, y, w) # sy free
+        if sls.sx > MAXSIGMA: # sls.sx is enforced to be +ve
+            print("%s: *** Spatial sigma was too far from default, falling back ***"
+                  % ps().name)
+            sls.sx, sls.sy = DEFSX, DEFSY
+
+        # now that we have viable estimates for sx and sy, fix them and fit y0:
+        sls.p0 = np.array([y0])
+        sls.calc_y0(f, y, w) # y0 free
+
+        # squared distance between initial and final position estimates:
+        d2 = (y0 - sls.y0)**2
+        maxd = SIGMA2MAXD * sls.sx
+        if d2 > maxd**2:
+            print("%s: *** Spatial position was too far from spatial mean "
+                  "(d = %.2f > %.2f um), falling back ***" % (ps().name, np.sqrt(d2), maxd))
+            sls.x0, sls.y0 = x0, y0
+        return sls.x0, sls.y0, sls.sx, sls.sy
+
+    def weights2f_2D(self, f, w, x, y, maxchani):
         """Use least squares to fit spatial location and spread of 2D function f
         to the weights, with location initialized using spatial mean, and spread initialized
         with constant global values. Spread and location are fit sequentially, in that
