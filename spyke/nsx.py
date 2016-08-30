@@ -124,18 +124,18 @@ class FileHeader(object):
         self.nbytes, = unpack('I', f.read(4)) # length of full header, in bytes
         self.label = f.read(16).rstrip(NULL) # sampling group label, null terminated
         self.comment = rstripnonascii(f.read(256)) # null terminated, trailing junk bytes (bug)
-        # "Period", wrt 30 kHz sampling freq; sampling freq in Hz:
+        # "Period" wrt sampling freq; sampling freq in Hz:
         self.decimation, self.sampfreq = unpack('II', f.read(8))
         assert self.decimation == 1 # doesn't have to be, but probably should for neural data
         self.tres = 1 / self.sampfreq * 1e6 # float us
         #print('FileHeader.tres = %f' % self.tres)
 
-        # date and time corresponding to t=0
+        # date and time corresponding to t=0:
         year, month, dow, day, hour, m, s, ms = unpack('HHHHHHHH', f.read(16))
         self.datetime = datetime.datetime(year, month, day, hour, m, s, ms)
         self.nchans, = unpack('I', f.read(4))
 
-        # "extended" headers, each one describing a channel
+        # "extended" headers, each one describing a channel:
         self.chanheaders = {}
         for chani in range(self.nchans):
             chanheader = ChanHeader()

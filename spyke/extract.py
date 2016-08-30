@@ -22,7 +22,7 @@ from core import g, g2, cauchy2
 
 DEFSX = 50 # default spatial decay along x axis, in um
 DEFSY = 50
-MAXSIGMA = DEFSX * 10 # any sigma that comes out greater than this is bogus
+MAXSIGMA = 10 * DEFSX # any sigma that comes out greater than this is bogus
 SIGMA2MAXD = 3 # multiple of each spike's sigma allowed for its maxd
 
 
@@ -824,8 +824,8 @@ class Extractor(object):
         sls = self.sls
         x0, y0 = self.weights2spatialmean(w, x, y)
         sls.A, sls.x0, sls.y0, sls.sx, sls.sy = w[maxchani], x0, y0, DEFSX, DEFSY
+        # fit sx and sy first, since DEFSX and DEFSY are not spike-specific estimates:
         '''
-        # fit sx and sy first, since DEFSX and DEFSY are not spike-specific estimates
         sls.p0 = np.array([sls.sx, sls.sy])
         sls.calc_sxsy(f, x, y, w) # sx and sy free
         '''
@@ -836,12 +836,12 @@ class Extractor(object):
                   % ps().name)
             sls.sx, sls.sy = DEFSX, DEFSY
 
-        # now that we have viable estimates for sx and sy, fix them and fit x0 and y0
+        # now that we have viable estimates for sx and sy, fix them and fit x0 and y0:
         sls.p0 = np.array([x0, y0])
         sls.calc_x0y0(f, x, y, w) # x0 and y0 free
 
         # squared distance between initial and final position estimates:
-        d2 = (x0-sls.x0)**2 + (y0-sls.y0)**2
+        d2 = (x0 - sls.x0)**2 + (y0 - sls.y0)**2
         maxd = SIGMA2MAXD * sls.sx
         if d2 > maxd**2:
             print("%s: *** Spatial position was too far from spatial mean "

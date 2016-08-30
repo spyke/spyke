@@ -49,7 +49,7 @@ class Cluster(object):
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy()
-        # don't save any temporary principal component positions
+        # don't save any temporary PCA/ICA positions
         pos = self.pos.copy() # don't modify original
         normpos = self.normpos.copy() # don't modify original
         assert sorted(pos) == sorted(normpos) # make sure they have same set of keys
