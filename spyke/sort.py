@@ -647,8 +647,8 @@ class Sort(object):
             # ensure 0 mean, and unit variance/stdev
             for dim, d in zip(dims, data.T): # d iterates over columns
                 d -= d.mean()
-                if dim in ['x0', 'y0']:
-                    try: x0std
+                if dim in ['x0', 'y0'] and self.probe.ncols > 1:
+                    try: x0std # normalize spatial params by x0 std
                     except NameError: x0std = spikes['x0'].std()
                     if x0std != 0.0:
                         d /= x0std

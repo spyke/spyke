@@ -102,7 +102,7 @@ class Cluster(object):
             except KeyError:
                 mean = data.mean()
                 sort.means[dim] = mean # save to pre-calc
-            if dim in ['x0', 'y0']: # normalize spatial params by x0 std
+            if dim in ['x0', 'y0'] and sort.probe.ncols > 1: # norm spatial params by x0 std
                 try: std = sort.stds['x0']
                 except KeyError:
                     std = spikes['x0'].std()
