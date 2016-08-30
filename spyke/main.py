@@ -569,6 +569,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Update sort 0.8 to 0.9:
             - add sort.filtmeth attrib, init to None
         """
+        print('updating sort from version 0.8 to 0.9')
         s = self.sort
         try:
             s.filtmeth
