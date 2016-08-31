@@ -61,15 +61,12 @@ from plot import SpikePanel, ChartPanel, LFPPanel
 from detect import Detector
 from extract import Extractor
 
-
-# TODO: turn some of these TW constants into variables with user controls:
-# for .srf data:
-DEFSPIKETW = -400, 600 # spike window temporal window (us)
-DEFCHARTTW = -25000, 25000 # chart window temporal window (us)
-DEFLFPTW = -500000, 500000 # lfp window temporal window (us)
-# for Catalin Mitelut's .tsf 32 channel spikesortingtest.com simulated data:
-#DEFSPIKETW = -1000, 2000 # spike window temporal window (us)
-#DEFCHARTTW = -75000, 75000 # chart window temporal window (us)
+# spike window temporal window (us)
+SPIKETW = {'.srf': (-400, 600), '.ns6': (-500, 1500), '.tsf': (-1000, 2000)}
+# chart window temporal window (us)
+CHARTTW = {'.srf': (-25000, 25000), '.ns6': (-25000, 25000), '.tsf': (-50000, 50000)}
+# LFP window temporal window (us)
+LFPTW = -500000, 500000
 
 SLIDERTRES = 100 # slider temporal resoluion (us), slider is limited to 2**32 ticks
 
@@ -114,9 +111,6 @@ class SpykeWindow(QtGui.QMainWindow):
                 self.sortpath = path
                 break
         self.windows = {} # holds child windows
-        self.spiketw = DEFSPIKETW # spike window temporal window (us)
-        self.charttw = DEFCHARTTW # chart window temporal window (us)
-        self.lfptw = DEFLFPTW # lfp window temporal window width (us)
         self.t = None # current time position in recording (us)
 
         self.hpstream = None
@@ -2116,10 +2110,12 @@ class SpykeWindow(QtGui.QMainWindow):
                     fs.append(f) # build up list of open and parsed data file objects
             self.hpstream = MultiStream(fs, fname, kind='highpass')
             self.lpstream = MultiStream(fs, fname, kind='lowpass')
+            ext = fext # for setting *tw variables below
         elif ext == '.tsf':
             self.hpstream, self.lpstream = self.OpenTSFFile(fname)
         elif ext == '.mat':
             self.hpstream = self.OpenQuirogaMATFile(fname)
+            ext = '.srf' # use same *tw variables as for .srf
         else:
             raise ValueError('unknown extension %r' % ext)
 
@@ -2134,6 +2130,10 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.__dict__['actionFiltmeth%s' % self.hpstream.filtmeth ].setChecked(True)
         self.ui.__dict__['action%dkHz' % (self.hpstream.sampfreq / 1000)].setChecked(True)
         self.ui.actionSampleAndHoldCorrect.setChecked(self.hpstream.shcorrect)
+
+        self.spiketw = SPIKETW[ext] # spike window temporal window (us)
+        self.charttw = CHARTTW[ext] # chart window temporal window (us)
+        self.lfptw = LFPTW # lfp window temporal window (us)
 
         self.set_chans_enabled(self.hpstream.chans, enable=True)
         tww = self.spiketw[1]-self.spiketw[0] # window width
@@ -2757,9 +2757,6 @@ class SpykeWindow(QtGui.QMainWindow):
         self.lpstream = None
         self.chans_enabled = []
         self.t = None
-        self.spiketw = DEFSPIKETW # reset
-        self.charttw = DEFCHARTTW
-        self.lfptw = DEFLFPTW
         self.ShowRasters(False) # reset
         self.updateTitle()
         self.EnableStreamWidgets(False)
