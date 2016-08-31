@@ -2136,8 +2136,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.lfptw = LFPTW # lfp window temporal window (us)
 
         self.set_chans_enabled(self.hpstream.chans, enable=True)
-        tww = self.spiketw[1]-self.spiketw[0] # window width
-        self.t = intround(self.hpstream.t0 + tww/2) # set current timepoint (us)
+        self.t = self.hpstream.t0 # set current timepoint (us)
 
         self.SPIKEWINDOWWIDTH = self.hpstream.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
         self.OpenWindow('Spike')
