@@ -2090,10 +2090,10 @@ class SpykeWindow(QtGui.QMainWindow):
             self.hpstream = f.hpstream # highpass record (spike) stream
             self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
         elif ext == '.ns6':
-            f = nsx.File(fname, self.streampath)
+            f = nsx.File(fname, self.streampath) # parses immediately
             self.hpstream = f.hpstream # highpass record (spike) stream
             self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
-            self.EnableFilteringMenu(True) # .ns6 is for now only one that needs filtering
+            self.EnableFilteringMenu(True) # .ns6 is for now the only one that needs filtering
         elif ext == '.track':
             fs = []
             with open(join(self.streampath, fname), 'r') as trackfile:
@@ -2104,9 +2104,9 @@ class SpykeWindow(QtGui.QMainWindow):
                     fext = os.path.splitext(fn)[1]
                     if fext == '.srf':
                         f = surf.File(fn, self.streampath)
-                    elif fext == 'ns6':
+                        f.parse()
+                    elif fext == '.ns6':
                         f = nsx.File(fn, self.streampath)
-                    f.parse()
                     fs.append(f) # build up list of open and parsed data file objects
             self.hpstream = MultiStream(fs, fname, kind='highpass')
             self.lpstream = MultiStream(fs, fname, kind='lowpass')
