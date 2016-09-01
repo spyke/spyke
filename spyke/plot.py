@@ -65,14 +65,6 @@ SCALECOLOUR = WHITE
 CARETCOLOUR = LIGHTBLACK
 CHANVBORDER = 175 # uV, vertical border space between top and bottom chans and axes edge
 
-# TODO: turn these PERUM constants into variables with user controls:
-# for .srf data:
-DEFUVPERUM = 2
-DEFUSPERUM = 17
-# for Catalin Mitelut's .tsf 32 channel spikesortingtest.com simulated data:
-#DEFUVPERUM = 20
-#DEFUSPERUM = 100
-
 BACKGROUNDCOLOUR = 'black'
 
 PLOTCOLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA,
@@ -333,11 +325,6 @@ class Rasters(object):
 class PlotPanel(FigureCanvas):
     """A QtWidget with an embedded mpl figure. Base class for Data and Sort panels"""
     # not necessarily constants
-    uVperum = DEFUVPERUM
-    # decreasing this increases horizontal overlap between spike chans. For .srf data, 17
-    # gives roughly no horizontal overlap for self.tw[1] - self.tw[0] == 1000 us:
-    usperum = DEFUSPERUM
-    
     def __init__(self, parent, tw=None, cw=None):
         self.figure = Figure() # resize later? can also set dpi here
         FigureCanvas.__init__(self, self.figure)
@@ -762,7 +749,7 @@ class PlotPanel(FigureCanvas):
     '''
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
-        self.usperum /= x
+        self.spykewindow.usperum /= x
         self.update_tw(self.tw[0]/x, self.tw[1]/x) # scale time window endpoints
     '''
     def update_tw(self, tw):
@@ -787,20 +774,20 @@ class PlotPanel(FigureCanvas):
     def um2uv(self, um):
         """Vertical conversion from um in channel siteloc
         space to uV in signal space"""
-        return self.uVperum * um
+        return self.spykewindow.uVperum * um
 
     def uv2um(self, uV):
         """Convert from uV to um"""
-        return uV / self.uVperum
+        return uV / self.spykewindow.uVperum
 
     def um2us(self, um):
         """Horizontal conversion from um in channel siteloc
         space to us in signal space"""
-        return self.usperum * um
+        return self.spykewindow.usperum * um
 
     def us2um(self, us):
         """Convert from us to um"""
-        return us / self.usperum
+        return us / self.spykewindow.usperum
 
     '''
     def OnNavigation(self, evt):

@@ -68,6 +68,15 @@ CHARTTW = {'.srf': (-25000, 25000), '.ns6': (-25000, 25000), '.tsf': (-50000, 50
 # LFP window temporal window (us)
 LFPTW = -500000, 500000
 
+# spatial channel layout:
+# UVPERUM affects vertical channel spacing and voltage gain (which is further multiplied by
+# each plot window's gain):
+UVPERUM = {'.srf': 2, '.ns6': 5, '.tsf': 20}
+# USPERUM affects horizontal channel spacing. Decreasing USPERUM increases horizontal overlap
+# between spike chans. For .srf data, 17 gives roughly no horizontal overlap for
+# self.tw[1] - self.tw[0] == 1000 us:
+USPERUM = {'.srf': 17, '.ns6': 17, '.tsf': 125} # untested for .ns6, need multicolumn data
+
 SLIDERTRES = 100 # slider temporal resoluion (us), slider is limited to 2**32 ticks
 
 SCREENWIDTH = 1920 # TODO: this should be found programmatically
@@ -2134,6 +2143,9 @@ class SpykeWindow(QtGui.QMainWindow):
         self.spiketw = SPIKETW[ext] # spike window temporal window (us)
         self.charttw = CHARTTW[ext] # chart window temporal window (us)
         self.lfptw = LFPTW # lfp window temporal window (us)
+
+        self.uVperum = UVPERUM[ext]
+        self.usperum = USPERUM[ext]
 
         self.set_chans_enabled(self.hpstream.chans, enable=True)
         self.t = self.hpstream.t0 # set current timepoint (us)
