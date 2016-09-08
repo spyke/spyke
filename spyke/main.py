@@ -844,9 +844,11 @@ class SpykeWindow(QtGui.QMainWindow):
             XYmethod = 'Gaussian 1D'
         else:
             XYmethod = 'Gaussian 2D'
-        ext = Extractor(self.sort, XYmethod) # or eventually, self.get_extractor()
+        # create Extractor, or eventually, call a self.get_extractor() method instead:
+        ext = Extractor(self.sort, XYmethod, maxsigma=self.sort.detector.inclr)
         self.sort.extractor = ext
-        #self.update_extractor(ext) # eventually, update extractor from multiple Extract pane widgets
+        # eventually, update extractor from multiple Extract pane widgets:
+        #self.update_extractor(ext)
 
     def OnXYExtract(self, evt=None):
         """Extract pane XY Extract button click. Extracts (or re-extracts and

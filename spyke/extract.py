@@ -22,7 +22,6 @@ from core import g, g2, cauchy2
 
 DEFSX = 50 # default spatial decay along x axis, in um
 DEFSY = 50
-MAXSIGMA = 10 * DEFSX # any sigma that comes out greater than this is bogus
 SIGMA2MAXD = 3 # multiple of each spike's sigma allowed for its maxd
 
 
@@ -273,12 +272,13 @@ class TemporalLeastSquares(object):
 class Extractor(object):
     """Spike extractor base class"""
     #DEFXYMETHOD = 'spatial mean'
-    def __init__(self, sort, XYmethod):
+    def __init__(self, sort, XYmethod, maxsigma=None):
         """Takes a parent Sort session and sets various parameters"""
         self.debug = False
         self.sort = sort
         self.XYmethod = XYmethod # or DEFXYMETHOD
         self.choose_XY_fun()
+        self.maxsigma = maxsigma # for sx and sy, in um
         self.sls = SpatialLeastSquares(self.debug)
         self.tls = TemporalLeastSquares(self.debug)
         # best wave coeffs according kstest of wavedec of full ptc18.14 sort,
@@ -793,10 +793,11 @@ class Extractor(object):
         sls.A, sls.x0, sls.y0, sls.sx, sls.sy = w[maxchani], x0, y0, DEFSX, DEFSY
         sls.p0 = np.array([sls.sx])
         sls.calc_sy(f, y, w) # sy free
-        if sls.sx > MAXSIGMA: # sls.sx is enforced to be +ve
-            print("%s: *** Spatial sigma was too far from default, falling back ***"
-                  % ps().name)
-            sls.sx, sls.sy = DEFSX, DEFSY
+        if sls.sy > self.maxsigma: # sls.sy is enforced to be +ve
+            if self.debug:
+                print("%s: *** Spatial sigma exceeds %d um, reject as noise event ***"
+                      % (ps().name, self.maxsigma))
+            return
 
         # now that we have viable estimates for sx and sy, fix them and fit y0:
         sls.p0 = np.array([y0])
@@ -831,10 +832,11 @@ class Extractor(object):
         '''
         sls.p0 = np.array([sls.sx])
         sls.calc_s(f, x, y, w) # s free (sx == sy)
-        if sls.sx > MAXSIGMA: # sls.sx is enforced to be +ve
-            print("%s: *** Spatial sigma was too far from default, falling back ***"
-                  % ps().name)
-            sls.sx, sls.sy = DEFSX, DEFSY
+        if sls.sx > self.maxsigma: # sls.sx is enforced to be +ve
+            if self.debug:
+                print("%s: *** Spatial sigma exceeds %d um, reject as noise event ***"
+                      % (ps().name, self.maxsigma))
+            return
 
         # now that we have viable estimates for sx and sy, fix them and fit x0 and y0:
         sls.p0 = np.array([x0, y0])
