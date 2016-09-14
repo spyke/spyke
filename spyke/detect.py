@@ -389,7 +389,7 @@ class Detector(object):
         lockouts = np.zeros(self.nchans, dtype=np.int64)
 
         tsharp = time.time()
-        sharp = util.sharpness2D(wave.data)
+        sharp = util.sharpness2D(wave.data) # sharpness of all zero-crossing separated peaks
         info('%s: sharpness2D() took %.3f sec' % (ps().name, time.time()-tsharp))
         targthreshsharp = time.time()
         # threshold-exceeding peak indices (2D, columns are [tis, cis])
@@ -406,17 +406,17 @@ class Detector(object):
         # TODO: test whether np.empty or np.zeros is faster overall in this case
         wavedata = np.empty((npeaks, self.maxnchansperspike, self.maxnt), dtype=np.int16)
         # check each threshold-exceeding peak for validity:
-        for ti, chani in peakis:
+        for peaki, (ti, chani) in enumerate(peakis):
             if DEBUG: debug('*** trying thresh peak at t=%d chan=%d'
                             % (wave.ts[ti], self.chans[chani]))
+
             # is this threshold-exceeding peak locked out?
             lockoutchani = lockouts[chani]
             if ti <= lockoutchani:
                 if DEBUG: debug('peak is locked out')
                 continue # skip to next peak
 
-            # find all enabled chanis within locknbh of chani
-            # lockouts are checked later
+            # find all enabled chanis within locknbh of chani, lockouts are checked later:
             chanis = self.locknbhdi[chani]
             nchans = len(chanis)
 
@@ -427,7 +427,8 @@ class Detector(object):
 
             # Collect peak-to-peak sharpness for all chans. Save max and adjacent sharpness
             # timepoints for each chan, and keep track of which of the two adjacent non locked
-            # out peaks is the sharpest
+            # out peaks is the sharpest. Note that the localsharp array contain sharpness of
+            # all local peaks, not just those that exceed threshold, as in peakis array.
             localsharp = sharp[chanis, t0i:t1i] # sliced the same way as window
             ppsharp = np.zeros(nchans, dtype=np.float32)
             maxsharpis = np.zeros(nchans, dtype=int)
@@ -470,38 +471,63 @@ class Detector(object):
                             break # out of cii loop
 
             if continuepeaki:
-                continue # to next peaki
-            oldti = ti # save
-            oldchani = chani # save
+                continue # skip to next peak
 
-            # choose chan with biggest ppsharp as maxchan, check that this is identical to
-            # the trigger chan, that its sharpest peak isn't locked out, that it falls within
-            # cutrange, and that it meets both Vp and Vpp threshold criteria
-            maxcii = abs(ppsharp).argmax()
+            # Choose chan with biggest ppsharp as maxchan and its sharpest peak as the primary
+            # peak, check that these new chani and ti values are identical to the trigger
+            # values in peakis, that the peak at [chani, ti] isn't locked out, that it falls
+            # within cutrange, and that it meets both Vp and Vpp threshold criteria.
+
+            oldchani, oldti = chani, ti # save
+            maxcii = abs(ppsharp).argmax() # choose chan with sharpest peak as new maxchan
             chani = chanis[maxcii] # update maxchan
+            maxsharpi = maxsharpis[maxcii] # choose sharpest peak of maxchan, absolute
+            ti = t0i + maxsharpi # update ti
+
+            # Search forward through peakis for a future (later) row that matches the
+            # (potentially new) [chani, ti] calculated above based on sharpness of local
+            # peaks. If that particular tuple is indeed coming up, it is therefore
+            # thresh exceeding, and should be waited for. If not, don't wait for it. Something
+            # that was thresh exceeding caused the trigger, but this nearby [chani, ti] tuple
+            # is according to the sharpness measure the best estimate of the spatiotemporal
+            # origin of the trigger-causing event.
+            newpeak_coming_up = (peakis[peaki+1:] == [ti, chani]).prod(axis=1).any()
             if chani != oldchani:
-                if DEBUG: debug("triggered off peak on chan that isn't max ppsharpness for "
-                                "this event, pass on this peak and wait for the true "
-                                "sharpest peak to come later")
-                continue
-            maxsharpi = maxsharpis[maxcii]
-            ti = t0i + maxsharpi # choose sharpest peak of maxchan, absolute
-            # if sharpest peak is in the past, use it. If it's yet to come, wait for it
+                if newpeak_coming_up:
+                    if DEBUG: debug("triggered off peak on chan that isn't max ppsharpness for "
+                                    "this event, pass on this peak and wait for the true "
+                                    "sharpest peak to come later")
+                    continue # skip to next peak
+                else:
+                    # update all variables that depend on chani that wouldn't otherwise be
+                    # updated:
+                    lockoutchani = lockouts[chani]
+                    chanis = self.locknbhdi[chani]
+                    nchans = len(chanis)
+
             if ti > oldti:
-                if DEBUG: debug("triggered off early adjacent peak for this event, "
-                                "pass on this peak and wait for the true sharpest peak "
-                                "to come later")
-                continue
+                if newpeak_coming_up:
+                    if DEBUG: debug("triggered off early adjacent peak for this event, "
+                                    "pass on this peak and wait for the true sharpest peak "
+                                    "to come later")
+                    continue # skip to next peak
+                else:
+                    # unlike chani, it seems that are no variables that depend on ti that
+                    # wouldn't otherwise be updated:
+                    pass
+
             if ti <= lockoutchani: # sharpest peak is locked out
                 if DEBUG: debug('sharpest peak at t=%d chan=%d is locked out'
                                 % (wave.ts[ti], self.chans[chani]))
-                continue
+                continue # skip to next peak
+
             if not (cutrange[0] <= wave.ts[ti] <= cutrange[1]):
                 if DEBUG:
                     # use %r since wave.ts[ti] is np.int64 and %d gives TypeError if > 2**31
                     debug("spike time %r falls outside cutrange for this searchblock "
                           "call, discarding" % wave.ts[ti])
                 continue # skip to next peak
+
             # check that Vp threshold is exceeded by at least one of the two sharpest peaks
             adjpi = adjpeakis[maxcii, maxadjiis[maxcii]]
             # relative to t0i, not necessarily in temporal order:
