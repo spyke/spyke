@@ -195,11 +195,11 @@ def sharpness2D(np.ndarray[int16_t, ndim=2] signal):
                     crossedonce = True # for next iter
                 continue # nothing to do until we cross 0 at least once
             npoints += 1 # inc for this segment, corresponds to "now" point in segment
-            #print('ti=%d, npoints=%d' % (ti, npoints))
+            #print('ci=%d, ti=%d, npoints=%d' % (ci, ti, npoints))
             if abs(now) > fabs(ext): # found new biggest extremum so far for this segment
                 extti = ti # store its timepoint
                 ext = now # update for this segment
-                #print('found new biggest local ext=%f at ti=%d' % (ext, extti))
+                #print('found new biggest local ext=%f at ci=%d, ti=%d' % (ext, ci, extti))
             if cross:
                 # 0-cross coming up, calculate sharpness of extremum in this segment
                 #print('reached end of segment')
@@ -208,6 +208,7 @@ def sharpness2D(np.ndarray[int16_t, ndim=2] signal):
                 ext *= fabs(ext) # maintain extremum sign
                 ext /= npoints
                 sharp[ci, extti] = ext # store
+                #print('sharpness is %f at ci=%d, extti=%d' % (ext, ci, extti))
                 ext = 0.0 # reset biggest max/min so far for new segment
                 npoints = 0 # reset for new segment
 

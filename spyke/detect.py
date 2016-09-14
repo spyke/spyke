@@ -424,6 +424,8 @@ class Detector(object):
             t0i = max(ti-dti, 0) # check for lockouts a bit later
             t1i = ti+dti+1 # +1 makes it end inclusive, don't worry about slicing past end
             window = wave.data[chanis, t0i:t1i] # search window, might not be contig
+            if DEBUG: debug('searching window (%d, %d) on chans=%r'
+                            % (wave.ts[t0i], wave.ts[t1i], list(self.chans[chanis])))
 
             # Collect peak-to-peak sharpness for all chans. Save max and adjacent sharpness
             # timepoints for each chan, and keep track of which of the two adjacent non locked
@@ -536,18 +538,18 @@ class Detector(object):
             Vs = np.int64(window[maxcii, maxchantis])
             Vp = abs(Vs).max() # grab biggest peak
             if Vp < self.thresh[chani]:
-                if DEBUG: debug('peak at t=%d chan=%d and its adjacent peak are both < Vp'
-                                % (wave.ts[ti], self.chans[chani]))
-                continue
+                if DEBUG: debug('peak at t=%d chan=%d and its adjacent peak are both '
+                                '< Vp=%f uV' % (wave.ts[ti], self.chans[chani], AD2uV(Vp)))
+                continue # skip to next peak
             # check that the two sharpest peaks together exceed Vpp threshold:
             Vpp = abs(Vs[0] - Vs[1]) # Vs are of opposite sign, unless monophasic
             if Vpp == 0: # monophasic spike
                 Vpp = Vp # use Vp as Vpp
             
             if Vpp < self.ppthresh[chani]:
-                if DEBUG: debug('peaks at t=%r chan=%d are < Vpp'
-                                % (wave.ts[[ti, t0i+adjpi]], self.chans[chani]))
-                continue
+                if DEBUG: debug('peaks at t=%r chan=%d are < Vpp = %f'
+                                % (wave.ts[[ti, t0i+adjpi]], self.chans[chani], AD2uV(Vpp)))
+                continue # skip to next peak
 
             if DEBUG: debug('found biggest thresh exceeding ppsharp at t=%d chan=%d'
                             % (wave.ts[ti], self.chans[chani]))
