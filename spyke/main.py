@@ -52,6 +52,7 @@ from struct import unpack
 import core
 from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
 from core import DJS, g
+import stream
 from stream import SimpleStream, MultiStream
 import surf, nsx
 from sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES
@@ -2435,6 +2436,10 @@ class SpykeWindow(QtGui.QMainWindow):
                 self.CreateNewSort() # overwrite the failed Sort
                 raise RuntimeError(".sort file's probe type %r doesn't match data file's "
                                    "probe type %r" % (sortProbeType, streamProbeType))
+        else: # no open stream, need to set uVperum and usperum:
+            ext = os.path.splitext(sort.stream.fnames[0])[-1] # take extension of first fname
+            self.uVperum = UVPERUM[ext]
+            self.usperum = USPERUM[ext]
 
         self.OpenSpikeFile(sort.spikefname)
 
