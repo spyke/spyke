@@ -592,9 +592,25 @@ class Detector(object):
             chan = self.chans[chani]
             inclchani = int(np.where(inclchans == chan)[0]) # != chani!
             inclciis = chanis.searchsorted(inclchanis)
+            incltis = tis[inclciis]
+            inclwindow = window[inclciis]
 
             if DEBUG: debug("final window params: t0=%r, t1=%r, Vs=%r, peakts=\n%r"
                             % (wave.ts[t0i], wave.ts[t1i], list(AD2uV(Vs)), wave.ts[t0i+tis]))
+
+            if self.extractparamsondetect:
+                # Get Vpp at each inclchan's tis, use as spatial weights:
+                # see core.rowtake() or util.rowtake_cy() for indexing explanation:
+                w = np.float32(inclwindow[np.arange(ninclchans)[:, None], incltis])
+                w = abs(w).sum(axis=1)
+                x = self.siteloc[inclchanis, 0] # 1D array (row)
+                y = self.siteloc[inclchanis, 1]
+                params = weights2f(f, w, x, y, inclchani)
+                if params == None: # presumably a non-localizable many-channel noise event
+                    treject = intround(wave.ts[ti]) # nearest us
+                    if DEBUG: debug("reject spike at t=%d based on fit params" % treject)
+                    # no real need to lockout chans for a params-rejected spike
+                    continue # skip to next peak
 
             # build up spike record:
             s = spikes[nspikes]
@@ -606,7 +622,6 @@ class Detector(object):
             ts = wave.ts[t0i:t1i] # potentially floats
             # use ts = np.arange(s['t0'], s['t1'], stream.tres) to reconstruct
             s['t0'], s['t1'] = intround(wave.ts[t0i]), intround(wave.ts[t1i]) # nearest us
-            incltis = tis[inclciis]
             s['tis'][:ninclchans] = incltis # wrt t0i
             s['aligni'] = aligni # 0 or 1
             s['dt'] = intround(abs(ts[tis[maxcii, 0]] - ts[tis[maxcii, 1]])) # nearest us
@@ -614,17 +629,10 @@ class Detector(object):
             s['Vpp'] = AD2uV(Vpp) # in uV
             s['chan'], s['chans'][:ninclchans], s['nchans'] = chan, inclchans, ninclchans
             s['chani'] = inclchani
-            inclwindow = window[inclciis]
             nt = inclwindow.shape[1] # isn't always full width if recording has gaps
             wavedata[nspikes, :ninclchans, :nt] = inclwindow
             if self.extractparamsondetect:
-                # Get Vpp at each inclchan's tis, use as spatial weights:
-                # see core.rowtake() or util.rowtake_cy() for indexing explanation:
-                w = np.float32(inclwindow[np.arange(ninclchans)[:, None], incltis])
-                w = abs(w).sum(axis=1)
-                x = self.siteloc[inclchanis, 0] # 1D array (row)
-                y = self.siteloc[inclchanis, 1]
-                s['x0'], s['y0'], s['sx'], s['sy'] = weights2f(f, w, x, y, inclchani)
+                s['x0'], s['y0'], s['sx'], s['sy'] = params
 
             if DEBUG: debug('*** found new spike %d: t=%d chan=%d (%d, %d)'
                             % (nspikes+self.nspikes, s['t'], chan, self.siteloc[chani, 0],
