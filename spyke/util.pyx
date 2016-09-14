@@ -239,6 +239,9 @@ def argthreshsharp(np.ndarray[int16_t, ndim=2] signal,
 
     for ti in range(nt):
         for ci in range(nchans):
+            #if ci == 28 and (ti == 543331 or ti == 543359):
+            #    printf('ti=%d, ci=%d, sharp=%f, signal=%d, thresh=%d\n',
+            #           ti, ci, sharp[ci, ti], abs(signal[ci, ti]), thresh[ci])
             if sharp[ci, ti] != 0.0 and abs(signal[ci, ti]) >= thresh[ci]:
                 peakis[npeaks, 0] = ti
                 peakis[npeaks, 1] = ci
