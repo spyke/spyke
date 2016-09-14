@@ -210,6 +210,9 @@ def sharpness2D(np.ndarray[int16_t, ndim=2] signal):
                 sharp[ci, extti] = ext # store
                 #print('sharpness is %f at ci=%d, extti=%d' % (ext, ci, extti))
                 ext = 0.0 # reset biggest max/min so far for new segment
+                # increment extti so that even if next segment only has ext=0 and npoints=1,
+                # sharp[ci, extti] of the current segment isn't overwritten with a 0:
+                extti += 1
                 npoints = 0 # reset for new segment
 
     return sharp
