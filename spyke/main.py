@@ -27,8 +27,6 @@ getSaveFileName = QtGui.QFileDialog.getSaveFileName
 getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
 SpykeUi, SpykeUiBase = uic.loadUiType('spyke.ui')
 
-from scipy.misc import comb
-
 import pylab as pl
 from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
