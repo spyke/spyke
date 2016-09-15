@@ -76,6 +76,9 @@ UVPERUM = {'.srf': 2, '.ns6': 5, '.tsf': 20}
 # self.tw[1] - self.tw[0] == 1000 us:
 USPERUM = {'.srf': 17, '.ns6': 17, '.tsf': 125} # untested for .ns6, need multicolumn data
 
+DYNAMICNOISEX = {'.srf': 6, '.ns6': 4.5, '.tsf': 3} # noise multiplier
+DT = {'.srf': 400, '.ns6': 500, '.tsf': 1500} # maximum time between spike peaks (us)
+
 SLIDERTRES = 100 # slider temporal resoluion (us), slider is limited to 2**32 ticks
 
 SCREENWIDTH = 1920 # TODO: this should be found programmatically
@@ -2147,6 +2150,9 @@ class SpykeWindow(QtGui.QMainWindow):
 
         self.uVperum = UVPERUM[ext]
         self.usperum = USPERUM[ext]
+
+        self.ui.dynamicNoiseXSpinBox.setValue(DYNAMICNOISEX[ext])
+        self.ui.dtSpinBox.setValue(DT[ext])
 
         self.set_chans_enabled(self.hpstream.chans, enable=True)
         self.t = self.hpstream.t0 # set current timepoint (us)
