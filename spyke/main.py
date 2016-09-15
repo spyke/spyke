@@ -76,8 +76,8 @@ UVPERUM = {'.srf': 2, '.ns6': 5, '.tsf': 20}
 # self.tw[1] - self.tw[0] == 1000 us:
 USPERUM = {'.srf': 17, '.ns6': 17, '.tsf': 125} # untested for .ns6, need multicolumn data
 
-DYNAMICNOISEX = {'.srf': 6, '.ns6': 4.5, '.tsf': 3} # noise multiplier
-DT = {'.srf': 400, '.ns6': 500, '.tsf': 1500} # maximum time between spike peaks (us)
+DYNAMICNOISEX = {'.srf': 6, '.ns6': 4, '.tsf': 3} # noise multiplier
+DT = {'.srf': 400, '.ns6': 600, '.tsf': 1500} # maximum time between spike peaks (us)
 
 SLIDERTRES = 100 # slider temporal resoluion (us), slider is limited to 2**32 ticks
 
