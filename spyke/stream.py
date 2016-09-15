@@ -5,8 +5,9 @@ from __future__ import division
 
 __authors__ = ['Martin Spacek']
 
-import numpy as np
+import os
 import time
+import numpy as np
 
 import core
 from core import (WaveForm, EmptyClass, intround, intfloor, intceil, lrstrip, MU,
