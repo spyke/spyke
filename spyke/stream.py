@@ -44,6 +44,12 @@ class Stream(object):
 
     fnames = property(get_fnames)
 
+    def get_ext(self):
+        """Get file extension of data source"""
+        return os.path.splitext(self.fnames[0])[-1] # take extension of first fname
+
+    ext = property(get_ext)
+
     def get_nchans(self):
         return len(self.chans)
 

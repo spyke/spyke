@@ -2436,8 +2436,8 @@ class SpykeWindow(QtGui.QMainWindow):
                 self.CreateNewSort() # overwrite the failed Sort
                 raise RuntimeError(".sort file's probe type %r doesn't match data file's "
                                    "probe type %r" % (sortProbeType, streamProbeType))
-        else: # no open stream, need to set uVperum and usperum:
-            ext = os.path.splitext(sort.stream.fnames[0])[-1] # take extension of first fname
+        else: # no open stream, need to set uVperum and usperum according to sort type:
+            ext = sort.stream.ext
             self.uVperum = UVPERUM[ext]
             self.usperum = USPERUM[ext]
 
