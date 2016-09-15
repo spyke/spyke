@@ -287,9 +287,8 @@ class Detector(object):
         return spikes, wavedata
 
     def log(self, msg):
-        """If debugging enabled, write message to debugger log"""
-        if DEBUG:
-            self.logger.debug(msg)
+        """Write message to debugger log"""
+        self.logger.debug(msg)
 
     def calc_chans(self):
         """Calculate lockout and inclusion chan neighbourhoods, max number of chans to use,
@@ -412,13 +411,13 @@ class Detector(object):
         wavedata = np.empty((npeaks, self.maxnchansperspike, self.maxnt), dtype=np.int16)
         # check each threshold-exceeding peak for validity:
         for peaki, (ti, chani) in enumerate(peakis):
-            self.log('*** trying thresh peak at t=%r chan=%d'
-                     % (wave.ts[ti], self.chans[chani]))
+            if DEBUG: self.log('*** trying thresh peak at t=%r chan=%d'
+                               % (wave.ts[ti], self.chans[chani]))
 
             # is this threshold-exceeding peak locked out?
             lockoutchani = lockouts[chani]
             if ti <= lockoutchani:
-                self.log('peak is locked out')
+                if DEBUG: self.log('peak is locked out')
                 continue # skip to next peak
 
             # find all enabled chanis within locknbh of chani, lockouts are checked later:
@@ -429,8 +428,8 @@ class Detector(object):
             t0i = max(ti-dti, 0) # check for lockouts a bit later
             t1i = ti+dti+1 # +1 makes it end inclusive, don't worry about slicing past end
             window = wave.data[chanis, t0i:t1i] # search window, might not be contig
-            self.log('searching window (%d, %d) on chans=%r'
-                     % (wave.ts[t0i], wave.ts[t1i], list(self.chans[chanis])))
+            if DEBUG: self.log('searching window (%d, %d) on chans=%r'
+                               % (wave.ts[t0i], wave.ts[t1i], list(self.chans[chanis])))
 
             # Collect peak-to-peak sharpness for all chans. Save max and adjacent sharpness
             # timepoints for each chan, and keep track of which of the two adjacent non locked
@@ -471,10 +470,11 @@ class Detector(object):
                         # its Vpp exceeds Vppthresh and has zero crossings on either side,
                         # with no more than dt between. Avoids excessively wide
                         # monophasic peaks from being considered as spikes:
-                        self.log("found monophasic spike")
+                        if DEBUG: self.log("found monophasic spike")
                         if abs(ppsharp[cii]) < self.ppthresh[chani]**2 / dti:
                             continuepeaki = True
-                            self.log("peak wasn't sharp enough for a monophasic spike")
+                            if DEBUG: self.log("peak wasn't sharp enough for a monophasic "
+                                               "spike")
                             break # out of cii loop
 
             if continuepeaki:
@@ -501,9 +501,10 @@ class Detector(object):
             newpeak_coming_up = (peakis[peaki+1:] == [ti, chani]).prod(axis=1).any()
             if chani != oldchani:
                 if newpeak_coming_up:
-                    self.log("triggered off peak on chan that isn't max ppsharpness for "
-                             "this event, pass on this peak and wait for the true "
-                             "sharpest peak to come later")
+                    if DEBUG:
+                        self.log("triggered off peak on chan that isn't max ppsharpness for "
+                                 "this event, pass on this peak and wait for the true "
+                                 "sharpest peak to come later")
                     continue # skip to next peak
                 else:
                     # update all variables that depend on chani that wouldn't otherwise be
@@ -514,8 +515,9 @@ class Detector(object):
 
             if ti > oldti:
                 if newpeak_coming_up:
-                    self.log("triggered off early adjacent peak for this event, pass on this "
-                             "peak and wait for the true sharpest peak to come later")
+                    if DEBUG:
+                        self.log("triggered off early adjacent peak for this event, pass on "
+                                 "this peak and wait for the true sharpest peak to come later")
                     continue # skip to next peak
                 else:
                     # unlike chani, it seems that are no variables that depend on ti that
@@ -523,14 +525,14 @@ class Detector(object):
                     pass
 
             if ti <= lockoutchani: # sharpest peak is locked out
-                self.log('sharpest peak at t=%d chan=%d is locked out'
-                         % (wave.ts[ti], self.chans[chani]))
+                if DEBUG: self.log('sharpest peak at t=%d chan=%d is locked out'
+                                   % (wave.ts[ti], self.chans[chani]))
                 continue # skip to next peak
 
             if not (cutrange[0] <= wave.ts[ti] <= cutrange[1]):
                 # use %r since wave.ts[ti] is np.int64 and %d gives TypeError if > 2**31:
-                self.log("spike time %r falls outside cutrange for this searchblock "
-                         "call, discarding" % wave.ts[ti])
+                if DEBUG: self.log("spike time %r falls outside cutrange for this searchblock "
+                                   "call, discarding" % wave.ts[ti])
                 continue # skip to next peak
 
             # check that Vp threshold is exceeded by at least one of the two sharpest peaks
@@ -541,8 +543,8 @@ class Detector(object):
             Vs = np.int64(window[maxcii, maxchantis])
             Vp = abs(Vs).max() # grab biggest peak
             if Vp < self.thresh[chani]:
-                self.log('peak at t=%d chan=%d and its adjacent peak are both '
-                         '< Vp=%f uV' % (wave.ts[ti], self.chans[chani], AD2uV(Vp)))
+                if DEBUG: self.log('peak at t=%d chan=%d and its adjacent peak are both '
+                                   '< Vp=%f uV' % (wave.ts[ti], self.chans[chani], AD2uV(Vp)))
                 continue # skip to next peak
             # check that the two sharpest peaks together exceed Vpp threshold:
             Vpp = abs(Vs[0] - Vs[1]) # Vs are of opposite sign, unless monophasic
@@ -550,12 +552,12 @@ class Detector(object):
                 Vpp = Vp # use Vp as Vpp
             
             if Vpp < self.ppthresh[chani]:
-                self.log('peaks at t=%r chan=%d are < Vpp = %f'
-                         % (wave.ts[[ti, t0i+adjpi]], self.chans[chani], AD2uV(Vpp)))
+                if DEBUG: self.log('peaks at t=%r chan=%d are < Vpp = %f'
+                                   % (wave.ts[[ti, t0i+adjpi]], self.chans[chani], AD2uV(Vpp)))
                 continue # skip to next peak
 
-            self.log('found biggest thresh exceeding ppsharp at t=%d chan=%d'
-                     % (wave.ts[ti], self.chans[chani]))
+            if DEBUG: self.log('found biggest thresh exceeding ppsharp at t=%d chan=%d'
+                               % (wave.ts[ti], self.chans[chani]))
 
             # get new spatiotemporal neighbourhood, with full window,
             # align to -ve of the two sharpest peaks
@@ -626,8 +628,9 @@ class Detector(object):
             incltis = tis[inclciis]
             inclwindow = window[inclciis]
 
-            self.log("final window params: t0=%r, t1=%r, Vs=%r, peakts=\n%r"
-                     % (wave.ts[t0i], wave.ts[t1i], list(AD2uV(Vs)), wave.ts[t0i+tis]))
+            if DEBUG: self.log("final window params: t0=%r, t1=%r, Vs=%r, peakts=\n%r"
+                               % (wave.ts[t0i], wave.ts[t1i], list(AD2uV(Vs)),
+                                  wave.ts[t0i+tis]))
 
             if self.extractparamsondetect:
                 # Get Vpp at each inclchan's tis, use as spatial weights:
@@ -639,7 +642,7 @@ class Detector(object):
                 params = weights2f(f, w, x, y, inclchani)
                 if params == None: # presumably a non-localizable many-channel noise event
                     treject = intround(wave.ts[ti]) # nearest us
-                    self.log("reject spike at t=%d based on fit params" % treject)
+                    if DEBUG: self.log("reject spike at t=%d based on fit params" % treject)
                     # no real need to lockout chans for a params-rejected spike
                     continue # skip to next peak
 
@@ -665,16 +668,16 @@ class Detector(object):
             if self.extractparamsondetect:
                 s['x0'], s['y0'], s['sx'], s['sy'] = params
 
-            self.log('*** found new spike %d: t=%d chan=%d (%d, %d)'
-                     % (nspikes+self.nspikes, s['t'], chan, self.siteloc[chani, 0],
-                        self.siteloc[chani, 1]))
+            if DEBUG: self.log('*** found new spike %d: t=%d chan=%d (%d, %d)'
+                               % (nspikes+self.nspikes, s['t'], chan, self.siteloc[chani, 0],
+                                  self.siteloc[chani, 1]))
 
             # give each chan a distinct lockout, based on how each chan's
             # sharpest peaks line up with those of the maxchan. Respect existing lockouts:
             # on each of the relvant chans, keep whichever lockout ends last
             lockouts[chanis] = np.max([lockouts[chanis], t0i+tis.max(axis=1)], axis=0)
-            self.log('lockouts=%r\nfor chans=%r' %
-                     (list(wave.ts[lockouts[chanis]]), list(self.chans[chanis])))
+            if DEBUG: self.log('lockouts=%r\nfor chans=%r' %
+                               (list(wave.ts[lockouts[chanis]]), list(self.chans[chanis])))
             nspikes += 1
 
         # trim spikes and wavedata arrays down to size
