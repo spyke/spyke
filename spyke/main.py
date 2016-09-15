@@ -2937,6 +2937,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.filePosLineEdit.setEnabled(enable)
         self.ui.filePosEndButton.setEnabled(enable)
         self.ui.slider.setEnabled(enable)
+        self.ui.detectButton.setEnabled(enable)
 
     def EnableSortWidgets(self, enable):
         """Enable/disable all widgets that require a sort"""
