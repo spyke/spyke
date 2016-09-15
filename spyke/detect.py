@@ -407,7 +407,7 @@ class Detector(object):
         wavedata = np.empty((npeaks, self.maxnchansperspike, self.maxnt), dtype=np.int16)
         # check each threshold-exceeding peak for validity:
         for peaki, (ti, chani) in enumerate(peakis):
-            if DEBUG: debug('*** trying thresh peak at t=%d chan=%d'
+            if DEBUG: debug('*** trying thresh peak at t=%r chan=%d'
                             % (wave.ts[ti], self.chans[chani]))
 
             # is this threshold-exceeding peak locked out?
@@ -613,7 +613,7 @@ class Detector(object):
                 else:
                     tis[cii, 1] = localpeakis[peak1ii]
 
-            # find inclchanis, get corresponding indices into locknbhd of chanis
+            # based on maxchan (chani), find inclchanis, incltis, and inclwindow:
             inclchanis = self.inclnbhdi[chani]
             ninclchans = len(inclchanis)
             inclchans = self.chans[inclchanis]
