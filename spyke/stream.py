@@ -627,6 +627,11 @@ class SimpleStream(Stream):
 
     fname = property(get_fname)
 
+    def get_fnames(self):
+        return [self._fname]
+
+    fnames = property(get_fnames)
+
     def get_datetime(self):
         """.tsf files don't currently have a datetime stamp, return Unix epoch instead"""
         return UNIXEPOCH
