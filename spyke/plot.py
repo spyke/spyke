@@ -283,16 +283,16 @@ class Rasters(object):
         """Update LineCollection from spikes, using spike times and chans"""
         #self.spikes = spikes
         #self.tref = tref
-        nsegments = spikes['nchans'].sum()
+        nsegments = spikes['nlockchans'].sum()
         # 2 points per raster line, x vals in col 0, yvals in col 1
         segments = np.zeros((nsegments, 2, 2))
         colours = np.zeros(nsegments, dtype='|S7') # colours are length-7 strings
         segmenti = 0
         for spike in spikes:
-            nchans = spike['nchans']
+            nchans = spike['nlockchans']
             # colour segments according to each spike's max chan:
             colours[segmenti:segmenti+nchans] = self.panel.vcolours[spike['chan']]
-            spikechans = spike['chans'][:nchans]
+            spikechans = spike['lockchans'][:nchans]
             for chan in spikechans:
                 xpos, ypos = self.panel.pos[chan]
                 x = spike['t'] - tref + xpos

@@ -1018,6 +1018,12 @@ def argcut(ts, trange):
     '''
     return lo, hi
 
+def dist(a, b):
+    """Return the Euclidean distance between two N-dimensional coordinates"""
+    a = np.asarray(a)
+    b = np.asarray(b)
+    return np.sqrt(((a-b)**2).sum())
+
 def eucd(coords):
     """Generates Euclidean distance matrix from a
     sequence of n m-dimensional coordinates. Nice and fast.

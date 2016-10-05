@@ -40,7 +40,7 @@ IOError: [Errno 4] Interrupted system call
 
 which has to be caught and retried using _eintr_retry_call.
 '''
-from core import eucd, issorted, concatenate_destroy, intround, g2, cauchy2
+from core import eucd, dist, issorted, concatenate_destroy, intround, g2, cauchy2
 import stream
 
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
@@ -300,15 +300,11 @@ class Detector(object):
         # distance matrix for the chans enabled for this search, sorted by chans:
         self.dm = DistanceMatrix(self.enabledSiteLoc)
         # dict of neighbourhood of chanis for each chani
-        self.locknbhdi = {} # for lockout around a spike
         self.inclnbhdi = {} # for inclusion of wavedata as part of a spike
         maxnchansperspike = 0
         for chani, distances in enumerate(self.dm.data): # iterate over rows of distances
-            # at what col indices does the returned row fall within lockr?:
-            lockchanis, = np.uint8(np.where(distances <= self.lockr))
             # at what col indices does the returned row fall within inclr?:
             inclchanis, = np.uint8(np.where(distances <= self.inclr))
-            self.locknbhdi[chani] = lockchanis
             self.inclnbhdi[chani] = inclchanis
             maxnchansperspike = max(maxnchansperspike, len(inclchanis))
         self.maxnchansperspike = maxnchansperspike
@@ -317,6 +313,8 @@ class Detector(object):
                            ('chan', np.uint8), ('nchans', np.uint8),
                            ('chans', np.uint8, (self.maxnchansperspike,)),
                            ('chani', np.uint8),
+                           ('nlockchans', np.uint8),
+                           ('lockchans', np.uint8, (self.maxnchansperspike,)),
                            ('t', np.int64), ('t0', np.int64), ('t1', np.int64),
                            ('dt', np.int16), # time between peaks, in us
                            ('tis', np.uint8, (self.maxnchansperspike, 2)), # peak positions
@@ -407,7 +405,7 @@ class Detector(object):
         nspikes = 0
         npeaks = len(peakis)
         spikes = np.zeros(npeaks, self.SPIKEDTYPE) # nspikes will always be <= npeaks
-        # TODO: test whether np.empty or np.zeros is faster overall in this case
+        ## TODO: test whether np.empty or np.zeros is faster overall in this case
         wavedata = np.empty((npeaks, self.maxnchansperspike, self.maxnt), dtype=np.int16)
         # check each threshold-exceeding peak for validity:
         for peaki, (ti, chani) in enumerate(peakis):
@@ -415,13 +413,13 @@ class Detector(object):
                                % (wave.ts[ti], self.chans[chani]))
 
             # is this threshold-exceeding peak locked out?
-            lockoutchani = lockouts[chani]
-            if ti <= lockoutchani:
+            tlockoutchani = lockouts[chani]
+            if ti <= tlockoutchani:
                 if DEBUG: self.log('peak is locked out')
                 continue # skip to next peak
 
-            # find all enabled chanis within locknbh of chani, lockouts are checked later:
-            chanis = self.locknbhdi[chani]
+            # find all enabled chanis within inclnbh of chani, lockouts are checked later:
+            chanis = self.inclnbhdi[chani]
             nchans = len(chanis)
 
             # get search window DT on either side of this peak, for checking sharpness
@@ -509,8 +507,8 @@ class Detector(object):
                 else:
                     # update all variables that depend on chani that wouldn't otherwise be
                     # updated:
-                    lockoutchani = lockouts[chani]
-                    chanis = self.locknbhdi[chani]
+                    tlockoutchani = lockouts[chani]
+                    chanis = self.inclnbhdi[chani]
                     nchans = len(chanis)
 
             if ti > oldti:
@@ -524,7 +522,7 @@ class Detector(object):
                     # wouldn't otherwise be updated:
                     pass
 
-            if ti <= lockoutchani: # sharpest peak is locked out
+            if ti <= tlockoutchani: # sharpest peak is locked out
                 if DEBUG: self.log('sharpest peak at t=%d chan=%d is locked out'
                                    % (wave.ts[ti], self.chans[chani]))
                 continue # skip to next peak
@@ -665,19 +663,47 @@ class Detector(object):
             s['chani'] = inclchani
             nt = inclwindow.shape[1] # isn't always full width if recording has gaps
             wavedata[nspikes, :ninclchans, :nt] = inclwindow
-            if self.extractparamsondetect:
-                s['x0'], s['y0'], s['sx'], s['sy'] = params
 
-            if DEBUG: self.log('*** found new spike %d: t=%d chan=%d (%d, %d)'
-                               % (nspikes+self.nspikes, s['t'], chan, self.siteloc[chani, 0],
-                                  self.siteloc[chani, 1]))
+            if self.extractparamsondetect:
+                # Save spatial fit params, and lockout only the channels within lockrx*sx
+                # of the the fit spatial location of the spike, up to a max of self.inclr.
+                s['x0'], s['y0'], s['sx'], s['sy'] = params
+                x0, y0 = s['x0'], s['y0']
+                # lockout radius for this spike:
+                lockr = min(self.lockrx*s['sx'], self.inclr) # in um
+                # test y coords of inclchans in y array, ylockchaniis can be used to index
+                # into x, y and inclchans:
+                ylockchaniis, = np.where(np.abs(y - y0) <= lockr) # convert bool arr to int
+                # test Euclid distance from x0, y0 for each ylockchani:
+                lockchaniis = ylockchaniis.copy()
+                for ylockchanii in ylockchaniis:
+                    if dist((x[ylockchanii], y[ylockchanii]), (x0, y0)) > lockr:
+                        lockchaniis = np.delete(lockchaniis, ylockchanii) # dist is too great
+                lockchans = inclchans[lockchaniis]
+                lockchanis = inclchanis[lockchaniis]
+                nlockchans = len(lockchans)
+                s['lockchans'][:nlockchans], s['nlockchans'] = lockchans, nlockchans
+                # just for testing:
+                #assert (lockchanis == self.chans.searchsorted(lockchans)).all()
+                #assert (lockchaniis == chanis.searchsorted(lockchanis)).all()
+            else: # in this case, the inclchans and lockchans fields are redundant
+                s['lockchans'][:ninclchans], s['nlockchans'] = inclchans, ninclchans
+                lockchanis = chanis
+                lockchaniis = np.arange(ninclchans)
 
             # give each chan a distinct lockout, based on how each chan's
             # sharpest peaks line up with those of the maxchan. Respect existing lockouts:
-            # on each of the relvant chans, keep whichever lockout ends last
-            lockouts[chanis] = np.max([lockouts[chanis], t0i+tis.max(axis=1)], axis=0)
-            if DEBUG: self.log('lockouts=%r\nfor chans=%r' %
-                               (list(wave.ts[lockouts[chanis]]), list(self.chans[chanis])))
+            # on each of the relevant chans, keep whichever lockout ends last
+            thislockout = t0i+tis.max(axis=1)[lockchaniis]
+            lockouts[lockchanis] = np.max([lockouts[lockchanis], thislockout], axis=0)
+
+            if DEBUG:
+                self.log('lockouts=%r\nfor chans=%r' %
+                        (list(wave.ts[lockouts[lockchanis]]),
+                         list(self.chans[lockchanis])))
+                self.log('*** found new spike %d: t=%d chan=%d (%d, %d)' %
+                        (nspikes+self.nspikes, s['t'], chan, self.siteloc[chani, 0],
+                         self.siteloc[chani, 1]))
             nspikes += 1
 
         # trim spikes and wavedata arrays down to size

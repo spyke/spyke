@@ -581,7 +581,7 @@
         <property name="title">
          <string>Radii</string>
         </property>
-        <widget class="QSpinBox" name="lockRSpinBox">
+        <widget class="QDoubleSpinBox" name="lockRxSpinBox">
          <property name="geometry">
           <rect>
            <x>60</x>
@@ -591,13 +591,17 @@
           </rect>
          </property>
          <property name="toolTip">
-          <string>Spatial extent of lockout following a spike</string>
+          <string>Multiple of each detected spike's modelled spatial extent to use as the
+spatial lockout around the modelled location of each detected spike</string>
          </property>
-         <property name="maximum">
-          <number>9999</number>
+         <property name="decimals">
+          <number>1</number>
+         </property>
+         <property name="singleStep">
+          <double>0.500000000000000</double>
          </property>
          <property name="value">
-          <number>150</number>
+          <double>3.000000000000000</double>
          </property>
         </widget>
         <widget class="QSpinBox" name="inclRSpinBox">
@@ -624,12 +628,12 @@
           <rect>
            <x>115</x>
            <y>20</y>
-           <width>18</width>
-           <height>15</height>
+           <width>121</width>
+           <height>16</height>
           </rect>
          </property>
          <property name="text">
-          <string>um</string>
+          <string>* spike spatial extent</string>
          </property>
         </widget>
         <widget class="QLabel" name="label_12">
@@ -2576,7 +2580,7 @@ or remove all duplicate spikes from selected neurons
   <tabstop>rangeStartLineEdit</tabstop>
   <tabstop>rangeEndLineEdit</tabstop>
   <tabstop>blockSizeLineEdit</tabstop>
-  <tabstop>lockRSpinBox</tabstop>
+  <tabstop>lockRxSpinBox</tabstop>
   <tabstop>inclRSpinBox</tabstop>
   <tabstop>dimlist</tabstop>
   <tabstop>sigmaSpinBox</tabstop>

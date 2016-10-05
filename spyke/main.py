@@ -451,6 +451,8 @@ class SpykeWindow(QtGui.QMainWindow):
             v = self.update_0_7_to_0_8()
         if v == 0.8:
             v = self.update_0_8_to_0_9()
+        if v == 0.9:
+            v = self.update_0_9_to_1_0()
         print('now save me!')
             
     def update_0_3_to_0_4(self):
@@ -582,6 +584,48 @@ class SpykeWindow(QtGui.QMainWindow):
             s.filtmeth = None
         s.__version__ = '0.9' # update
         print('done updating sort from version 0.8 to 0.9')
+        return float(s.__version__)
+
+    def update_0_9_to_1_0(self):
+        """Update sort 0.9 to 1.0:
+            - add nlockchans and lockchans fields to spike record
+            - add detector.lockrx attrib
+        """
+        print('updating sort from version 0.9 to 1.0')
+        s = self.sort
+        oldspikes = s.spikes
+
+        olddtype = oldspikes.dtype.descr # [(fieldname, fieldtype)] tuples, ordered by offset
+        oldnames = oldspikes.dtype.names # list of field names, ordered by offset
+        oldfields = oldspikes.dtype.fields # {fieldname:(fielddtype, byte offset)} mapping
+
+        newdtype = copy(olddtype)
+        inserti = oldnames.index('t') # insert our new fields just before the 't' field
+        assert inserti == 6
+        newdtype.insert(inserti, ('nlockchans', oldfields['nchans'][0])) # copy nchans type
+        newdtype.insert(inserti+1, ('lockchans', oldfields['chans'][0])) # copy chans type
+
+        s.detector.SPIKEDTYPE = newdtype # replace detector's SPIKEDTYPE
+        newspikes = np.empty(oldspikes.shape, dtype=newdtype) # init newspikes
+        from numpy.lib import recfunctions as rfn
+        newspikes = rfn.recursive_fill_fields(oldspikes, newspikes) # copy from old to new
+        # the new fields are redundant for old detection runs, but are used in the code
+        # for displaying spike rasters:
+        newspikes['nlockchans'] = oldspikes['nchans']
+        newspikes['lockchans'] = oldspikes['chans']
+        s.spikes = newspikes # overwrite
+
+        from pprint import pprint
+        print('old dtype:')
+        pprint(olddtype)
+        print('new dtype:')
+        pprint(s.spikes.dtype.descr)
+
+        # add new detector.lockrx attrib, supercedes detector.lockr attrib
+        s.detector.lockrx = 0.0 # set to 0 to indicate it wasn't used during detection
+
+        s.__version__ = '1.0' # update
+        print('done updating sort from version 0.9 to 1.0')
         return float(s.__version__)
 
     @QtCore.pyqtSlot()
@@ -3025,7 +3069,7 @@ class SpykeWindow(QtGui.QMainWindow):
         det.dt = ui.dtSpinBox.value()
         det.trange = self.get_detectortrange()
         det.blocksize = int(float(ui.blockSizeLineEdit.text())) # allow exp notation
-        det.lockr = ui.lockRSpinBox.value()
+        det.lockrx = ui.lockRxSpinBox.value()
         det.inclr = ui.inclRSpinBox.value()
 
     def update_sort_from_cluster_pane(self):
@@ -3056,7 +3100,7 @@ class SpykeWindow(QtGui.QMainWindow):
         ui.rangeStartLineEdit.setText(str(det.trange[0]))
         ui.rangeEndLineEdit.setText(str(det.trange[1]))
         ui.blockSizeLineEdit.setText(str(det.blocksize))
-        ui.lockRSpinBox.setValue(det.lockr)
+        ui.lockRxSpinBox.setValue(det.lockrx)
         ui.inclRSpinBox.setValue(det.inclr)
         # update cluster pane
         ui.sigmaSpinBox.setValue(s.sigma)
