@@ -78,15 +78,16 @@ class File(object):
     def load(self):
         """Load the waveform data. Data are stored in packets. Normally, there is only one
         long contiguous data packet, but if there are pauses during the recording, the
-        data is broken up into multiple packets, with a time gap between each one"""
-        datapacket = DataPacket(self.f, self.fileheader.nchans)
+        data is broken up into multiple packets, with a time gap between each one. Need
+        to step over all chans, including aux chans, so pass nchanstotal instead of nchans"""
+        datapacket = DataPacket(self.f, self.fileheader.nchanstotal)
         if self.f.tell() != self.filesize: # make sure we're at EOF
             raise NotImplementedError("Can't handle pauses in recording yet")
         self.datapacket = datapacket
 
     def get_data(self):
         try:
-            return self.datapacket._data
+            return self.datapacket._data[:self.fileheader.nchans] # return only ephys data
         except AttributeError:
             raise RuntimeError('waveform data not available, file is closed/mmap deleted?')
 
@@ -133,19 +134,35 @@ class FileHeader(object):
         # date and time corresponding to t=0:
         year, month, dow, day, hour, m, s, ms = unpack('HHHHHHHH', f.read(16))
         self.datetime = datetime.datetime(year, month, day, hour, m, s, ms)
-        self.nchans, = unpack('I', f.read(4))
+        self.nchanstotal, = unpack('I', f.read(4)) # ephys and aux chans
 
-        # "extended" headers, each one describing a channel:
-        self.chanheaders = {}
-        for chani in range(self.nchans):
+        # "extended" headers, each one describing a channel. Use the channel label
+        # to distinguish ephys chans from auxiliary channels. Note that seeking through
+        # the DataPacket won't work if ephys and aux channels are intermingled. The current
+        # assumption is that all ephys chans come before any aux chans:
+        self.chanheaders = {} # for ephys signals
+        self.auxchanheaders = {} # for auxiliary signals, such as opto/LED signals
+        for chani in range(self.nchanstotal):
             chanheader = ChanHeader()
             chanheader.parse(f)
-            self.chanheaders[chanheader.id] = chanheader
-        assert len(self.chanheaders) == self.nchans # make sure each chan ID is unique
+            label, id = chanheader.label, chanheader.id
+            if label != ('chan%d' % id):
+                print('excluding chan%d (%r) as auxiliary channel' % (id, label))
+                self.auxchanheaders[id] = chanheader
+            else: # save ephys channel
+                self.chanheaders[id] = chanheader
+        self.nchans = len(self.chanheaders) # number of ephys chans
+        self.nauxchans = len(self.auxchanheaders) # number of aux chans
+        assert self.nchans + self.nauxchans == self.nchanstotal
+        if self.nauxchans > 0: # some chans were aux chans
+            print('excluded %d auxiliary channels' % (self.nauxchans))
         assert len(self) == f.tell() # header should be of expected length
         self.chans = np.asarray(sorted(self.chanheaders)) # sorted array of keys
+        self.auxchans = np.asarray(sorted(self.auxchanheaders)) # sorted array of keys
+        # make sure that last ephys chan comes before first aux chan:
+        assert self.chans[-1] < self.auxchans[0]
 
-        # check AD2uV params of all chans:
+        # check AD2uV params of all ephys chans:
         c0 = self.chanheaders[self.chans[0]] # reference channel for comparing AD2uV params
         assert c0.units == 'uV' # assumed later during AD2uV conversion
         assert c0.maxaval == abs(c0.minaval) # not strictly necessary, but check anyway
