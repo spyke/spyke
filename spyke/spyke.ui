@@ -218,6 +218,9 @@
            <height>20</height>
           </rect>
          </property>
+         <property name="toolTip">
+          <string>One fixed threshold per channel, based on noise multiplier below</string>
+         </property>
          <property name="text">
           <string>Channel fixed</string>
          </property>
@@ -233,6 +236,9 @@
            <width>99</width>
            <height>20</height>
           </rect>
+         </property>
+         <property name="toolTip">
+          <string>One fixed threshold for all channels</string>
          </property>
          <property name="text">
           <string>Global fixed</string>
@@ -273,6 +279,9 @@
            <height>25</height>
           </rect>
          </property>
+         <property name="toolTip">
+          <string>Noise estimation method</string>
+         </property>
          <property name="editable">
           <bool>false</bool>
          </property>
@@ -298,6 +307,9 @@
            <width>81</width>
            <height>20</height>
           </rect>
+         </property>
+         <property name="toolTip">
+          <string>Separate threshold per channel per data block</string>
          </property>
          <property name="text">
           <string>Dynamic</string>
@@ -349,6 +361,9 @@
            <width>62</width>
            <height>25</height>
           </rect>
+         </property>
+         <property name="toolTip">
+          <string>Absolute value threshold, also used as minimum peak amplitude for other thresholding methods</string>
          </property>
          <property name="decimals">
           <number>1</number>
@@ -407,6 +422,9 @@
            <width>62</width>
            <height>25</height>
           </rect>
+         </property>
+         <property name="toolTip">
+          <string>Noise multiplier</string>
          </property>
          <property name="decimals">
           <number>1</number>
@@ -592,7 +610,7 @@
          </property>
          <property name="toolTip">
           <string>Multiple of each detected spike's modelled spatial extent to use as the
-spatial lockout around the modelled location of each detected spike</string>
+spatial lockout around its modelled location</string>
          </property>
          <property name="decimals">
           <number>1</number>
