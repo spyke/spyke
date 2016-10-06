@@ -632,7 +632,8 @@ spatial lockout around its modelled location</string>
           </rect>
          </property>
          <property name="toolTip">
-          <string>Spatial extent of channels to save as part of a spike</string>
+          <string>Spatial extent of channels to save as part of a spike. Also used as a maximum threshold for modelled
+spike spatial extents - any spikes with modelled spatial extent greater than this are rejected.</string>
          </property>
          <property name="maximum">
           <number>9999</number>
