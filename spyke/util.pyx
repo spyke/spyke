@@ -9,7 +9,7 @@ cimport cython
 from cython.parallel import prange#, parallel
 import numpy as np
 cimport numpy as np
-from numpy cimport uint8_t, int16_t, int32_t, int64_t, float32_t, float64_t
+from numpy cimport uint8_t, int8_t, int16_t, int32_t, int64_t, float32_t, float64_t
 
 import time
 
@@ -455,7 +455,7 @@ def alignbest_cy(sort,
     chans are assumed to be a subset of channels of sids. Return sids
     that were actually moved and therefore need to be marked as dirty"""
     # TODO: make maxshift a f'n of interpolation factor
-    DEF MAXSHIFT = 2 # constant, shift +/- this many timepoints
+    DEF MAXSHIFT = 2 # constant, shift +/- this many timepoints, keep within int8 bounds
     spikes = sort.spikes
     # copy needed fields from spikes rect array as simple arrays, should come out as contig:
     cdef np.ndarray[uint8_t, ndim=1, mode='c'] spikes_nchans = spikes['nchans'][sids]
@@ -472,8 +472,9 @@ def alignbest_cy(sort,
     if subntdiv2 < MAXSHIFT:
         raise ValueError("Selected waveform duration too short")
     #maxshiftus = MAXSHIFT * self.stream.tres
-    # from -MAXSHIFT to MAXSHIFT, inclusive:
-    cdef np.ndarray[int64_t, ndim=1, mode='c'] shifts = np.arange(-MAXSHIFT, MAXSHIFT+1)
+    # from -MAXSHIFT to MAXSHIFT, inclusive, use int8 because spikes['tis'] is int8:
+    cdef np.ndarray[int8_t, ndim=1, mode='c'] shifts = \
+        np.arange(-MAXSHIFT, MAXSHIFT+1, dtype=np.int8)
     cdef int nshifts = shifts.shape[0]
     print("padding waveforms with up to +/- %d points of edge data" % MAXSHIFT)
 
@@ -516,7 +517,7 @@ def alignbest_cy(sort,
     cdef np.ndarray[int16_t, ndim=3, mode='c'] tempsubshifts
     tempsubshifts = np.zeros((nshifts, nchans, subnt), dtype=wd.dtype)
     cdef int bestshifti=0, dt, ndirty=0
-    cdef long long bestshift
+    cdef int8_t bestshift
     cdef double error
     cdef np.ndarray[float64_t, ndim=1, mode='c'] sserrors
     sserrors = np.zeros(nshifts, dtype=np.float64) # sum of squared errors
@@ -559,8 +560,8 @@ def alignbest_cy(sort,
             spikes['t'][sid] += dt # should remain halfway between t0 and t1
             spikes['t0'][sid] += dt
             spikes['t1'][sid] += dt
-            # might result in some out of bounds tis because the original peaks
-            # have shifted off the ends. Opposite sign, referencing within wavedata:
+            # might give out of bounds tis because the original peaks have shifted off the
+            # ends. Use opposite sign because we're referencing within wavedata:
             spikes['tis'][sid] -= bestshift
             # update sort.wavedata
             for chani in range(maxnchans):
