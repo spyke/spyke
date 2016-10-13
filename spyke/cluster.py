@@ -94,7 +94,7 @@ class Cluster(object):
             data = spikes[dim]
             # data from neuron's spikes, potentially subsample of them,
             # copied for in-place normalization:
-            subdata = data[sids].copy()
+            subdata = np.float64(data[sids].copy())
             # update unnormalized position
             self.pos[dim] = np.median(subdata)
             # calculate mean and std for normalization

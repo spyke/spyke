@@ -560,7 +560,7 @@ class PlotPanel(FigureCanvas):
         """Update position and size of horizontal voltage reference LineCollection"""
         # somehow "chans, (xpos, ypos) = self.pos.items()" doesn't work...
         cxy = np.asarray([ (chan, xpos, ypos) for chan, (xpos, ypos) in self.pos.items() ])
-        chans, xpos, ypos = cxy[:, 0], cxy[:, 1], cxy[:, 2]
+        chans, xpos, ypos = cxy[:, 0], np.float64(cxy[:, 1]), np.float64(cxy[:, 2])
         self.chan2vrefsegmenti = {}
         for segmenti, chan in enumerate(chans):
             self.chan2vrefsegmenti[chan] = segmenti
