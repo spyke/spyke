@@ -1401,7 +1401,7 @@ class SpykeWindow(QtGui.QMainWindow):
         comps = np.any([ dim.startswith('c') and dim[-1].isdigit() for dim in dims ])
         # calc RMS error between each spike and its clusters median waveform, if any?
         rmserror = np.any([ dim == 'RMSerror' for dim in dims ])
-        if sids == None:
+        if sids is None:
             sids = self.GetAllSpikes() # only selected spikes
         if len(sids) == 0: # if none selected
             if comps: # if component analysis selected
@@ -2696,7 +2696,7 @@ class SpykeWindow(QtGui.QMainWindow):
         t0 = time.time()
         if sids != None and len(sids) >= NDIRTYSIDSTHRESH:
             sids = None # resave all of them for speed
-        if sids == None: # write the whole file
+        if sids is None: # write the whole file
             print('updating all %d spikes in wave file %r' % (s.nspikes, fname))
             f = open(join(self.sortpath, fname), 'wb')
             np.save(f, s.wavedata)
@@ -2759,7 +2759,7 @@ class SpykeWindow(QtGui.QMainWindow):
             allchans = self.hpstream.chans # not sure if this needs to be copy()'d or not
         except AttributeError: # no hpstream yet
             allchans = []
-        if chans == None: # None means all chans
+        if chans is None: # None means all chans
             chans = allchans
         chans = toiter(chans) # need not be contiguous
         try:

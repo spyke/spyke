@@ -142,7 +142,7 @@ class Plot(object):
         nchans, npoints = wave.data.shape
         segments = np.zeros((nchans, npoints, 2)) # x vals in col 0, yvals in col 1
         data = AD2uV(wave.data) # convert AD wave data to uV
-        if wave.ts == None: # or maybe check if data.size == 0 too
+        if wave.ts is None: # or maybe check if data.size == 0 too
             x = []
             y = []
         else:
@@ -228,7 +228,7 @@ class Fill(object):
         verts = np.zeros((nchans, 2*npoints, 2))
         data = AD2uV(wave.data) # convert AD wave data to uV
         err = 2 * AD2uV(wave.std) # convert AD wave std to uV, double it for better visibility
-        if wave.ts == None: # or maybe check if data.size == 0 too
+        if wave.ts is None: # or maybe check if data.size == 0 too
             x = []
             y = []
         else:

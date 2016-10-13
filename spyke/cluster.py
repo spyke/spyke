@@ -67,7 +67,7 @@ class Cluster(object):
         position. Subsample for speed"""
         sort = self.neuron.sort
         spikes = sort.spikes
-        if dims == None: # use all of them
+        if dims is None: # use all of them
             dims = list(self.pos) # some of these might not exist in spikes array
         sids = self.neuron.sids
         nspikes = len(sids)
@@ -225,7 +225,7 @@ class GLWidget(QtOpenGL.QGLWidget):
     def colour(self, sids=None, sat=1):
         """Set colours of points corresponding to sids according to their nids, with
         saturation level sat. Caller is responsible for calling self.updateGL()"""
-        if sids == None: # init/overwrite self.colours
+        if sids is None: # init/overwrite self.colours
             nids = self.nids
             # uint8, single unit nids are 1-based:
             self.colours = CLUSTERCOLOURSRGB[nids % len(CLUSTERCOLOURSRGB) - 1] * sat
@@ -863,7 +863,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         #    sw.nlist.clearSelection()
         x, y = self.cursorPosGL()
         sids = self.pick(x, y, pb=10, multiple=True)
-        if sids == None:
+        if sids is None:
             return
         #t0 = time.time()
         if not sw.panel.maxed_out:

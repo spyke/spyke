@@ -618,7 +618,7 @@ class Sort(object):
         maxchan unique spikes,"""
         spikes = self.spikes
         dtypefields = list(spikes.dtype.fields)
-        if sids == None:
+        if sids is None:
             sids = spikes['id'] # default to all spikes
         comps = [ dim for dim in dims if dim.startswith('c') and dim[-1].isdigit() ]
         rmserror = np.any([ dim == 'RMSerror' for dim in dims ])
@@ -669,7 +669,7 @@ class Sort(object):
         least minncomp dimensions"""
         spikes = self.spikes
         nt = self.wavedata.shape[2]
-        if tis == None: # use full waveform
+        if tis is None: # use full waveform
             tis = np.asarray([0, nt])
         #print('tis: %r' % (tis,))
         ti0, ti1 = tis
@@ -828,7 +828,7 @@ class Sort(object):
             raise RuntimeError("Spikes must all belong to the same (non-junk) cluster for "
                                "RMS error calculation")
         nt = self.wavedata.shape[2]
-        if tis == None: # use full waveform
+        if tis is None: # use full waveform
             tis = np.asarray([0, nt])
         #print('tis: %r' % (tis,))
         ti0, ti1 = tis
@@ -1436,7 +1436,7 @@ class Sort(object):
                     print("WARNING: max chani %d is not among the %d chanis nearest "
                           "(x0, y0) = (%.1f, %.1f) for spike %d at t=%d"
                           % (chani, nchans, x0, y0, sid, spike.t))
-            if spike.wave.data == None:
+            if spike.wave.data is None:
                 spike.update_wave(self.stream)
             row = [x0, y0]
             for chani in nearestchanis:
@@ -1501,7 +1501,7 @@ class Sort(object):
                 # check if spike.maxchan is outside some minimum distance from template.maxchan
                 if dm[template.maxchan, spike.maxchan] > MAXCHANTOLERANCE: # um
                     continue # don't even bother
-                if spike.wave.data == None or template.tw != TW: # make sure their data line up
+                if spike.wave.data is None or template.tw != TW: # make sure their data line up
                     spike.update_wave(tw) # this slows things down a lot, but is necessary
                 # slice template's enabled chans out of spike, calculate sum of
                 # squared weighted error
@@ -1543,14 +1543,14 @@ class Neuron(object):
         #self.srffname # not here, let's allow neurons to have spikes from different files?
 
     def get_chans(self):
-        if self.wave.data == None:
+        if self.wave.data is None:
             self.update_wave()
         return self.wave.chans # self.chans just refers to self.wave.chans
 
     chans = property(get_chans)
 
     def get_chan(self):
-        if self.wave.data == None:
+        if self.wave.data is None:
             self.update_wave()
         return self.wave.chans[self.wave.data.ptp(axis=1).argmax()] # chan with max Vpp
 
@@ -1576,7 +1576,7 @@ class Neuron(object):
         # many neuron waveforms saved in old .sort files won't have a wave.std field
         try: self.wave.std
         except AttributeError: return self.update_wave()
-        if self.wave == None or self.wave.data == None or self.wave.std == None:
+        if self.wave == None or self.wave.data is None or self.wave.std is None:
             return self.update_wave()
         else:
             return self.wave # return existing waveform
@@ -1788,7 +1788,7 @@ class PTCSNeuronRecord(object):
         self.neuron = neuron
         self.spikets = spikets # constrained to stream range, may be < neuron.sids
         self.wavedtype = {2: np.float16, 4: np.float32, 8: np.float64}[nsamplebytes]
-        if n.wave.data == None or n.wave.std == None: # some may have never been displayed
+        if n.wave.data is None or n.wave.std is None: # some may have never been displayed
             n.update_wave()
         # wavedata and wavestd are nchans * nt * nsamplebytes long:
         self.wavedata = pad(self.wavedtype(AD2uV(n.wave.data)), align=8)
@@ -2755,7 +2755,7 @@ class SortWindow(SpykeToolWindow):
         t0, t1 = self.tis # timepoint range selected in incltComboBox
         # try and compare source neuron waveform to all destination neuron waveforms
         for dest in destinations:
-            if dest.neuron.wave.data == None: # hasn't been calculated yet
+            if dest.neuron.wave.data is None: # hasn't been calculated yet
                 dest.neuron.update_wave()
             dstchans = dest.neuron.wave.chans
             if len(selchans) > 0:

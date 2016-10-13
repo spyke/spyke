@@ -200,7 +200,7 @@ class Stream(object):
         Should probably take this into account, although it doesn't affect relative delays
         between chans, I think. I think it's usually 1us.
         """
-        if ADchans == None: # no per-channel delay:
+        if ADchans is None: # no per-channel delay:
             assert self.shcorrect == False
             dis = np.zeros(self.nchans, dtype=np.int64)
         else:
@@ -277,7 +277,7 @@ class NSXStream(Stream):
         """Called when Stream object is called using (). start and stop indicate start and end
         timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
         specified chans"""
-        if chans == None:
+        if chans is None:
             chans = self.chans
         if not set(chans).issubset(self.chans):
             raise ValueError("requested chans %r are not a subset of available enabled "
@@ -465,7 +465,7 @@ class SurfStream(Stream):
         """Called when Stream object is called using (). start and stop indicate start and end
         timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
         specified chans"""
-        if chans == None:
+        if chans is None:
             chans = self.chans
         if not set(chans).issubset(self.chans):
             raise ValueError("requested chans %r are not a subset of available enabled "
@@ -665,7 +665,7 @@ class SimpleStream(Stream):
         """Called when Stream object is called using (). start and stop indicate start and end
         timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
         specified chans"""
-        if chans == None:
+        if chans is None:
             chans = self.chans
         if not set(chans).issubset(self.chans):
             raise ValueError("requested chans %r are not a subset of available enabled "
@@ -871,7 +871,7 @@ class MultiStream(object):
         """Figure out which stream(s) the slice spans (usually just one, sometimes 0 or
         2), send the request to the stream(s), generate the appropriate timestamps, and
         return the waveform"""
-        if chans == None:
+        if chans is None:
             chans = self.chans
         if not set(chans).issubset(self.chans):
             raise ValueError("requested chans %r are not a subset of available enabled "

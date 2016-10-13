@@ -154,12 +154,12 @@ class WaveForm(object):
         except AttributeError: self.std = None
         
         if type(key) == slice: # slice self in time
-            if self.ts == None:
+            if self.ts is None:
                 return WaveForm() # empty WaveForm
             else:
                 lo, hi = self.ts.searchsorted([key.start, key.stop])
                 data = self.data[:, lo:hi]
-                if self.std == None:
+                if self.std is None:
                     std = None
                 else:
                     std = self.std[:, lo:hi]
@@ -188,7 +188,7 @@ class WaveForm(object):
             # i are indices into rows of data:
             i = [ int(np.where(chan == self.chans)[0]) for chan in keys ]
             data = self.data[i] # grab the appropriate rows of data
-            if self.std == None:
+            if self.std is None:
                 std = None
             else:
                 std = self.std[i]
