@@ -426,6 +426,19 @@ class SpykeWindow(QtGui.QMainWindow):
                 raise ValueError('unknown format: %r' % format)
             print(fullfname)
 
+    @QtCore.pyqtSlot()
+    def on_actionExportDatFiles_triggered(self):
+        ## optionally bring up folder selection dialog box here
+        self.exportDat()
+
+    def exportDat(self):
+        """Export raw ephys data to .dat file, in (ti, chani) order"""
+        ext = self.hpstream.get_ext()
+        if ext == '.ns6':
+            self.hpstream.f.export_dat()
+        else:
+            raise NotImplementedError("Can't (yet) export raw ephys data from %s to .dat")
+
     def update_sort_version(self):
         """Update self.sort to latest version"""
         s = self.sort

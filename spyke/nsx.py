@@ -108,6 +108,19 @@ class File(object):
         self.f.seek(self.datapacketoffset) # skip over FileHeader
         self.load()
 
+    def export_dat(self):
+        """Export contiguous data packet to .dat file, in the original (ti, chani) order
+        using same base file name in the same folder"""
+        assert self.is_open()
+        self.f.seek(self.datapacketoffset)
+        datbasefname = os.path.splitext(self.fname)[0]
+        fulldatfname = self.join(datbasefname + '.dat')
+        print('writing raw ephys data to %r' % fulldatfname)
+        print('starting from datapacketoffset at %d bytes' % self.datapacketoffset)
+        with open(fulldatfname, 'wb') as datf:
+            datf.write(self.f.read())
+        print('%d bytes written' % (self.f.tell() - self.datapacketoffset))
+
 
 class FileHeader(object):
     """.nsx file header. Takes an open file, parses in from current file
