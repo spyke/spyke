@@ -108,18 +108,32 @@ class File(object):
         self.f.seek(self.datapacketoffset) # skip over FileHeader
         self.load()
 
-    def export_dat(self):
+    def export_dat(self, dt=None):
         """Export contiguous data packet to .dat file, in the original (ti, chani) order
-        using same base file name in the same folder"""
+        using same base file name in the same folder. dt is duration to export from start
+        of recording, in sec"""
+        if dt == None:
+            nt = self.nt
+        else:
+            nt = intround(dt * self.fileheader.sampfreq)
         assert self.is_open()
-        self.f.seek(self.datapacketoffset)
+        nchanstotal = self.fileheader.nchanstotal
+        nbytes = nt * nchanstotal * 2 # number of bytes requested, 2 bytes per datapoint
+        offset = self.datapacket.dataoffset
+        self.f.seek(offset)
         datbasefname = os.path.splitext(self.fname)[0]
         fulldatfname = self.join(datbasefname + '.dat')
         print('writing raw ephys data to %r' % fulldatfname)
-        print('starting from datapacketoffset at %d bytes' % self.datapacketoffset)
+        print('starting from dataoffset at %d bytes' % offset)
         with open(fulldatfname, 'wb') as datf:
-            datf.write(self.f.read())
-        print('%d bytes written' % (self.f.tell() - self.datapacketoffset))
+            datf.write(self.f.read(nbytes))
+        nbyteswritten = self.f.tell() - offset
+        print('%d bytes written' % nbyteswritten)
+        print('%d attempted, %d actual timepoints written' % (nt, nbyteswritten/nchanstotal/2))
+        print('voltage gain: %g uV/AD' % self.fileheader.AD2uVx)
+        print('sample rate: %d Hz' % self.fileheader.sampfreq)
+        print('total number of chans: %d' % nchanstotal)
+        print('total number of ephys chans: %d' % self.fileheader.nchans)
 
 
 class FileHeader(object):
