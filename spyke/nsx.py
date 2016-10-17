@@ -101,13 +101,16 @@ class File(object):
         try: del d['datapacket'] # avoid pickling datapacket._data mmap
         except KeyError: pass
         return d
-        
+    '''
+    # no apparent need for __setstate__, having it here makes .ns6 files automatically open
+    # when a .sort file is open, which can fail if the absolute path of the .ns6 differs from
+    # its self.path as saved in a .sort
     def __setstate__(self, d):
         self.__dict__ = d
         self.open()
         self.f.seek(self.datapacketoffset) # skip over FileHeader
         self.load()
-
+    '''
     def export_dat(self, dt=None):
         """Export contiguous data packet to .dat file, in the original (ti, chani) order
         using same base file name in the same folder. dt is duration to export from start
