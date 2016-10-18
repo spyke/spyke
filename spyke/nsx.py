@@ -189,8 +189,9 @@ class FileHeader(object):
         assert len(self) == f.tell() # header should be of expected length
         self.chans = np.asarray(sorted(self.chanheaders)) # sorted array of keys
         self.auxchans = np.asarray(sorted(self.auxchanheaders)) # sorted array of keys
-        # make sure that last ephys chan comes before first aux chan:
-        assert self.chans[-1] < self.auxchans[0]
+        if len(self.auxchans) > 0:
+            # ensure that the last ephys chan comes before the first aux chan:
+            assert self.chans[-1] < self.auxchans[0]
 
         # check AD2uV params of all ephys chans:
         c0 = self.chanheaders[self.chans[0]] # reference channel for comparing AD2uV params
