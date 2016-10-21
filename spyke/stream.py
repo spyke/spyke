@@ -105,8 +105,8 @@ class Stream(object):
         data and timepoints. See Blanche & Swindale, 2006"""
         #print('sampfreq, rawsampfreq, shcorrect = (%r, %r, %r)' %
         #      (self.sampfreq, self.rawsampfreq, self.shcorrect))
-        rawtres = self.rawtres # us
-        tres = self.tres # us
+        rawtres = self.rawtres # float us
+        tres = self.tres # float us
         if self.sampfreq % self.rawsampfreq != 0:
             raise ValueError('only integer multiples of rawsampfreq allowed for interpolated '
                              'sampfreq')
@@ -210,7 +210,7 @@ class Stream(object):
             ## TODO: stop hard-coding 1 masterclockfreq tick delay per ordinal position
             # per channel delays, us, usually 1 us/chan:
             dis = 1000000 / self.masterclockfreq * i
-        ds = dis / self.rawtres # normalized per channel delays
+        ds = dis / self.rawtres # normalized per channel delays, float us
         wh = hamming # window function
         h = np.sinc # sin(pi*t) / pi*t
         kernels = {} # dict of array of kernels, indexed by [chan][resample point]
@@ -293,7 +293,7 @@ class NSXStream(Stream):
         xs = intround(NSXXSPOINTS * rawtres)
         #print('xs: %d, rawtres: %g' % (xs, rawtres))
 
-        # stream limits, in us and in sample indices, wrt t=0 and sample=0
+        # stream limits, in us and in sample indices, wrt t=0 and sample=0:
         t0, t1, nt = self.t0, self.t1, self.f.nt
         t0i, t1i = self.f.t0i, self.f.t1i
         # get a slightly greater range of raw data (with xs) than might be needed:
@@ -305,7 +305,8 @@ class NSXStream(Stream):
         # convert back to nearest float us:
         t0xs = t0xsi * rawtres
         t1xs = t1xsi * rawtres
-        ntxs = t1xsi - t0xsi # these are slice indices, so don't add 1
+        # these are slice indices, so don't add 1:
+        ntxs = t1xsi - t0xsi # int
         tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*rawtres, ntxs)
         #print('ntxs: %d' % ntxs)
 
@@ -392,7 +393,7 @@ class SurfStream(Stream):
         self.converter = core.Converter(intgain, extgain)
         self.nADchans = self.layout.nchans # always constant
         self.rawsampfreq = self.layout.sampfreqperchan
-        self.rawtres = intround(1 / self.rawsampfreq * 1e6) # us
+        self.rawtres = 1 / self.rawsampfreq * 1e6 # float us
         if kind == 'highpass':
             if list(self.layout.ADchanlist) != range(self.nADchans):
                 print("WARNING: ADchans aren't contiguous from 0, highpass recordings are "
@@ -418,7 +419,7 @@ class SurfStream(Stream):
         if len(NumSamples) > 1:
             raise RuntimeError("Not all continuous records are of the same length. "
                                "NumSamples = %r" % NumSamples)
-        rtlen = NumSamples / self.nADchans * self.rawtres
+        rtlen = NumSamples / self.nADchans * self.rawtres # record time length, float us
         # Check whether rts values are all equally spaced, indicating there were no
         # pauses in recording
         diffrts = np.diff(rts)
@@ -426,7 +427,7 @@ class SurfStream(Stream):
         if self.contiguous:
             try: assert np.unique(diffrts) == rtlen
             except AssertionError: import pdb; pdb.set_trace()
-            self.tranges = np.int64([[rts[0], rts[-1]+rtlen]]) # keep it 2D
+            self.tranges = np.int64([[rts[0], rts[-1]+rtlen]]) # int us, keep it 2D
         else:
             if kind == 'highpass': # don't bother reporting again for lowpass
                 print('NOTE: time gaps exist in %s, possibly due to pauses' % self.fname)
@@ -435,10 +436,10 @@ class SurfStream(Stream):
             splits = np.split(rts, splitis) # list of arrays of contiguous rts
             tranges = []
             for split in splits: # for each array of contiguous rts
-                tranges.append([split[0], split[-1]+rtlen])
-            self.tranges = np.int64(tranges)
-        self.t0 = self.tranges[0, 0]
-        self.t1 = self.tranges[-1, 1]
+                tranges.append([split[0], split[-1]+rtlen]) # float us
+            self.tranges = np.int64(tranges) # int us, 2D
+        self.t0 = self.tranges[0, 0] # int us
+        self.t1 = self.tranges[-1, 1] # int us
 
     def get_srcfnameroot(self):
         """Get root of filename of source data. Also filter it to make recording
@@ -471,26 +472,32 @@ class SurfStream(Stream):
             raise ValueError("requested chans %r are not a subset of available enabled "
                              "chans %r in %s stream" % (chans, self.chans, self.kind))
         nchans = len(chans)
-        rawtres = self.rawtres
+        rawtres = self.rawtres # float us
         resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
         if resample:
             # excess data in us at either end, to eliminate interpolation distortion at
             # key.start and key.stop
-            xs = KERNELSIZE * rawtres
+            xs = KERNELSIZE * rawtres # float us
         else:
-            xs = 0
+            xs = 0.0
+        # stream limits, in sample indices:
+        t0i = intround(self.t0 / rawtres)
+        t1i = intround(self.t1 / rawtres)
         # get a slightly greater range of raw data (with xs) than might be needed:
-        t0xsi = (start - xs) // rawtres # round down to nearest mult of rawtres
-        t1xsi = ((stop + xs) // rawtres) + 1 # round up to nearest mult of rawtres
+        t0xsi = intfloor((start - xs) / rawtres) # round down to nearest mult of rawtres
+        t1xsi = intceil((stop + xs) / rawtres) # round up to nearest mult of rawtres
         # stay within stream limits, thereby avoiding interpolation edge effects:
-        t0xsi = max(t0xsi, self.t0 // rawtres)
-        t1xsi = min(t1xsi, self.t1 // rawtres)
-        # convert back to us:
+        t0xsi = max(t0xsi, t0i)
+        t1xsi = min(t1xsi, t1i)
+        # convert back to nearest float us:
         t0xs = t0xsi * rawtres
         t1xs = t1xsi * rawtres
-        tsxs = np.arange(t0xs, t1xs, rawtres)
-        ntxs = len(tsxs)
-        # init data as int32 so we have bitwidth to rescale and zero, then convert to int16
+        # these are slice indices, so don't add 1:
+        ntxs = t1xsi - t0xsi # int
+        tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*rawtres, ntxs)
+        #print('ntxs: %d' % ntxs)
+
+        # init data as int32 so we have bitwidth to rescale and zero, convert to int16 later
         dataxs = np.zeros((nchans, ntxs), dtype=np.int32) # any gaps will have zeros
 
         # Find all contiguous tranges that t0xs and t1xs span, if any. Note that this
@@ -525,7 +532,7 @@ class SurfStream(Stream):
             for record in records: # iterating over highpass records
                 d = self.f.loadContinuousRecord(record)[chanis] # record's data on chans
                 nt = d.shape[1]
-                t0i = record['TimeStamp'] // rawtres
+                t0i = intround(record['TimeStamp'] / rawtres)
                 t1i = t0i + nt
                 # source indices
                 st0i = max(t0xsi - t0i, 0)
@@ -540,13 +547,13 @@ class SurfStream(Stream):
             combination of LFP chans was incorrectly parsed due to a bug in the .srf file,
             and a manual remapping needs to be added to Surf.File.fixLFPlabels()"""
             # assume all lpmc records are same length:
-            nt = records[0]['NumSamples'] / self.nADchans
+            nt = intround(records[0]['NumSamples'] / self.nADchans)
             d = np.zeros((nchans, nt), dtype=np.int32)
             for record in records: # iterating over lowpassmultichan records
                 for i, chani in enumerate(chanis):
                     lprec = self.f.lowpassrecords[record['lpreci']+chani]
                     d[i] = self.f.loadContinuousRecord(lprec)
-                t0i = record['TimeStamp'] // rawtres
+                t0i = intround(record['TimeStamp'] / rawtres)
                 t1i = t0i + nt
                 # source indices
                 st0i = max(t0xsi - t0i, 0)
@@ -605,7 +612,7 @@ class SimpleStream(Stream):
         if not probematch:
             raise ValueError("siteloc in %s doesn't match known probe type" % fname)
         self.rawsampfreq = rawsampfreq
-        self.rawtres = intround(1 / self.rawsampfreq * 1e6) # us
+        self.rawtres = 1 / self.rawsampfreq * 1e6 # float us
         self.masterclockfreq = masterclockfreq
         self.extgain = extgain
         self.intgain = intgain
@@ -616,9 +623,9 @@ class SimpleStream(Stream):
         self.sampfreq = sampfreq or DEFHPRESAMPLEX * self.rawsampfreq
         self.shcorrect = shcorrect
         self.bitshift = bitshift
-        self.t0 = 0 # us
-        self.t1 = nt * self.rawtres
-        self.tranges = np.int64([[self.t0, self.t1]])
+        self.t0 = 0.0 # float us
+        self.t1 = nt * self.rawtres # float us
+        self.tranges = np.int64([[self.t0, self.t1]]) # int us, 2D
 
     def open(self):
         pass
@@ -672,25 +679,31 @@ class SimpleStream(Stream):
                              "chans %r in %s stream" % (chans, self.chans, self.kind))
         nchans = len(chans)
         chanis = self.ADchans.searchsorted(chans)
-        rawtres = self.rawtres
+        rawtres = self.rawtres # float us
         resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
         if resample:
             # excess data in us at either end, to eliminate interpolation distortion at
             # key.start and key.stop
-            xs = KERNELSIZE * rawtres
+            xs = KERNELSIZE * rawtres # float us
         else:
-            xs = 0
+            xs = 0.0
+        # stream limits, in sample indices:
+        t0i = intround(self.t0 / rawtres)
+        t1i = intround(self.t1 / rawtres)
         # get a slightly greater range of raw data (with xs) than might be needed:
-        t0xsi = (start - xs) // rawtres # round down to nearest mult of rawtres
-        t1xsi = ((stop + xs) // rawtres) + 1 # round up to nearest mult of rawtres
+        t0xsi = intfloor((start - xs) / rawtres) # round down to nearest mult of rawtres
+        t1xsi = intceil((stop + xs) / rawtres) # round up to nearest mult of rawtres
         # stay within stream limits, thereby avoiding interpolation edge effects:
-        t0xsi = max(t0xsi, self.t0 // rawtres)
-        t1xsi = min(t1xsi, self.t1 // rawtres)
-        # convert back to us:
+        t0xsi = max(t0xsi, t0i)
+        t1xsi = min(t1xsi, t1i)
+        # convert back to nearest float us:
         t0xs = t0xsi * rawtres
         t1xs = t1xsi * rawtres
-        tsxs = np.arange(t0xs, t1xs, rawtres)
-        ntxs = len(tsxs)
+        # these are slice indices, so don't add 1:
+        ntxs = t1xsi - t0xsi # int
+        tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*rawtres, ntxs)
+        #print('ntxs: %d' % ntxs)
+
         # slice out excess data on requested channels, init as int32 so we have bitwidth
         # to rescale and zero, convert to int16 later:
         dataxs = np.int32(self.wavedata[chanis, t0xsi:t1xsi])
@@ -773,7 +786,7 @@ class MultiStream(object):
         self.converter = streams[0].converter # they're identical
         self.fnames = [f.fname for f in fs]
         self.rawsampfreq = streams[0].rawsampfreq # assume they're identical
-        self.rawtres = streams[0].rawtres # assume they're identical
+        self.rawtres = streams[0].rawtres # float us, assume they're identical
         contiguous = np.asarray([stream.contiguous for stream in streams])
         if not contiguous.all() and kind == 'highpass':
             # don't bother reporting again for lowpass

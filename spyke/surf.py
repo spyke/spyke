@@ -358,7 +358,7 @@ class File(object):
         nchans = len(uprobes)
         if len(probes) % nchans != 0:
             raise RuntimeError("Lowpass probes have unequal record numbers")
-        nrepeats = len(probes) / nchans
+        nrepeats = intround(len(probes) / nchans)
         if not (probes == np.tile(uprobes, nrepeats)).all():
             print("Lowpass records aren't stored in regular alternating order of probes")
             re_sort = True
