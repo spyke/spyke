@@ -25,9 +25,7 @@ class File(object):
         self.fname = fname
         self.path = path
         self.filesize = os.stat(self.join(fname))[6] # in bytes
-        self.open()
-        self.parse()
-        self.load()
+        self.open() # calls parse() and load()
 
         self.datapacketoffset = self.datapacket.offset # save for unpickling
         self.t0i, self.nt = self.datapacket.t0i, self.datapacket.nt # copy for convenience
@@ -44,6 +42,13 @@ class File(object):
         """(Re)open previously closed .nsx file"""
         # the 'b' for binary is only necessary for MS Windows:
         self.f = open(self.join(self.fname), 'rb')
+        # parse file and load datapacket here instead of in __init__, because during
+        # multiprocess detection, __init__ isn't called on unpickle, but open() is:
+        try:
+            self.f.seek(self.datapacketoffset) # skip over FileHeader
+        except AttributeError: # hasn't been parsed before, self.datapacketoffset is missing
+            self.parse()
+        self.load()
 
     def close(self):
         """Close the .nsx file, don't do anything if already closed"""
@@ -101,16 +106,7 @@ class File(object):
         try: del d['datapacket'] # avoid pickling datapacket._data mmap
         except KeyError: pass
         return d
-    '''
-    # no apparent need for __setstate__, having it here makes .ns6 files automatically open
-    # when a .sort file is open, which can fail if the absolute path of the .ns6 differs from
-    # its self.path as saved in a .sort
-    def __setstate__(self, d):
-        self.__dict__ = d
-        self.open()
-        self.f.seek(self.datapacketoffset) # skip over FileHeader
-        self.load()
-    '''
+
     def export_dat(self, dt=None):
         """Export contiguous data packet to .dat file, in the original (ti, chani) order
         using same base file name in the same folder. dt is duration to export from start

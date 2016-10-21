@@ -77,7 +77,7 @@ def initializer(detector):
     """Save pickled copy of the Detector to the current process"""
     # not exactly sure why, but deepcopy is crucial to prevent artefactual spikes!
     ps().detector = deepcopy(detector)
-    ps().detector.sort.stream.open()
+    ps().detector.sort.stream.open() # reopen underlying stream data source after unpickling
     
 
 class RandomBlockRanges(object):
