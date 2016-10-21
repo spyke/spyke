@@ -516,13 +516,12 @@ def alignbest_cy(sort,
     cdef np.ndarray[int16_t, ndim=3, mode='c'] shiftedsubsd = subsd.copy() # init
     cdef np.ndarray[int16_t, ndim=3, mode='c'] tempsubshifts
     tempsubshifts = np.zeros((nshifts, nchans, subnt), dtype=wd.dtype)
-    cdef int bestshifti=0, dt, ndirty=0
-    cdef int8_t bestshift
+    cdef int bestshift, bestshifti=0, dt, ndirty=0
     cdef double error
     cdef np.ndarray[float64_t, ndim=1, mode='c'] sserrors
     sserrors = np.zeros(nshifts, dtype=np.float64) # sum of squared errors
     cdef int nbytessserrors = nshifts*sizeof(float64_t)
-    cdef int tres = sort.tres
+    cdef double tres = sort.tres
     cdef np.ndarray[int64_t, ndim=1, mode='c'] dirtysids = np.empty(nspikes, dtype=np.int64)
     #t0 = time.time()
     for sidi in range(nspikes):
@@ -555,14 +554,16 @@ def alignbest_cy(sort,
         bestshift = shifts[bestshifti]
         if bestshift != 0: # no need to update sort.wavedata[sid] if there's no shift
             # update time values:
-            dt = bestshift * tres # time to shift by, signed, in us
+            dt = <int>round(bestshift * tres) # time to shift by, signed, in us
             ## TODO: update spikes array in pure C:
-            spikes['t'][sid] += dt # should remain halfway between t0 and t1
+            spikes['t'][sid] += dt # should remain as ints between t0 and t1
             spikes['t0'][sid] += dt
             spikes['t1'][sid] += dt
             # might give out of bounds tis because the original peaks have shifted off the
             # ends. Use opposite sign because we're referencing within wavedata:
-            spikes['tis'][sid] -= bestshift
+            spikes['tis'][sid] = spikes['tis'][sid] - bestshift
+            # this in-place operation raises a TypeError in numpy 1.11.2 for some reason:
+            #spikes['tis'][sid] -= bestshift
             # update sort.wavedata
             for chani in range(maxnchans):
                 for ti in range(nt):
