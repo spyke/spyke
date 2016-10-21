@@ -2,6 +2,7 @@
 Everything is plotted in units of uV and us"""
 
 from __future__ import division
+from __future__ import print_function
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
@@ -792,7 +793,7 @@ class PlotPanel(FigureCanvas):
     '''
     def OnNavigation(self, evt):
         """Navigation key press"""
-        #print 'nagivation event:', evt
+        #print('nagivation event:', evt)
         if evt.GetDirection(): # forward
             direction = 1
         else: # backward
@@ -1014,7 +1015,7 @@ class SpikePanel(PlotPanel):
         self.hchans = self.get_spatialchans('horizontal')
         # ordered bottom to top, left to right
         self.vchans = self.get_spatialchans('vertical')
-        #print 'horizontal ordered chans in Spikepanel:\n%r' % self.hchans
+        #print('horizontal ordered chans in Spikepanel:\n%r' % self.hchans)
         # x origin is somewhere in between the xlimits. xlimits are asymmetric
         # if self.tw is asymmetric:
         self.ax.set_xlim(self.um2us(self.siteloc[self.hchans[0]][0]) + self.tw[0],
@@ -1238,7 +1239,7 @@ class SortPanel(PlotPanel):
             self.background = self.copy_from_bbox(self.ax.bbox)
             # add the single item, save reference to its plot:
             self.qrplt = self.addItem(items[0])
-            #print 'saved quick remove plot %r' % self.qrplt
+            #print('saved quick remove plot %r' % self.qrplt)
         else:
             self.background = None
             # add all items
@@ -1305,7 +1306,7 @@ class SortPanel(PlotPanel):
             self.restore_region(self.reflines_background)
         elif len(items) == 1 and plt == self.qrplt and self.background != None:
             # remove the last added plot if a saved bg is available
-            #print 'quick removing plot %r' % self.qrplt
+            #print('quick removing plot %r' % self.qrplt)
             self.restore_region(self.background) # restore saved bg
         else:
             # remove more than one, but not all items

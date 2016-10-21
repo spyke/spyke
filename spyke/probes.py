@@ -10,6 +10,7 @@ indices starting from 0.
 # TODO: add pt16c, and pt16x layouts (with 16 to HS-27 adapter)
 
 from __future__ import division
+from __future__ import print_function
 
 __authors__ = ['Martin Spacek']
 

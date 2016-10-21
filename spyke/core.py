@@ -1,6 +1,7 @@
 """Core classes and functions used throughout spyke"""
 
 from __future__ import division
+from __future__ import print_function
 from __future__ import with_statement
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']

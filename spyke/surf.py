@@ -3,6 +3,7 @@ Some field names and comments are copied from Tim Blanche's Delphi program "Surf
 """
 
 from __future__ import division
+from __future__ import print_function
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 

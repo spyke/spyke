@@ -6,6 +6,7 @@ http://support.blackrockmicro.com/KB/View/166838-file-specifications-packet-deta
 """
 
 from __future__ import division
+from __future__ import print_function
 
 __authors__ = ['Martin Spacek']
 

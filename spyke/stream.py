@@ -2,6 +2,7 @@
 in a common way"""
 
 from __future__ import division
+from __future__ import print_function
 
 __authors__ = ['Martin Spacek']
 
@@ -144,7 +145,7 @@ class Stream(object):
         assert len(ts) == nt
         # resampled data, leave as int32 for convolution, then convert to int16:
         data = np.empty((nchans, nt), dtype=np.int32)
-        #print 'data.shape = %r' % (data.shape,)
+        #print('data.shape = %r' % (data.shape,))
         #tconvolve = time.time()
         #tconvolvesum = 0
         # Only the chans that are actually needed are resampled and returned.
@@ -160,9 +161,9 @@ class Stream(object):
                 #tconvolveonce = time.time()
                 row = np.convolve(rawdata[chani], kernel, mode='same')
                 #tconvolvesum += (time.time()-tconvolveonce)
-                #print 'len(rawdata[chani]) = %r' % len(rawdata[chani])
-                #print 'len(kernel) = %r' % len(kernel)
-                #print 'len(row): %r' % len(row)
+                #print('len(rawdata[chani]) = %r' % len(rawdata[chani]))
+                #print('len(kernel) = %r' % len(kernel))
+                #print('len(row): %r' % len(row))
                 # interleave by assigning from point to end in steps of resamplex
                 # index to start filling data from for this kernel's points:
                 ti0 = (resamplex - point) % resamplex
