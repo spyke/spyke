@@ -2164,7 +2164,10 @@ class SpykeWindow(QtGui.QMainWindow):
             f = nsx.File(fname, self.streampath) # parses immediately
             self.hpstream = f.hpstream # highpass record (spike) stream
             self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
-            self.EnableFilteringMenu(True) # .ns6 is for now the only one that needs filtering
+            try:
+                self.sort # sort exists?
+            except AttributeError: # no sort exists, enable Filtering menu
+                self.EnableFilteringMenu(True) # for now only .ns6 requires filtering
         elif ext == '.track':
             fs = []
             with open(join(self.streampath, fname), 'r') as trackfile:
