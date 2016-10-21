@@ -138,6 +138,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.EnableStreamWidgets(False)
         self.EnableSortWidgets(False)
         self.EnableFilteringMenu(False) # disable by default, few file types need filtering
+        self.EnableSamplingMenu(False) # disable until stream is open
         
     def addRecentFileActions(self):
         """Init recent file QActions and insert them into the right place in the
@@ -3002,6 +3003,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def EnableStreamWidgets(self, enable):
         """Enable/disable all widgets that require an open stream"""
+        self.EnableSamplingMenu(enable)
         self.ui.filePosStartButton.setEnabled(enable)
         self.ui.filePosLineEdit.setEnabled(enable)
         self.ui.filePosEndButton.setEnabled(enable)
