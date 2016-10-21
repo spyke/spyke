@@ -2134,6 +2134,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def OpenFile(self, fname):
         """Open a stream or sort file. fname in this case must contain a full path"""
+        print('opening file %r' % fname)
         head, tail = os.path.split(fname)
         assert head # make sure fname has a path to it
         ext = os.path.splitext(tail)[1]
@@ -2189,10 +2190,15 @@ class SpykeWindow(QtGui.QMainWindow):
         else:
             raise ValueError('unknown extension %r' % ext)
 
+        # if a sort is already open, try rebinding new stream to the sort. If they don't match,
+        # abort opening of the new stream:
         try:
             self.sort.stream = self.hpstream # restore newly opened stream to sort
         except AttributeError: # no sort yet
             pass
+        except AssertionError: # from sort.set_stream()
+            self.CloseStream() # abort opening of the stream
+            raise RuntimeError("Open stream doesn't match the one specified in sort")
 
         self.updateTitle()
         self.updateRecentFiles(join(self.streampath, fname))
@@ -2491,14 +2497,14 @@ class SpykeWindow(QtGui.QMainWindow):
         f.close()
         self.sort = sort
 
-        sortProbeType = type(sort.probe)
+        # if a stream is already open, try rebinding it to the sort. If they don't match,
+        # abort opening of the sort:
         if self.hpstream != None:
-            sort.stream = self.hpstream # restore open stream to sort
-            streamProbeType = type(self.hpstream.probe)
-            if sortProbeType != streamProbeType:
-                self.CreateNewSort() # overwrite the failed Sort
-                raise RuntimeError(".sort file's probe type %r doesn't match data file's "
-                                   "probe type %r" % (sortProbeType, streamProbeType))
+            try:
+                sort.stream = self.hpstream # restore open stream to sort
+            except AssertionError: # from sort.set_stream()
+                self.DeleteSort() # delete the non-matching sort
+                raise RuntimeError("Open stream doesn't match the one specified in sort")
         else: # no open stream, need to set uVperum and usperum according to sort type:
             ext = sort.stream.ext
             self.uVperum = UVPERUM[ext]
@@ -2737,13 +2743,16 @@ class SpykeWindow(QtGui.QMainWindow):
             sw.nslist.neurons = []
             sw.uslist.reset()
             sw.panel.removeAllItems()
+            self.HideWindow('Sort')
         if 'Cluster' in self.windows:
             cw = self.windows['Cluster']
             cw.glWidget.reset()
+            self.HideWindow('Cluster')
         if 'MPL' in self.windows:
             mplw = self.windows['MPL']
             mplw.ax.clear()
             mplw.figurecanvas.draw()
+            self.HideWindow('MPL')
         del self.cchanges[:]
         self.cci = -1
         self.ui.progressBar.setFormat('0 spikes')
