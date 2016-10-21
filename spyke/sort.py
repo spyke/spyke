@@ -120,15 +120,16 @@ class Sort(object):
     good = property(get_good, set_good)
 
     def get_stream(self):
-        return self._stream
+        try:
+            return self._stream
+        except AttributeError:
+            # this is likely a brand new sort, has yet to be assigned a Stream
+            return None
 
     def set_stream(self, stream=None):
         """Check stream type and name and probe type, and restore filtmeth, sampfreq and
         shcorrect to stream when binding/modifying stream to self"""
-        try:
-            oldstream = self._stream
-        except AttributeError: # this is a new Sort, first time it's been assigned a Stream
-            oldstream = None
+        oldstream = self.stream
         if stream != None and oldstream != None:
             # does new stream type match old stream type?
             assert type(stream) == type(oldstream)
