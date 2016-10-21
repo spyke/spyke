@@ -848,7 +848,10 @@ class SpykeWindow(QtGui.QMainWindow):
         <p>Copyright &copy; 2008-2016 <a href=http://mspacek.github.io>Martin Spacek</a>,
                                                                        Reza Lotun<br>
            <a href=http://swindale.ecc.ubc.ca>Swindale</a> Lab,
-           University of British Columbia</p>
+           University of British Columbia, Vancouver, Canada<br>
+           
+           <a href=http://www.neuro.bio.lmu.de/members/system_neuro_busse/busse_l/index.html>
+           Busse</a> Lab, Ludwig-Maximilians-University, Munich, Germany</p>
 
         <p>Some functionality inherited from Tim Blanche's Delphi program "SurfBawd".</p>
 
