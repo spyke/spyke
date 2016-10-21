@@ -125,8 +125,11 @@ class Sort(object):
     def set_stream(self, stream=None):
         """Check stream type and name and probe type, and restore filtmeth, sampfreq and
         shcorrect to stream when binding/modifying stream to self"""
-        oldstream = self.stream
-        if stream != None:
+        try:
+            oldstream = self._stream
+        except AttributeError: # this is a new Sort, first time it's been assigned a Stream
+            oldstream = None
+        if stream != None and oldstream != None:
             # does new stream type match old stream type?
             assert type(stream) == type(oldstream)
             # does new stream fname match old stream fname?
@@ -139,7 +142,7 @@ class Sort(object):
                 stream.shcorrect = self.shcorrect
             except AttributeError:
                 pass # self.filtmeth/sampfreq/shcorrect aren't bound
-        self._stream = stream
+        self._stream = stream # set it
         print('bound stream %r to sort %r' % (stream.fname, self.fname))
         # now that tres is known, calculate window timepoints wrt spike time:
         self.calc_twts_twi()
