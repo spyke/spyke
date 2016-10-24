@@ -935,7 +935,7 @@ class Sort(object):
         for sid in sids: # maybe there's a more efficient way than iterating over sids
             core.shiftpad(wd[sid], nt) # modifies wd in-place
         # update spike parameters:
-        dt = nt * self.tres # time shifted by, signed, in us
+        dt = intround(nt * self.tres) # amount of time to shift by, signed, in us
         # so we can later reload the wavedata accurately, shifting the waveform right and
         # padding it on its left requires decrementing the associated timepoints
         # (and vice versa)
@@ -945,7 +945,10 @@ class Sort(object):
         # might result in some out of bounds tis because the original peaks
         # have shifted off the ends. Opposite sign wrt timepoints above, referencing within
         # wavedata:
-        spikes['tis'][sids] += nt
+        spikes['tis'][sids] = spikes['tis'][sids] + nt
+        # this in-place operation raises a TypeError in numpy 1.11.2, something related to
+        # subtracting an int from an unsigned int:
+        #spikes['tis'][sid] += nt
         # caller should treat all sids as dirty
     '''
     # replaced by util.alignbest_cy():
@@ -1093,7 +1096,7 @@ class Sort(object):
         spikes['t'][sids] += dts
         spikes['t0'][sids] += dts
         spikes['t1'][sids] += dts
-        spikes['tis'][sids] += dtis[:, None, None] # update wrt new t0i
+        spikes['tis'][sids] = spikes['tis'][sids] + dtis[:, None, None] # update wrt new t0i
         spikes['aligni'][sids[alignis0]] = 1
         spikes['aligni'][sids[alignis1]] = 0
 

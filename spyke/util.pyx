@@ -562,7 +562,8 @@ def alignbest_cy(sort,
             # might give out of bounds tis because the original peaks have shifted off the
             # ends. Use opposite sign because we're referencing within wavedata:
             spikes['tis'][sid] = spikes['tis'][sid] - bestshift
-            # this in-place operation raises a TypeError in numpy 1.11.2 for some reason:
+            # this in-place operation raises a TypeError in numpy 1.11.2, something related to
+            # subtracting an int from an unsigned int:
             #spikes['tis'][sid] -= bestshift
             # update sort.wavedata
             for chani in range(maxnchans):
