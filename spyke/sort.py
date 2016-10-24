@@ -2002,7 +2002,7 @@ class SortWindow(SpykeToolWindow):
         actionToggleErrors = QAction('E', self)
         actionToggleErrors.setCheckable(True)
         actionToggleErrors.setChecked(self.panel.enable_fills)
-        tt = '<nobr><b>E</b> &nbsp; Toggle visibility of template error limits</nobr>'
+        tt = '<nobr><b>CTRL+E</b> &nbsp; Toggle visibility of template error limits</nobr>'
         actionToggleErrors.setToolTip(tt)
         self.connect(actionToggleErrors, QtCore.SIGNAL('toggled(bool)'),
                      self.on_actionToggleErrors_toggled)
