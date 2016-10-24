@@ -170,7 +170,7 @@ class Sort(object):
         dtw = np.asarray(tw) - np.asarray(oldtw) # new minus old
         self.spikes['t0'] += dtw[0]
         self.spikes['t1'] += dtw[1]
-        self.spikes['tis'] -= dtw[0] / self.tres
+        self.spikes['tis'] = self.spikes['tis'] - intround(dtw[0] / self.tres)
         # recalculate any existing templates:
         for neuron in self.neurons.values():
             if neuron.wave.data != None:
@@ -1274,7 +1274,7 @@ class Sort(object):
                         raise RuntimeError("multiple hits of old data in new, don't know "
                                            "how to reload spike %d" % sid)
                     if dnt != 0:
-                        dt = dnt * self.tres # time to correct by, signed, in us
+                        dt = intround(dnt * self.tres) # time to correct by, signed, in us
                         spikes['t'][sid] += dt # should remain halfway between t0 and t1
                         spikes['t0'][sid] += dt
                         spikes['t1'][sid] += dt
@@ -1282,7 +1282,7 @@ class Sort(object):
                         # have shifted off the ends. Use opposite sign because we're
                         # referencing within wavedata:
                         # in versions <= 0.3, 'tis' were named 'phasetis':
-                        spikes['phasetis'][sid] -= dnt
+                        spikes['phasetis'][sid] = spikes['phasetis'][sid] - dnt
                         spike = spikes[sid]
                         # reslice tempwave again now that t0 and t1 have changed
                         rd = tempwave[spike['t0']:spike['t1']][chans].data
