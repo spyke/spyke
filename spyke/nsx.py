@@ -114,15 +114,17 @@ class File(object):
         of recording, in sec"""
         if dt == None:
             nt = self.nt
+            dtstr = ''
         else:
             nt = intround(dt * self.fileheader.sampfreq)
+            dtstr = str(dt)
         assert self.is_open()
         nchanstotal = self.fileheader.nchanstotal
         nbytes = nt * nchanstotal * 2 # number of bytes requested, 2 bytes per datapoint
         offset = self.datapacket.dataoffset
         self.f.seek(offset)
         datbasefname = os.path.splitext(self.fname)[0]
-        fulldatfname = self.join(datbasefname + '.dat')
+        fulldatfname = self.join('%s_%ss.dat' % (datbasefname, dtstr))
         print('writing raw ephys data to %r' % fulldatfname)
         print('starting from dataoffset at %d bytes' % offset)
         with open(fulldatfname, 'wb') as datf:
