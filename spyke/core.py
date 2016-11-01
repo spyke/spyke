@@ -630,10 +630,15 @@ class NListModel(SpykeAbstractListModel):
         try:
             # update nlist tooltip before returning, only +ve nids count as neurons:
             sort = self.sortwin.sort
+            neurons = sort.neurons
             nneurons = (np.asarray(sort.norder) > 0).sum()
-            ngood = len(sort.get_good())
-            self.sortwin.nlist.setToolTip("Neuron list\n%d neurons, %d good"
-                                          % (nneurons, ngood))
+            goodnids = sort.get_good()
+            ngood = len(goodnids)
+            ngoodspikes = sum(neurons[nid].nspikes for nid in goodnids)
+            self.sortwin.nlist.setToolTip("Neuron list\n"
+                                          "%d neurons\n"
+                                          "%d good with %d spikes"
+                                          % (nneurons, ngood, ngoodspikes))
             return len(sort.norder)
         except AttributeError: # sort doesn't exist
             self.sortwin.nlist.setToolTip("Neuron list")
