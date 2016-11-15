@@ -2267,7 +2267,7 @@ class SpykeWindow(QtGui.QMainWindow):
         intgain = 1
         extgain = 2000
         converter = core.Converter(intgain=intgain, extgain=extgain)
-        wavedata = converter.uV2AD(wavedata, inttype=np.int64)
+        wavedata = converter.uV2AD(wavedata, dtype=np.int64)
         # check for saturation:
         wdmin, wdmax = wavedata.min(), wavedata.max()
         print('gain = %d' % (intgain*extgain))

@@ -97,9 +97,9 @@ class Converter(object):
         """
         return np.float32(AD) * 10000000 / (2**15 * self.intgain * self.extgain)
 
-    def uV2AD(self, uV, inttype=np.int16):
-        """Convert uV to signed rescaled AD values of type inttype"""
-        return inttype(np.round(uV * (2**15 * self.intgain * self.extgain) / 10000000))
+    def uV2AD(self, uV, dtype=np.int16):
+        """Convert uV to signed rescaled AD values of type dtype"""
+        return dtype(np.round(uV * (2**15 * self.intgain * self.extgain) / 10000000))
 
 
 class Converter_TSF_1002(object):
@@ -115,9 +115,9 @@ class Converter_TSF_1002(object):
         """Convert signed int16 AD values to float32 uV"""
         return np.float32(AD) * self.intgain * self.extgain
 
-    def uV2AD(self, uV, inttype=np.int16):
-        """Convert float32 uV to signed AD values of type inttype"""
-        return inttype(np.round(uV / (self.intgain * self.extgain)))
+    def uV2AD(self, uV, dtype=np.int16):
+        """Convert float32 uV to signed AD values of type dtype"""
+        return dtype(np.round(uV / (self.intgain * self.extgain)))
 
 
 class NSXConverter(object):
@@ -131,8 +131,8 @@ class NSXConverter(object):
     def AD2uV(self, AD):
         return self.AD2uVx * np.float32(AD)
         
-    def uV2AD(self, uV, inttype=np.int16):
-        return inttype(np.round(self.uV2ADx * uV))
+    def uV2AD(self, uV, dtype=np.int16):
+        return dtype(np.round(self.uV2ADx * uV))
 
 
 class WaveForm(object):
