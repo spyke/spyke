@@ -249,6 +249,8 @@ class NSXStream(Stream):
         probename = f.fileheader.comment # maybe the comment specifies the probe type?
         if probename == '':
             probename = probes.DEFNSXPROBETYPE # A1x32
+        ## TODO: could also use findprobe(chanpos) to get probetype, but unfortunately
+        ## chanpos isn't available in .nsx files
         probetype = eval('probes.' + probename) # yucky. TODO: switch to a dict with keywords?
         self.probe = probetype()
 
@@ -602,16 +604,7 @@ class SimpleStream(Stream):
         self.ADchans = np.arange(self.nADchans)
         self.layout = EmptyClass()
         self.layout.ADchanlist = self.ADchans # for the sake of self.resample()
-        probematch = False
-        for probetype in probes.TYPES:
-            probe = probetype()
-            if (probe.siteloc_arr().shape == siteloc.shape and
-                (probe.siteloc_arr() == siteloc).all()):
-                self.probe = probe
-                probematch = True
-                break
-        if not probematch:
-            raise ValueError("siteloc in %s doesn't match known probe type" % fname)
+        self.probe = probes.findprobe(siteloc) # deduce probe type from siteloc array
         self.rawsampfreq = rawsampfreq
         self.rawtres = 1 / self.rawsampfreq * 1e6 # float us
         self.masterclockfreq = masterclockfreq

@@ -548,3 +548,13 @@ class A1x32(Probe):
 
 TYPES = [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b,
          pt16a_HS27, pt16b_HS27, single, IMEC30, A1x32]
+
+
+def findprobe(siteloc):
+    """Return instantiation of first probe type whose layout matches siteloc"""
+    for probetype in TYPES:
+        probe = probetype()
+        if (probe.siteloc_arr().shape == siteloc.shape and
+            (probe.siteloc_arr() == siteloc).all()):
+            return probe
+    raise ValueError("siteloc array:\n%r\ndoesn't match any known probe type" % siteloc)
