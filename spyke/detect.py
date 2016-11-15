@@ -80,6 +80,22 @@ def initializer(detector):
     ps().detector = deepcopy(detector)
     ps().detector.sort.stream.open() # reopen underlying stream data source after unpickling
     
+def calc_SPIKEDTYPE(maxnchansperspike):
+    """Create spike array dtype for efficiently storing information about each spike"""
+    dt = [('id', np.int32), ('nid', np.int16),
+          ('chan', np.uint8), ('nchans', np.uint8),
+          ('chans', np.uint8, (maxnchansperspike,)), ('chani', np.uint8),
+          ('nlockchans', np.uint8), ('lockchans', np.uint8, (maxnchansperspike,)),
+          ('t', np.int64), ('t0', np.int64), ('t1', np.int64),
+          ('dt', np.int16), # time between peaks, in us
+          ('tis', np.uint8, (maxnchansperspike, 2)), # peak positions
+          ('aligni', np.uint8),
+          ('V0', np.float32), ('V1', np.float32), ('Vpp', np.float32),
+          ('x0', np.float32), ('y0', np.float32),
+          ('sx', np.float32), ('sy', np.float32),
+          ]
+    return dt
+
 
 class RandomBlockRanges(object):
     """Iterator that spits out time ranges of width bs with
@@ -175,6 +191,7 @@ class Detector(object):
         blocks of (slightly overlapping) multichannel waveform data, and
         then combines the results"""
         self.calc_chans()
+        self.SPIKEDTYPE = calc_SPIKEDTYPE(self.maxnchansperspike)
         sort = self.sort
         self.mpmethod = MPMETHOD
         spikewidth = (sort.tw[1] - sort.tw[0]) / 1000000 # sec
@@ -309,21 +326,6 @@ class Detector(object):
             self.inclnbhdi[chani] = inclchanis
             maxnchansperspike = max(maxnchansperspike, len(inclchanis))
         self.maxnchansperspike = maxnchansperspike
-
-        self.SPIKEDTYPE = [('id', np.int32), ('nid', np.int16),
-                           ('chan', np.uint8), ('nchans', np.uint8),
-                           ('chans', np.uint8, (self.maxnchansperspike,)),
-                           ('chani', np.uint8),
-                           ('nlockchans', np.uint8),
-                           ('lockchans', np.uint8, (self.maxnchansperspike,)),
-                           ('t', np.int64), ('t0', np.int64), ('t1', np.int64),
-                           ('dt', np.int16), # time between peaks, in us
-                           ('tis', np.uint8, (self.maxnchansperspike, 2)), # peak positions
-                           ('aligni', np.uint8),
-                           ('V0', np.float32), ('V1', np.float32), ('Vpp', np.float32),
-                           ('x0', np.float32), ('y0', np.float32),
-                           ('sx', np.float32), ('sy', np.float32),
-                           ]
 
     def searchblock(self, blockrange):
         """Search a block of data, return a struct array of valid spikes,
