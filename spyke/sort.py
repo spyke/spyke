@@ -2664,7 +2664,7 @@ class SortWindow(SpykeToolWindow):
 
     def get_inclt(self):
         """Return inclt value in incltComboBox"""
-        return int(self.incltComboBox.currentText()) # us
+        return float(self.incltComboBox.currentText()) # us
 
     inclt = property(get_inclt)
 
