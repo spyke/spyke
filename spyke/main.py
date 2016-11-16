@@ -57,8 +57,9 @@ from stream import SimpleStream, MultiStream
 import surf, nsx
 from sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES
 from plot import SpikePanel, ChartPanel, LFPPanel
-from detect import Detector
+from detect import Detector, calc_SPIKEDTYPE
 from extract import Extractor
+import probes
 
 # spike window temporal window (us)
 SPIKETW = {'.srf': (-400, 600), '.ns6': (-500, 1500), '.tsf': (-1000, 2000)}
@@ -186,8 +187,9 @@ class SpykeWindow(QtGui.QMainWindow):
         getOpenFileName = QtGui.QFileDialog.getOpenFileName
         fname = getOpenFileName(self, caption="Open stream or sort",
                                 directory=self.streampath,
-                                filter="Surf, nsx, track, tsf, mat & sort files "
-                                       "(*.srf *.ns6 *.track *.tsf *.mat *.sort );;"
+                                filter="Surf, nsx, track, tsf, mat, event & sort files "
+                                       "(*.srf *.ns6 *.track *.tsf *.mat *.event*.zip "
+                                       "*.sort );;"
                                        "All files (*.*)")
         fname = str(fname)
         if fname:
@@ -2141,17 +2143,24 @@ class SpykeWindow(QtGui.QMainWindow):
         print('opening file %r' % fname)
         head, tail = os.path.split(fname)
         assert head # make sure fname has a path to it
-        ext = os.path.splitext(tail)[1]
+        base, ext = os.path.splitext(tail)
         if ext in ['.srf', '.ns6', '.track', '.tsf', '.mat']:
             self.streampath = head
             self.OpenStreamFile(tail)
+        elif ext == '.zip':
+            subext = os.path.splitext(base)[1]
+            self.eventspath = head
+            if subext == '.eventwaves':
+                self.OpenEventWavesFile(tail)
+            elif subext == '.events':
+                self.OpenEventsFile(tail)
         elif ext == '.sort':
             self.sortpath = head
             self.OpenSortFile(tail)
         else:
             critical = QtGui.QMessageBox.critical
-            critical(self, "Error", "%s is not a .srf, .ns6, .track, .tsf, .mat or .sort file"
-                     % fname)
+            critical(self, "Error", "%s is not a .srf, .ns6, .track, .tsf, .mat, .event*.zip "
+                     "or .sort file" % fname)
 
     def OpenStreamFile(self, fname):
         """Open a stream (.srf, .nsx, .track, or .tsf file) and update display accordingly.
@@ -2488,6 +2497,117 @@ class SpykeWindow(QtGui.QMainWindow):
         for oldnid, newnid in zip(oldunids, newunids):
             sids = oldnid2sids[oldnid]
             nids[sids] = newnid # overwrite old nid values with new ones
+
+    def OpenEventWavesFile(self, fname):
+        """Open an .eventwaves.zip file, containing event times, channels and waveforms, plus
+        other data. fname is assumed to be relative to self.eventspath"""
+        if self.hpstream != None:
+            self.CloseStream() # in case a stream is open
+        self.DeleteSort() # delete any existing Sort
+        fullfname = os.path.join(self.eventspath, fname)
+        with open(fullfname, 'rb') as f:
+            d = dict(np.load(f)) # convert to an actual dict to use d.get() method
+            print('done opening .eventswave.zip file')
+            print('.eventswave file was %d bytes long' % f.tell())
+            chan = d.get('chan') # array of maxchans, one per event
+            chanpos = d.get('chanpos') # array of (x, y) coords, in channel order
+            chans = d.get('chans') # set of incl. chans, each of length nchans, one per event
+            nchans = d.get('nchans') # count of included chans, one per event
+            sampfreq = d.get('sampfreq') # sampling rate, Hz
+            t = d.get('t') # even timestamps, us
+            uVperAD = d.get('uVperAD') # uV per AD value in wavedata
+            # event waveform data (nevents x maxnchans x nt), treated as AD values:
+            wavedata = d.get('wavedata')
+
+        # check for mandatory fields:
+        if sampfreq is None:
+            raise ValueError('missing sampfreq')
+        if uVperAD is None:
+            raise ValueError('missing uVperAD')
+        if wavedata is None:
+            raise ValueError('missing wavedata')
+
+        # pull singleton values out of numpy array:
+        sampfreq = float(sampfreq)
+        uVperAD = float(uVperAD)
+        print('uVperAD was %f' % uVperAD)
+        uVperAD = 50
+        print('uVperAD is now %f' % uVperAD)
+
+        nevents, maxnchans, nt = wavedata.shape # maxnchans is per event
+
+        # handle optional fields:
+        if chanpos is None:
+            if maxnchans > 1:
+                raise ValueError('multiple chans per event, chanpos should be specified')
+            chanpos = np.array([[0, 0]]) # treat events as single channel
+        if t is None: # create artificial event timestamps at 1 ms intervals
+            t = np.arange(nevents) * 1000 # us
+        if chan is None: # maxchan
+            chan = np.zeros(nevents)
+        if nchans is None:
+            nchans = np.ones(nevents)
+        if chans is None:
+            chans = np.asarray([chan]) # (1, nevents)
+        assert len(chans) is maxnchans
+
+        # create fake stream, create sort, populate spikes array:
+        tres = 1 / sampfreq * 1000000 # us
+        dt = nt * tres
+        self.spiketw = -dt/2, dt/2
+
+        fakestream = stream.FakeStream()
+        fakestream.fname = ''
+        fakestream.tres = tres
+        fakestream.probe = probes.findprobe(chanpos)
+        fakestream.converter = None
+        self.hpstream = fakestream
+
+        sort = self.CreateNewSort()
+        det = Detector(sort=sort)
+        SPIKEDTYPE = calc_SPIKEDTYPE(maxnchans)
+        sort.detector = det
+        sort.converter = core.SimpleConverter(uVperAD)
+        spikes = np.zeros(nevents, SPIKEDTYPE)
+        spikes['id'] = np.arange(nevents)
+        spikes['t'] = t
+        spikes['chan'] = chan
+        spikes['nchans'] = nchans
+        spikes['chans'] = chans.T # (nevents, 1)
+        sort.spikes = spikes
+        sort.wavedata = wavedata
+        self.sort = sort
+
+        self.uVperum = 20 # hack
+        self.usperum = 125
+
+        sort.update_usids()
+        #sort.filtmeth = sort.stream.filtmeth # lock down filtmeth attrib
+        #sort.sampfreq = sort.stream.sampfreq # lock down sampfreq and shcorrect attribs
+        #sort.shcorrect = sort.stream.shcorrect
+
+        self.update_spiketw(sort.tw)
+        self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
+        self.EnableSortWidgets(True)
+        sw = self.OpenWindow('Sort') # ensure it's open
+        if sort.nspikes > 0:
+            self.on_plotButton_clicked()
+
+        self.SPIKEWINDOWWIDTH = sort.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
+        sw = self.OpenWindow('Sort') # ensure it's open
+        sw.uslist.updateAll() # restore unsorted spike listview
+        self.updateTitle()
+        self.updateRecentFiles(fullfname)
+
+        # steps copied from OpenSort:
+        #self.restore_clustering_selections()
+        #self.RestoreClusters2GUI()
+        #self.update_gui_from_sort()
+
+    def OpenEventsFile(self, fname):
+        """Open an .events.zip file, containing event times and channels, plus other data.
+        fname is assumed to be relative to self.eventspath"""
+        raise NotImplementedError
 
     def OpenSortFile(self, fname):
         """Open a Sort from a .sort and .spike file, try and open a .wave file

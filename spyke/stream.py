@@ -18,6 +18,14 @@ from core import (DEFHPRESAMPLEX, DEFHPSRFSHCORRECT, DEFHPNSXSHCORRECT, DEFNSXFI
 import probes
 
 
+class FakeStream(object):
+    def __init__(self):
+        self.fname = ''
+
+    def close(self):
+        pass
+
+
 class Stream(object):
     """Base class for all streams"""
 
