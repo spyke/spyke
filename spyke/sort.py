@@ -20,6 +20,7 @@ import operator
 import random
 import shutil
 import hashlib
+import multiprocessing as mp
 
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
@@ -737,6 +738,26 @@ class Sort(object):
             if X.shape[1] < minncomp:
                 raise RuntimeError("can't satisfy minncomp=%d request" % minncomp)
         elif kind == 'ICA':
+        elif kind == 'sPCA': # sparse principal components analysis
+            from sklearn.decomposition import SparsePCA
+            n_components = 5
+            alpha = 1 # sparseness parameter
+            n_jobs = mp.cpu_count()
+            spca = SparsePCA(n_components=n_components, alpha=alpha, n_jobs=n_jobs)
+            X = spca.fit_transform(data) # do both the fit and the transform
+        elif kind == 'mbsPCA': # mini batch sparse principal components analysis
+            from sklearn.decomposition import MiniBatchSparsePCA
+            n_components = 5
+            alpha = 1 # sparseness parameter
+            n_jobs = mp.cpu_count()
+            mbspca = MiniBatchSparsePCA(n_components=n_components, alpha=alpha, n_jobs=n_jobs)
+            X = mbspca.fit_transform(data) # do both the fit and the transform
+        elif kind == 'NMF': # non-negative matrix factorization
+            from sklearn.decomposition import NMF
+            n_components = 5
+            init = None # random, nndsvd, nndsvda, nndsvdar, custom
+            nmf = NMF(n_components=n_components, init=init)
+            X = nmf.fit_transform(data) # do both the fit and the transform
             # ensure nspikes >= ndims**2 for good ICA convergence
             maxncomp = intround(sqrt(nspikes))
             if maxncomp < minncomp:

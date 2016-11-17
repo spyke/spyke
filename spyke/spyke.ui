@@ -1417,11 +1417,27 @@ Ctrl+click forces recalculation of components</string>
          <property name="toolTip">
           <string>Component analysis method. ICA seems to
 do better than PCA alone when one cluster in a
-pair has far more points than the other</string>
+pair has far more points than the other.
+NMF only works on non-negative data (unlike spikes)</string>
          </property>
          <item>
           <property name="text">
            <string>PCA</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>sPCA</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>mbsPCA</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
+           <string>NMF</string>
           </property>
          </item>
          <item>
