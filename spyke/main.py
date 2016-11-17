@@ -2553,8 +2553,8 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # create fake stream, create sort, populate spikes array:
         tres = 1 / sampfreq * 1000000 # us
-        dt = nt * tres
-        self.spiketw = -dt/2, dt/2
+        halfdt = nt * tres / 2
+        self.spiketw = -halfdt, halfdt
 
         fakestream = stream.FakeStream()
         fakestream.fname = ''
@@ -2571,6 +2571,7 @@ class SpykeWindow(QtGui.QMainWindow):
         spikes = np.zeros(nevents, SPIKEDTYPE)
         spikes['id'] = np.arange(nevents)
         spikes['t'] = t
+        spikes['t0'], spikes['t1'] = t-halfdt, t+halfdt
         spikes['chan'] = chan
         spikes['nchans'] = nchans
         spikes['chans'] = chans.T # (nevents, 1)
