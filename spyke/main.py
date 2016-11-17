@@ -885,7 +885,7 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_detectButton_clicked(self):
         """Detect pane Detect button click"""
-        sort = self.CreateNewSort() # create a new Sort, with bound .stream
+        sort = self.CreateNewSort() # create a new Sort, with bound stream
         self.get_detector() # update Sort's current detector with new one from widgets
         if sort.detector.extractparamsondetect:
             self.init_extractor() # init the Extractor
@@ -2531,7 +2531,7 @@ class SpykeWindow(QtGui.QMainWindow):
         sampfreq = float(sampfreq)
         uVperAD = float(uVperAD)
         print('uVperAD was %f' % uVperAD)
-        uVperAD = 50
+        uVperAD = 25
         print('uVperAD is now %f' % uVperAD)
 
         nevents, maxnchans, nt = wavedata.shape # maxnchans is per event
@@ -2556,14 +2556,15 @@ class SpykeWindow(QtGui.QMainWindow):
         halfdt = nt * tres / 2
         self.spiketw = -halfdt, halfdt
 
+        # treat this source .eventwaves.zip file as a fake stream:
         fakestream = stream.FakeStream()
-        fakestream.fname = ''
+        fakestream.fname = fname
         fakestream.tres = tres
         fakestream.probe = probes.findprobe(chanpos)
         fakestream.converter = None
         self.hpstream = fakestream
 
-        sort = self.CreateNewSort()
+        sort = self.CreateNewSort() # creates and binds to self
         det = Detector(sort=sort)
         SPIKEDTYPE = calc_SPIKEDTYPE(maxnchans)
         sort.detector = det
@@ -2577,9 +2578,9 @@ class SpykeWindow(QtGui.QMainWindow):
         spikes['chans'] = chans.T # (nevents, 1)
         sort.spikes = spikes
         sort.wavedata = wavedata
-        self.sort = sort
 
-        self.uVperum = 20 # hack
+        # hack:
+        self.uVperum = 20
         self.usperum = 125
 
         sort.update_usids()
@@ -2587,7 +2588,6 @@ class SpykeWindow(QtGui.QMainWindow):
         #sort.sampfreq = sort.stream.sampfreq # lock down sampfreq and shcorrect attribs
         #sort.shcorrect = sort.stream.shcorrect
 
-        self.update_spiketw(sort.tw)
         self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
         self.EnableSortWidgets(True)
         sw = self.OpenWindow('Sort') # ensure it's open
@@ -2595,15 +2595,14 @@ class SpykeWindow(QtGui.QMainWindow):
             self.on_plotButton_clicked()
 
         self.SPIKEWINDOWWIDTH = sort.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
-        sw = self.OpenWindow('Sort') # ensure it's open
-        sw.uslist.updateAll() # restore unsorted spike listview
         self.updateTitle()
         self.updateRecentFiles(fullfname)
 
-        # steps copied from OpenSort:
-        #self.restore_clustering_selections()
-        #self.RestoreClusters2GUI()
-        #self.update_gui_from_sort()
+        # start with all events in a single non-junk cluster 1:
+        oldclusters = []
+        sids = spikes['id']
+        nids = np.ones(nevents)
+        self.apply_clustering(oldclusters, sids, nids, verb='initial eventwaves split')
 
     def OpenEventsFile(self, fname):
         """Open an .events.zip file, containing event times and channels, plus other data.
