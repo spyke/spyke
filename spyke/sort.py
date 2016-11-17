@@ -722,7 +722,7 @@ class Sort(object):
         t0 = time.time()
         data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
         print('reshaped input for %s: %r' % (kind, data.shape))
-        if kind == 'PCA':
+        if kind == 'PCA': # principal components analysis
             if PCALIB == 'mdp':
                 import mdp # delay as late as possible
                 X = mdp.pca(data, output_dim=5, svd=False) # svd=False is default
@@ -737,7 +737,6 @@ class Sort(object):
                 raise ValueError('invalid PCALIB %r' % PCALIB)
             if X.shape[1] < minncomp:
                 raise RuntimeError("can't satisfy minncomp=%d request" % minncomp)
-        elif kind == 'ICA':
         elif kind == 'sPCA': # sparse principal components analysis
             from sklearn.decomposition import SparsePCA
             n_components = 5
@@ -758,6 +757,7 @@ class Sort(object):
             init = None # random, nndsvd, nndsvda, nndsvdar, custom
             nmf = NMF(n_components=n_components, init=init)
             X = nmf.fit_transform(data) # do both the fit and the transform
+        elif kind == 'ICA': # independent components analysis
             # ensure nspikes >= ndims**2 for good ICA convergence
             maxncomp = intround(sqrt(nspikes))
             if maxncomp < minncomp:
