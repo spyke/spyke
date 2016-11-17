@@ -2530,9 +2530,6 @@ class SpykeWindow(QtGui.QMainWindow):
         # pull singleton values out of numpy array:
         sampfreq = float(sampfreq)
         uVperAD = float(uVperAD)
-        print('uVperAD was %f' % uVperAD)
-        uVperAD = 25
-        print('uVperAD is now %f' % uVperAD)
 
         nevents, maxnchans, nt = wavedata.shape # maxnchans is per event
 
