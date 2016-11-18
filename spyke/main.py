@@ -3176,6 +3176,12 @@ class SpykeWindow(QtGui.QMainWindow):
         self.sort.detector = Detector(sort=self.sort)
         self.update_sort_from_gui()
 
+    def update_dirtysids(self, sids):
+        """Update self.dirtysids and clear the dimension reduction cache"""
+        self.dirtysids.update(sids)
+        # clear the dimension reduction cache:
+        self.sort.X = {}
+
     def update_spiketw(self, spiketw):
         """Update tw of self.sort and of Spike and Sort windows. For efficiency,
         only update sort and windows when necessary. This is appropriate

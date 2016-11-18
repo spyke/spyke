@@ -927,7 +927,7 @@ class PlotPanel(FigureCanvas):
         spikes[sid]['Vpp'] = abs(V1 - V0)
 
         # mark sid as dirty in .wave file
-        spw.dirtysids.update([sid])
+        spw.update_dirtysids([sid])
 
         # reset for next alignment session
         spw.primarypeakt = None

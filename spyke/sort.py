@@ -2719,7 +2719,7 @@ class SortWindow(SpykeToolWindow):
             usemeanchans = True
         self.sort.reloadSpikes(sids, usemeanchans=usemeanchans)
         # add sids to the set of dirtysids to be resaved to .wave file:
-        spw.dirtysids.update(sids)
+        spw.update_dirtysids(sids)
         # update neuron templates:
         unids = np.unique(sort.spikes['nid'][sids])
         unids = unids[unids != 0] # exclude junk cluster, which doesn't have a neuron
@@ -2863,7 +2863,7 @@ class SortWindow(SpykeToolWindow):
         for neuron in neurons:
             neuron.update_wave() # update affected mean waveforms
         # add dirtysids to the set to be resaved to .wave file:
-        spw.dirtysids.update(sids)
+        spw.update_dirtysids(sids)
         # auto-refresh all plots
         self.panel.updateAllItems()
 
@@ -2907,8 +2907,8 @@ class SortWindow(SpykeToolWindow):
         for neuron in neurons:
             neuron.update_wave() # update affected mean waveforms
         # add dirtysids to the set to be resaved to .wave file:
-        spw.dirtysids.update(dirtysids)
-        # auto-refresh all plots
+        spw.update_dirtysids(dirtysids)
+        # auto-refresh all plots:
         self.panel.updateAllItems()
 
     def RemoveNeuron(self, neuron, update=True):
