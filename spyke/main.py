@@ -1189,7 +1189,8 @@ class SpykeWindow(QtGui.QMainWindow):
         spos = np.vstack((spikes['x0'][sids], spikes['y0'][sids])).T # sids x 2
         meanpos = spos.mean(axis=0) # mean spike position
         chanpos = np.asarray(dm.coords) # positions of enabled chans
-        d = np.sqrt(np.sum((chanpos - meanpos)**2, axis=1)) # Euclidean chan distances from meanpos
+        # Euclidean chan distances from meanpos:
+        d = np.sqrt(np.sum((chanpos - meanpos)**2, axis=1))
         selchans = sorted(dm.chans[d <= sx]) # chans within sx of meanpos
         print('selection center: %.1f, %.1f um' % (meanpos[0], meanpos[1]))
         print('selection radius: %.1f um' % sx)
