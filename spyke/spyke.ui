@@ -1918,13 +1918,21 @@ or remove all duplicate spikes from selected neurons
      <addaction name="menuLFP"/>
      <addaction name="actionExportDatFiles"/>
     </widget>
+    <widget class="QMenu" name="menuConvert">
+     <property name="title">
+      <string>Convert</string>
+     </property>
+     <addaction name="actionConvertKiloSortNpy2EventsZip"/>
+    </widget>
     <addaction name="actionNew"/>
     <addaction name="actionOpen"/>
     <addaction name="separator"/>
     <addaction name="actionSaveSort"/>
     <addaction name="actionSaveSortAs"/>
     <addaction name="actionSaveParse"/>
+    <addaction name="separator"/>
     <addaction name="menuExport"/>
+    <addaction name="menuConvert"/>
     <addaction name="separator"/>
     <addaction name="actionCloseSort"/>
     <addaction name="actionCloseStream"/>
@@ -2573,6 +2581,14 @@ or remove all duplicate spikes from selected neurons
    </property>
    <property name="toolTip">
     <string>Export raw ephys data to .dat file(s) in same folder</string>
+   </property>
+  </action>
+  <action name="actionConvertKiloSortNpy2EventsZip">
+   <property name="text">
+    <string>KiloSort .npy to .events.zip</string>
+   </property>
+   <property name="toolTip">
+    <string>Convert relevant KiloSort .npy files to a single .events.zip file</string>
    </property>
   </action>
  </widget>

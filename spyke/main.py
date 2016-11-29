@@ -442,6 +442,15 @@ class SpykeWindow(QtGui.QMainWindow):
         else:
             raise NotImplementedError("Can't (yet) export raw ephys data from %s to .dat")
 
+    @QtCore.pyqtSlot()
+    def on_actionConvertKiloSortNpy2EventsZip_triggered(self):
+        caption = "Convert relevant KiloSort .npy files to a single .events.zip file"
+        path = getExistingDirectory(self, caption=caption, directory=self.streampath)
+        path = str(path)
+        if not path:
+            return
+        self.convert_kilosortnpy2eventszip(path)
+
     def update_sort_version(self):
         """Update self.sort to latest version"""
         s = self.sort
@@ -2606,6 +2615,54 @@ class SpykeWindow(QtGui.QMainWindow):
         """Open an .events.zip file, containing event times and channels, plus other data.
         fname is assumed to be relative to self.eventspath"""
         raise NotImplementedError
+    def convert_kilosortnpy2eventszip(self, path):
+        """Read relevant KiloSort .npy results files in path, process them slightly,
+        and save them with standard spyke variable names to an ".events.zip" npz file."""
+        s = self.hpstream
+        assert s != None
+
+        # build file names:
+        spiketisfname = os.path.join(path, 'spike_times.npy')
+        nidsfname = os.path.join(path, 'spike_clusters.npy')
+        templatesfname = os.path.join(path, 'templates.npy')
+        outputfname = os.path.join(path, s.fname + '.events.zip')
+
+        # load relevant KiloSort .npy results files:
+        # spike times, sample point integers relative to start of .dat file:
+        spiketis = np.load(spiketisfname).ravel()
+        # exported KiloSort nids are uint32 instead of int32 for some reason:
+        nids = np.load(nidsfname).ravel() # one neuron ID per spike
+        # check limits before converting to int16:
+        assert nids.max() < 2**15
+        assert nids.min() >= -2**15
+        # save space, use same dtype as in SPIKEDTYPE:
+        nids = np.int16(nids)
+        templates = np.load(templatesfname) # ntemplates, nt, nchans, Fortran contiguous
+        # reshape to ntemplates, nchans, nt by swapping axes (can't just assign new shape!):
+        templates = np.swapaxes(templates, 1, 2)
+        templates = np.ascontiguousarray(templates) # make C contiguous
+
+        # calculate spike times, assume KiloSort was run on raw uninterpolated data:
+        spikets = s.t0 + spiketis / s.rawsampfreq * 1e6 # us
+
+        # find maxchan for each template: find max along time axis of each chan of each
+        # template, then find argmax along chan axis of each template:
+        templatemaxchanis = abs(templates).max(axis=2).argmax(axis=1) # one per template
+        # get dereferenced maxchan IDs, for example, A1x32 probe has 1-based chans, at
+        # least when recorded with Blackrock NSP:
+        templatemaxchans = s.chans[templatemaxchanis] # one per template
+        maxchans = templatemaxchans[nids] # one per spike
+        # check limits before converting to uint8:
+        assert maxchans.max() < 2**8
+        assert maxchans.min() >= 0
+        # save space, use same dtype as in SPIKEDTYPE:
+        maxchans = np.uint8(maxchans)
+
+        assert len(spikets) == len(maxchans) == len(nids)
+        print('converting KiloSort events to:\n%r' % outputfname)
+        with open(outputfname, 'wb') as f:
+            np.savez_compressed(f, spikets=spikets, maxchans=maxchans, nids=nids)
+        print('done converting KiloSort events')
 
     def OpenSortFile(self, fname):
         """Open a Sort from a .sort and .spike file, try and open a .wave file
@@ -3125,6 +3182,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def EnableStreamWidgets(self, enable):
         """Enable/disable all widgets that require an open stream"""
         self.EnableSamplingMenu(enable)
+        self.EnableConvertMenu(enable)
         self.ui.filePosStartButton.setEnabled(enable)
         self.ui.filePosLineEdit.setEnabled(enable)
         self.ui.filePosEndButton.setEnabled(enable)
@@ -3150,6 +3208,12 @@ class SpykeWindow(QtGui.QMainWindow):
         """Enable/disable all items in Sampling menu, while still allowing
         the menu to be opened and its contents viewed"""
         for action in self.ui.menuSampling.actions():
+            action.setEnabled(enable)
+
+    def EnableConvertMenu(self, enable):
+        """Enable/disable all items in Convert menu, while still allowing
+        the menu to be opened and its contents viewed"""
+        for action in self.ui.menuConvert.actions():
             action.setEnabled(enable)
 
     def EnableSpikeWidgets(self, enable):
