@@ -17,6 +17,9 @@ __authors__ = ['Martin Spacek']
 import numpy as np
 
 DEFNSXPROBETYPE = 'A1x32'
+# SPIKEDTYPE currently uses uint8 for chans, ensure during Probe instantiation that
+# number of chans doesn't exceed this:
+MAXNCHANS = 2**8
 
 
 class Probe(object):
@@ -50,6 +53,10 @@ class Probe(object):
         """Return maximum site separation along axis"""
         coords = self.unique_coords(axis) # comes out sorted
         return coords[-1] - coords[0]
+
+    def check(self):
+        """Check probe attributes"""
+        assert len(self.SiteLoc) == self.nchans <= MAXNCHANS
 
 
 class uMap54_1a(Probe):
@@ -114,8 +121,8 @@ class uMap54_1a(Probe):
         sl[51] = 56, 1105
         sl[52] = 56, 1170
         sl[53] = 56, 1040
-        assert len(sl) == self.nchans
         self.SiteLoc = sl
+        self.check()
 
 
 class uMap54_1b(Probe):
@@ -180,8 +187,8 @@ class uMap54_1b(Probe):
         sl[51] = 43, 850
         sl[52] = 43, 900
         sl[53] = 43, 800
-        assert len(sl) == self.nchans
         self.SiteLoc = sl
+        self.check()
 
 
 class uMap54_1c(Probe):
@@ -246,8 +253,8 @@ class uMap54_1c(Probe):
         sl[51] = 65, 951
         sl[52] = 65, 1101
         sl[53] = 65, 801
-        assert len(sl) == self.nchans
         self.SiteLoc = sl
+        self.check()
 
 
 class uMap54_2a(Probe):
@@ -312,8 +319,8 @@ class uMap54_2a(Probe):
         sl[51] = 28, 1202
         sl[52] = 28, 1267
         sl[53] = 28, 1137
-        assert len(sl) == self.nchans
         self.SiteLoc = sl
+        self.check()
 
 
 class uMap54_2b(Probe):
@@ -378,8 +385,8 @@ class uMap54_2b(Probe):
         sl[51] = 25, 1150
         sl[52] = 25, 1250
         sl[53] = 25, 1050
-        assert len(sl) == self.nchans
         self.SiteLoc = sl
+        self.check()
 
 
 class pt16a_HS27(Probe):
@@ -412,8 +419,8 @@ class pt16a_HS27(Probe):
         sl[17] = 27, 124
         sl[18] = 27, 186
         sl[19] = 27, 248
-        assert len(sl) == self.nchans
         self.SiteLoc = sl
+        self.check()
 
 
 class pt16b_HS27(Probe):
@@ -446,8 +453,8 @@ class pt16b_HS27(Probe):
         sl[17] = 27, 186
         sl[18] = 27, 62
         sl[19] = 27, 124
-        assert len(sl) == self.nchans
         self.SiteLoc = sl
+        self.check()
 
 
 class single(Probe):
@@ -460,6 +467,7 @@ class single(Probe):
         sl = {}
         sl[0] = 0, 0
         self.SiteLoc = sl
+        self.check()
 
 
 class IMEC30(Probe):
@@ -501,6 +509,7 @@ class IMEC30(Probe):
         sl[28] =  0, 1358
         sl[29] = 22, 1358
         self.SiteLoc = sl
+        self.check()
 
 
 class A1x32(Probe):
@@ -544,6 +553,7 @@ class A1x32(Probe):
         sl[31] = 0, 700
         sl[32] = 0, 750
         self.SiteLoc = sl
+        self.check()
         
 
 TYPES = [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b,
