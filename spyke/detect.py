@@ -82,6 +82,8 @@ def initializer(detector):
     
 def calc_SPIKEDTYPE(maxnchansperspike):
     """Create spike array dtype for efficiently storing information about each spike"""
+    ## NOTE: with uint8, the current channel ID limit is 0 to 255
+    ##       with uint16, the current neuron ID limit is -32768 to 32767
     dt = [('id', np.int32), ('nid', np.int16),
           ('chan', np.uint8), ('nchans', np.uint8),
           ('chans', np.uint8, (maxnchansperspike,)), ('chani', np.uint8),
