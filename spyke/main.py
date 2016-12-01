@@ -2612,9 +2612,104 @@ class SpykeWindow(QtGui.QMainWindow):
         self.apply_clustering(oldclusters, sids, nids, verb='initial eventwaves split')
 
     def OpenEventsFile(self, fname):
-        """Open an .events.zip file, containing event times and channels, plus other data.
-        fname is assumed to be relative to self.eventspath"""
-        raise NotImplementedError
+        """Open an .events.zip file, containing spike times, channels, and neuron ids. fname
+        is assumed to be relative to self.eventspath"""
+        if self.hpstream is None:
+            raise RuntimeError("Need an open raw data stream before loading an events.zip "
+                               "file")
+        self.DeleteSort() # delete any existing Sort
+        fullfname = os.path.join(self.eventspath, fname)
+        with open(fullfname, 'rb') as f:
+            d = dict(np.load(f)) # convert to an actual dict to use d.get() method
+            print('done opening .events.zip file')
+            print('.events.zip file was %d bytes long' % f.tell())
+            spikets = d.get('spikets') # spike times
+            maxchans = d.get('maxchans') # maxchans
+            nids = d.get('nids') # neuron IDs
+
+        # check for mandatory fields:
+        if spikets is None:
+            raise ValueError('missing spikets')
+        if maxchans is None:
+            raise ValueError('missing maxchans')
+        if nids is None:
+            raise ValueError('missing nids')
+
+        nspikes = len(spikets)
+
+        # create sort:
+        sort = self.CreateNewSort() # create a new sort, with bound stream
+        # create detector and run Detector.predetect(), so that things initialize:
+        self.get_detector()
+        det = sort.detector
+        if det.extractparamsondetect:
+            self.init_extractor() # init the Extractor
+        det.predetect()
+        
+        # manually set detection results, and apply nids:
+        spikes = np.zeros(nspikes, det.SPIKEDTYPE)
+        spikes['id'] = np.arange(nspikes)
+        spikes['t'] = spikets
+        spikes['t0'], spikes['t1'] = spikets+sort.tw[0], spikets+sort.tw[1]
+        ## TODO: maybe factor out some of the code that does this in det.detect(), so that
+        ## it can be used here? Maybe call it det.postdetect()? Maybe not, due to the large
+        ## number of params that would prolly have to be passed
+        #spikes['tis'] =
+        #spikes['aligni'] =
+        #spikes['dt'] =
+        #spikes['V0'], spikes['V1'] =
+        #spikes['Vpp'] =
+        spikes['chan'] = maxchans # one per spike
+        # convert inclnbhdi to inclnbhd, taking chan and returning inclchans instead of taking
+        # chani and returning inclchanis:
+        inclnbhd = {}
+        for chani, inclchanis in det.inclnbhdi.items():
+            chan = det.chans[chani]
+            inclchans = det.chans[inclchanis]
+            inclnbhd[chan] = inclchans
+        for spike, maxchan in zip(spikes, maxchans):
+            inclchans = inclnbhd[maxchan]
+            nchans = len(inclchans)
+            spike['nchans'] = nchans
+            spike['chans'][:nchans] = inclchans
+            # for raster tick display:
+            spike['nlockchans'] = nchans
+            spike['lockchans'][:nchans] = inclchans
+
+        #spikes['nid'] = nids # no need for this here, is set below by apply_clustering()
+
+        sort.spikes = spikes
+        det.nspikes = nspikes
+
+        # init wavedata:
+        sort.wavedata = np.empty((nspikes, det.maxnchansperspike, det.maxnt), dtype=np.int16)
+        # now "re"load spike wavedata based on imported events:
+        sort.reloadSpikes(spikes['id'])
+
+        # extract spatial localization params now that spikes have been extracted:
+        #if self.extractparamsondetect:
+        #    s['x0'], s['y0'], s['sx'], s['sy'] = params
+
+        sort.update_usids()
+        sort.filtmeth = sort.stream.filtmeth # lock down filtmeth attrib
+        sort.sampfreq = sort.stream.sampfreq # lock down sampfreq and shcorrect attribs
+        sort.shcorrect = sort.stream.shcorrect
+
+        self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
+        self.EnableSortWidgets(True)
+        sw = self.OpenWindow('Sort') # ensure it's open
+        if sort.nspikes > 0:
+            self.on_plotButton_clicked()
+
+        self.SPIKEWINDOWWIDTH = sort.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
+        self.updateTitle()
+        self.updateRecentFiles(fullfname)
+
+        # apply initial clustering:
+        oldclusters = []
+        sids = spikes['id']
+        self.apply_clustering(oldclusters, sids, nids, verb='initial .events.zip split')
+
     def convert_kilosortnpy2eventszip(self, path):
         """Read relevant KiloSort .npy results files in path, process them slightly,
         and save them with standard spyke variable names to an ".events.zip" npz file."""
