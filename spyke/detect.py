@@ -188,17 +188,32 @@ class Detector(object):
 
     srffnames = property(get_srffnames)
 
+    def predetect(self):
+        """Prepare for spike detection"""
+        self.calc_chans()
+        self.nchans = len(self.chans) # number of enabled chans
+        self.SPIKEDTYPE = calc_SPIKEDTYPE(self.maxnchansperspike)
+        sort = self.sort
+        spikewidth = (sort.tw[1] - sort.tw[0]) / 1000000 # sec
+        # num timepoints to allocate per spike:
+        self.maxnt = int(sort.stream.sampfreq * spikewidth)
+        # total num spikes found across all chans so far by this Detector,
+        # reset at start of every search:
+        self.nspikes = 0
+        # get an nchan*2 array of [chani, x/ycoord]:
+        xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) in chan order
+        xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
+        ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
+        self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
+
     def detect(self):
         """Search for spikes. Divides large searches into more manageable
         blocks of (slightly overlapping) multichannel waveform data, and
         then combines the results"""
-        self.calc_chans()
-        self.SPIKEDTYPE = calc_SPIKEDTYPE(self.maxnchansperspike)
         sort = self.sort
         self.mpmethod = MPMETHOD
-        spikewidth = (sort.tw[1] - sort.tw[0]) / 1000000 # sec
-        # num timepoints to allocate per spike:
-        self.maxnt = int(sort.stream.sampfreq * spikewidth)
+
+        self.predetect()
 
         print('Detection trange: %r' % (self.trange,))
 
@@ -216,17 +231,6 @@ class Detector(object):
         bx = self.blockexcess
         blockranges = self.get_blockranges(bs, bx)
         nblocks = len(blockranges)
-
-        self.nchans = len(self.chans) # number of enabled chans
-        # total num spikes found across all chans so far by this Detector,
-        # reset at start of every search:
-        self.nspikes = 0
-
-        # want an nchan*2 array of [chani, x/ycoord]
-        xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) in chan order
-        xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
-        ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
-        self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
 
         # prevent out of memory errors due to copying of large stream.wavedata array
         # when spawning multiple processes
