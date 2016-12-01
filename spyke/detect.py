@@ -83,7 +83,7 @@ def initializer(detector):
 def calc_SPIKEDTYPE(maxnchansperspike):
     """Create spike array dtype for efficiently storing information about each spike"""
     ## NOTE: with uint8, the current channel ID limit is 0 to 255
-    ##       with uint16, the current neuron ID limit is -32768 to 32767
+    ##       with int16, the current neuron ID limit is -32768 to 32767
     dt = [('id', np.int32), ('nid', np.int16),
           ('chan', np.uint8), ('nchans', np.uint8),
           ('chans', np.uint8, (maxnchansperspike,)), ('chani', np.uint8),
@@ -91,7 +91,7 @@ def calc_SPIKEDTYPE(maxnchansperspike):
           ('t', np.int64), ('t0', np.int64), ('t1', np.int64),
           ('dt', np.int16), # time between peaks, in us
           ('tis', np.uint8, (maxnchansperspike, 2)), # peak positions
-          ('aligni', np.uint8),
+          ('aligni', np.uint8), # index into tis, indicates which peak wavedata is aligned to
           ('V0', np.float32), ('V1', np.float32), ('Vpp', np.float32),
           ('x0', np.float32), ('y0', np.float32),
           ('sx', np.float32), ('sy', np.float32),

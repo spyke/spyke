@@ -894,7 +894,7 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_detectButton_clicked(self):
         """Detect pane Detect button click"""
-        sort = self.CreateNewSort() # create a new Sort, with bound stream
+        sort = self.CreateNewSort() # create a new sort, with bound stream
         self.get_detector() # update Sort's current detector with new one from widgets
         if sort.detector.extractparamsondetect:
             self.init_extractor() # init the Extractor
@@ -2518,7 +2518,7 @@ class SpykeWindow(QtGui.QMainWindow):
         with open(fullfname, 'rb') as f:
             d = dict(np.load(f)) # convert to an actual dict to use d.get() method
             print('done opening .eventswave.zip file')
-            print('.eventswave file was %d bytes long' % f.tell())
+            print('.eventswave.zip file was %d bytes long' % f.tell())
             chan = d.get('chan') # array of maxchans, one per event
             chanpos = d.get('chanpos') # array of (x, y) coords, in channel order
             chans = d.get('chans') # set of incl. chans, each of length nchans, one per event
@@ -2571,7 +2571,7 @@ class SpykeWindow(QtGui.QMainWindow):
         fakestream.converter = None
         self.hpstream = fakestream
 
-        sort = self.CreateNewSort() # creates and binds to self
+        sort = self.CreateNewSort() # create a new sort, with bound stream
         det = Detector(sort=sort)
         SPIKEDTYPE = calc_SPIKEDTYPE(maxnchans)
         sort.detector = det
