@@ -2712,7 +2712,8 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def convert_kilosortnpy2eventszip(self, path):
         """Read relevant KiloSort .npy results files in path, process them slightly,
-        and save them with standard spyke variable names to an ".events.zip" npz file."""
+        and save them with standard spyke variable names to an ".events.zip" npz file.
+        KiloSort .npy results are assumed to correspond to currently open stream"""
         s = self.hpstream
         assert s != None
 
@@ -2725,13 +2726,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # load relevant KiloSort .npy results files:
         # spike times, sample point integers relative to start of .dat file:
         spiketis = np.load(spiketisfname).ravel()
-        # exported KiloSort nids are uint32 instead of int32 for some reason:
-        nids = np.load(nidsfname).ravel() # one neuron ID per spike
-        # check limits before converting to int16:
-        assert nids.max() < 2**15
-        assert nids.min() >= -2**15
-        # save space, use same dtype as in SPIKEDTYPE:
-        nids = np.int16(nids)
+        nids = np.load(nidsfname).ravel() # 0-based neuron IDs, one per spike
         templates = np.load(templatesfname) # ntemplates, nt, nchans, Fortran contiguous
         # reshape to ntemplates, nchans, nt by swapping axes (can't just assign new shape!):
         templates = np.swapaxes(templates, 1, 2)
@@ -2747,11 +2742,21 @@ class SpykeWindow(QtGui.QMainWindow):
         # least when recorded with Blackrock NSP:
         templatemaxchans = s.chans[templatemaxchanis] # one per template
         maxchans = templatemaxchans[nids] # one per spike
-        # check limits before converting to uint8:
+
+        # ensure spike times are int64:
+        spikets = np.int64(spikets)
+
+        # check limits, convert maxchans to uint8:
         assert maxchans.max() < 2**8
         assert maxchans.min() >= 0
-        # save space, use same dtype as in SPIKEDTYPE:
-        maxchans = np.uint8(maxchans)
+        maxchans = np.uint8(maxchans) # save space, use same dtype as in SPIKEDTYPE
+
+        # convert to 1-based neuron IDs, reserve 0 for unclustered spikes:
+        nids += 1
+        # check limits, convert nids to int16:
+        assert nids.max() < 2**15
+        assert nids.min() >= -2**15
+        nids = np.int16(nids) # save space, use same dtype as in SPIKEDTYPE
 
         assert len(spikets) == len(maxchans) == len(nids)
         print('converting KiloSort events to:\n%r' % outputfname)
