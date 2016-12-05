@@ -3281,7 +3281,10 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def EnableStreamWidgets(self, enable):
         """Enable/disable all widgets that require an open stream"""
-        self.EnableSamplingMenu(enable)
+        try:
+            self.sort
+        except AttributeError:
+            self.EnableSamplingMenu(enable) # change state only if sort doesn't already exist
         self.EnableConvertMenu(enable)
         self.ui.filePosStartButton.setEnabled(enable)
         self.ui.filePosLineEdit.setEnabled(enable)
