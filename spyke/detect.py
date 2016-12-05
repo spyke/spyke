@@ -41,7 +41,7 @@ IOError: [Errno 4] Interrupted system call
 
 which has to be caught and retried using _eintr_retry_call.
 '''
-from core import eucd, dist, issorted, concatenate_destroy, intround, g2, cauchy2
+from core import eucd, dist, issorted, concatenate_destroy, intround
 import stream
 
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
@@ -675,7 +675,7 @@ class Detector(object):
 
             if self.extractparamsondetect:
                 # Save spatial fit params, and lockout only the channels within lockrx*sx
-                # of the the fit spatial location of the spike, up to a max of self.inclr.
+                # of the fit spatial location of the spike, up to a max of self.inclr.
                 s['x0'], s['y0'], s['sx'], s['sy'] = params
                 x0, y0 = s['x0'], s['y0']
                 # lockout radius for this spike:

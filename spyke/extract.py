@@ -783,7 +783,7 @@ class Extractor(object):
         """Use least squares to fit spatial location and spread of 1D function f to the
         weights, with location initialized using spatial mean, and spread initialized with
         constant global values. Spread and location are fit sequentially, in that order, as in
-        weights2f_1D, because there presumably isn't enough data from a single spike to fit
+        weights2f_2D, because there presumably isn't enough data from a single spike to fit
         them both simultaneously and expect to get reasonable results. Otherwise, LM ends up
         using the tail of the 1D distrib to get min sum squared error"""
         if len(w) == 1: # only one chan, return its coords and the default sigmas
