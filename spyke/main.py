@@ -51,7 +51,7 @@ from struct import unpack
 
 import core
 from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
-from core import DJS, g
+from core import DJS, g, dist
 import stream
 from stream import SimpleStream, MultiStream
 import surf, nsx
@@ -2634,7 +2634,7 @@ class SpykeWindow(QtGui.QMainWindow):
             raise ValueError('missing maxchans')
         if nids is None:
             raise ValueError('missing nids')
-
+        assert len(spikets) == len(maxchans) == len(nids)
         nspikes = len(spikets)
 
         # create sort:
@@ -2642,23 +2642,15 @@ class SpykeWindow(QtGui.QMainWindow):
         # create detector and run Detector.predetect(), so that things initialize:
         self.get_detector()
         det = sort.detector
-        if det.extractparamsondetect:
-            self.init_extractor() # init the Extractor
+        assert det.extractparamsondetect == True
+        self.init_extractor() # init the Extractor
         det.predetect()
         
-        # manually set detection results, and apply nids:
+        # manually set detection results:
         spikes = np.zeros(nspikes, det.SPIKEDTYPE)
         spikes['id'] = np.arange(nspikes)
         spikes['t'] = spikets
         spikes['t0'], spikes['t1'] = spikets+sort.tw[0], spikets+sort.tw[1]
-        ## TODO: maybe factor out some of the code that does this in det.detect(), so that
-        ## it can be used here? Maybe call it det.postdetect()? Maybe not, due to the large
-        ## number of params that would prolly have to be passed
-        #spikes['tis'] =
-        #spikes['aligni'] =
-        #spikes['dt'] =
-        #spikes['V0'], spikes['V1'] =
-        #spikes['Vpp'] =
         spikes['chan'] = maxchans # one per spike
         # convert inclnbhdi to inclnbhd, taking chan and returning inclchans instead of taking
         # chani and returning inclchanis:
@@ -2667,32 +2659,26 @@ class SpykeWindow(QtGui.QMainWindow):
             chan = det.chans[chani]
             inclchans = det.chans[inclchanis]
             inclnbhd[chan] = inclchans
-        for spike, maxchan in zip(spikes, maxchans):
+        for s, maxchan in zip(spikes, maxchans):
             inclchans = inclnbhd[maxchan]
             nchans = len(inclchans)
-            spike['nchans'] = nchans
-            spike['chans'][:nchans] = inclchans
-            # for raster tick display:
-            spike['nlockchans'] = nchans
-            spike['lockchans'][:nchans] = inclchans
+            s['nchans'] = nchans
+            s['chans'][:nchans] = inclchans
 
-        #spikes['nid'] = nids # no need for this here, is set below by apply_clustering()
-
+        # bind to self:
         sort.spikes = spikes
         det.nspikes = nspikes
 
         # init wavedata:
-        sort.wavedata = np.empty((nspikes, det.maxnchansperspike, det.maxnt), dtype=np.int16)
-        # now "re"load spike wavedata based on imported events:
+        sort.wavedata = np.zeros((nspikes, det.maxnchansperspike, det.maxnt), dtype=np.int16)
+        # "re"load spike wavedata based on imported events:
         sort.reloadSpikes(spikes['id'])
 
-        # extract spatial localization params now that spikes have been extracted:
-        #if self.extractparamsondetect:
-        #    s['x0'], s['y0'], s['sx'], s['sy'] = params
+        sort.update_usids() # required for self.on_plotButton_clicked()
 
-        sort.update_usids()
-        sort.filtmeth = sort.stream.filtmeth # lock down filtmeth attrib
-        sort.sampfreq = sort.stream.sampfreq # lock down sampfreq and shcorrect attribs
+        # lock down filtmeth, sampfreq and shcorrect attribs:
+        sort.filtmeth = sort.stream.filtmeth
+        sort.sampfreq = sort.stream.sampfreq
         sort.shcorrect = sort.stream.shcorrect
 
         self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
@@ -2705,10 +2691,80 @@ class SpykeWindow(QtGui.QMainWindow):
         self.updateTitle()
         self.updateRecentFiles(fullfname)
 
-        # apply initial clustering:
+        # set nids using apply_clustering():
         oldclusters = []
         sids = spikes['id']
         self.apply_clustering(oldclusters, sids, nids, verb='initial .events.zip split')
+        # no longer valid, loaded nids may have had gaps that were removed by
+        # apply_clustering():
+        del nids
+
+        # now that wavedata have been extracted and neuron mean waveforms calculated,
+        # find tis and do spatial localization of each spike:
+        ntis, nalignis = {}, {} # tis and aligni derived from each neuron's mean waveform
+        for neuron in sort.neurons.values():
+            nwave = neuron.get_wave() # updates and returns mean waveform
+            mintis = nwave.data.argmin(axis=1)
+            maxtis = nwave.data.argmax(axis=1)
+            ntis[neuron.id] = np.column_stack([mintis, maxtis])
+            # choose aligni with least variance:
+            nalignis[neuron.id] = np.argmin([mintis.std(), maxtis.std()])
+        weights2f = sort.extractor.weights2spatial
+        f = sort.extractor.f
+        for s, wd in zip(sort.spikes, sort.wavedata):
+            # Get Vpp at each inclchan's tis, use as spatial weights:
+            # see core.rowtake() or util.rowtake_cy() for indexing explanation:
+            nid = s['nid']
+            chan = s['chan']
+            nchans = s['nchans']
+            chans = s['chans'][:nchans]
+            neuronchans = sort.neurons[nid].wave.chans
+            assert (chans == neuronchans).all()
+            s['tis'][:nchans] = ntis[nid] # wrt t0i=0
+            s['aligni'] = nalignis[nid]
+            maxchani, = np.where(chans == chan) # index into spike's chan list
+            chanis = det.chans.searchsorted(chans)
+            w = np.float32(wd[np.arange(s['nchans'])[:, None], s['tis'][:nchans]])
+            w = abs(w).sum(axis=1)
+            x = det.siteloc[chanis, 0] # 1D array (row)
+            y = det.siteloc[chanis, 1]
+            params = weights2f(f, w, x, y, maxchani)
+            if params == None: # presumably a non-localizable many-channel noise event
+                neuron = sort.neurons[nid]
+                sid = s['id']
+                sw.MoveSpikes2List(neuron, [sid], update=False)
+                # leave s['nlockchans'] = 0, don't display raster ticks for rejected spikes
+                treject = intround(s['t']) # nearest us
+                print("reject spike %d at t=%d based on fit params" % (sid, treject))
+                continue # skip to next spike
+            # Save spatial fit params, and "lockout" only the channels within lockrx*sx
+            # of the fit spatial location of the spike, up to a max of self.inclr.
+            s['x0'], s['y0'], s['sx'], s['sy'] = params
+            x0, y0 = s['x0'], s['y0']
+            # lockout radius for this spike:
+            lockr = min(det.lockrx*s['sx'], det.inclr) # in um
+            # test y coords of chans in y array, ylockchaniis can be used to index
+            # into x, y and chans:
+            ylockchaniis, = np.where(np.abs(y - y0) <= lockr) # convert bool arr to int
+            # test Euclid distance from x0, y0 for each ylockchani:
+            lockchaniis = ylockchaniis.copy()
+            for ylockchanii in ylockchaniis:
+                if dist((x[ylockchanii], y[ylockchanii]), (x0, y0)) > lockr:
+                    lockchaniis = np.delete(lockchaniis, ylockchanii) # dist is too great
+            lockchans = chans[lockchaniis]
+            nlockchans = len(lockchans)
+            s['lockchans'][:nlockchans], s['nlockchans'] = lockchans, nlockchans
+
+        # remove any empty neurons due to all their spikes being rejected:
+        for neuron in sort.neurons.values():
+            if len(neuron.sids) == 0:
+                sw.RemoveNeuron(neuron, update=False)
+
+        self.UpdateClustersGUI()
+
+        # update mean cluster positions, so they can be sorted by y0:
+        for cluster in sort.clusters.values():
+            cluster.update_pos()
 
     def convert_kilosortnpy2eventszip(self, path):
         """Read relevant KiloSort .npy results files in path, process them slightly,
