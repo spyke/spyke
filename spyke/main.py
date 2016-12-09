@@ -2590,9 +2590,11 @@ class SpykeWindow(QtGui.QMainWindow):
         self.uVperum = 20
         self.usperum = 125
 
-        sort.update_usids()
-        #sort.filtmeth = sort.stream.filtmeth # lock down filtmeth attrib
-        #sort.sampfreq = sort.stream.sampfreq # lock down sampfreq and shcorrect attribs
+        sort.update_usids() # required for self.on_plotButton_clicked()
+
+        # lock down filtmeth, sampfreq and shcorrect attribs:
+        #sort.filtmeth = sort.stream.filtmeth
+        #sort.sampfreq = sort.stream.sampfreq
         #sort.shcorrect = sort.stream.shcorrect
 
         self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)

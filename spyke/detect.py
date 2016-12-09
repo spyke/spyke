@@ -648,8 +648,9 @@ class Detector(object):
                 y = self.siteloc[inclchanis, 1]
                 params = weights2f(f, w, x, y, inclchani)
                 if params == None: # presumably a non-localizable many-channel noise event
-                    treject = intround(wave.ts[ti]) # nearest us
-                    if DEBUG: self.log("reject spike at t=%d based on fit params" % treject)
+                    if DEBUG:
+                        treject = intround(wave.ts[ti]) # nearest us
+                        self.log("reject spike at t=%d based on fit params" % treject)
                     # no real need to lockout chans for a params-rejected spike
                     continue # skip to next peak
 
@@ -663,7 +664,7 @@ class Detector(object):
             ts = wave.ts[t0i:t1i] # potentially floats
             # use ts = np.arange(s['t0'], s['t1'], stream.tres) to reconstruct
             s['t0'], s['t1'] = intround(wave.ts[t0i]), intround(wave.ts[t1i]) # nearest us
-            s['tis'][:ninclchans] = incltis # wrt t0i
+            s['tis'][:ninclchans] = incltis # wrt t0i=0
             s['aligni'] = aligni # 0 or 1
             s['dt'] = intround(abs(ts[tis[maxcii, 0]] - ts[tis[maxcii, 1]])) # nearest us
             s['V0'], s['V1'] = AD2uV(Vs) # in uV

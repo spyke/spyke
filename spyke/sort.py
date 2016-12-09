@@ -1313,6 +1313,7 @@ class Sort(object):
 
                 self.wavedata[sid, :nchans, :nt] = rd # update wavedata
                 sidi += 1 # inc status counter
+        print()
 
         if ver_lte_03:
             print('fixed time values of %d spikes' % nfixed)
@@ -2928,13 +2929,10 @@ class SortWindow(SpykeToolWindow):
         # TODO: selection doesn't seem to be working, always jumps to top of list
         #self.uslist.Select(row) # automatically select the new item at that position
         neuron.wave.data = None # trigger template mean update
-        #neuron.update_wave() # update mean neuron waveform
         return neuron
 
     def MoveSpikes2List(self, neuron, sids, update=True):
-        """Move spikes from a neuron back to the unsorted spike list control.
-        Make sure to call neuron.update_wave() at some appropriate time after
-        calling this method"""
+        """Move spikes from a neuron back to the unsorted spike list control"""
         sids = toiter(sids)
         if len(sids) == 0:
             return # nothing to do
