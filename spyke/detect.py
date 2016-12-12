@@ -19,6 +19,7 @@ import multiprocessing as mp
 from multiprocessing import Process
 ps = mp.current_process
 from copy import deepcopy
+from os.path import join
 
 '''
 NOTE: as of Ubuntu 10.10, for some reason often get:
@@ -188,8 +189,9 @@ class Detector(object):
 
     srffnames = property(get_srffnames)
 
-    def predetect(self):
-        """Prepare for spike detection"""
+    def predetect(self, logpath=''):
+        """Prepare for spike detection, save log in logpath, defaults to spyke folder
+        if empty"""
         self.calc_chans()
         self.nchans = len(self.chans) # number of enabled chans
         self.SPIKEDTYPE = calc_SPIKEDTYPE(self.maxnchansperspike)
@@ -206,14 +208,29 @@ class Detector(object):
         ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
         self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
 
-    def detect(self):
-        """Search for spikes. Divides large searches into more manageable
-        blocks of (slightly overlapping) multichannel waveform data, and
+        if DEBUG:
+            # print detection info and debug msgs to file, and info msgs to screen
+            dt = str(datetime.datetime.now()) # get a timestamp
+            dt = dt.split('.')[0] # ditch the us
+            dt = dt.replace(' ', '_')
+            dt = dt.replace(':', '.')
+            logfname = 'spyke_detection_' + dt + '.log'
+            logf = open(join(logpath, logfname), 'w')
+            fhandler = logging.StreamHandler(stream=logf) # prints to file
+            fhandler.setFormatter(formatter)
+            fhandler.setLevel(logging.DEBUG) # log debug level and higher to file
+            logger.addHandler(fhandler)
+            self.logger = logger
+            self.logger.debug('Log created %s' % dt)
+
+    def detect(self, logpath=''):
+        """Search for spikes, save log in logpath. Divides large searches into more
+        manageable blocks of (slightly overlapping) multichannel waveform data, and
         then combines the results"""
         sort = self.sort
         self.mpmethod = MPMETHOD
 
-        self.predetect()
+        self.predetect(logpath=logpath)
 
         print('Detection trange: %r' % (self.trange,))
 
@@ -275,20 +292,6 @@ class Detector(object):
                 dp.join()
                 #_eintr_retry_call(dp.join) # eintr isn't raised anymore it seems
         else: # use a single process, useful for debugging or for .tsf files
-            if DEBUG:
-                # print detection info and debug msgs to file, and info msgs to screen
-                dt = str(datetime.datetime.now()) # get a timestamp
-                dt = dt.split('.')[0] # ditch the us
-                dt = dt.replace(' ', '_')
-                dt = dt.replace(':', '.')
-                logfname = dt + '_detection.log'
-                logf = open(logfname, 'w')
-                fhandler = logging.StreamHandler(stream=logf) # prints to file
-                fhandler.setFormatter(formatter)
-                fhandler.setLevel(logging.DEBUG) # log debug level and higher to file
-                logger.addHandler(fhandler)
-                self.logger = logger
-                self.logger.debug('Log created %s' % dt)
             spikes = []
             wavedata = []
             for blockrange in blockranges:

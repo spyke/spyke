@@ -57,7 +57,7 @@ from stream import SimpleStream, MultiStream
 import surf, nsx
 from sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES
 from plot import SpikePanel, ChartPanel, LFPPanel
-from detect import Detector, calc_SPIKEDTYPE
+from detect import Detector, calc_SPIKEDTYPE, DEBUG
 from extract import Extractor
 import probes
 
@@ -898,7 +898,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.get_detector() # update Sort's current detector with new one from widgets
         if sort.detector.extractparamsondetect:
             self.init_extractor() # init the Extractor
-        sort.spikes, sort.wavedata = sort.detector.detect() # struct array of spikes, 3D array
+        # create struct array of spikes and 3D array of spike waveform data:
+        sort.spikes, sort.wavedata = sort.detector.detect(logpath=self.streampath)
         sort.update_usids()
         sort.filtmeth = sort.stream.filtmeth # lock down filtmeth attrib
         sort.sampfreq = sort.stream.sampfreq # lock down sampfreq and shcorrect attribs
