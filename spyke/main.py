@@ -2509,8 +2509,9 @@ class SpykeWindow(QtGui.QMainWindow):
             nids[sids] = newnid # overwrite old nid values with new ones
 
     def OpenEventWavesFile(self, fname):
-        """Open an .eventwaves.zip file, containing event times, channels and waveforms, plus
-        other data. fname is assumed to be relative to self.eventspath"""
+        """Open and import the data in an .eventwaves.zip file, containing event times,
+        channels and waveforms, plus some other data. fname is assumed to be relative to
+        self.eventspath"""
         if self.hpstream != None:
             self.CloseStream() # in case a stream is open
         self.DeleteSort() # delete any existing Sort
@@ -2614,8 +2615,9 @@ class SpykeWindow(QtGui.QMainWindow):
         self.apply_clustering(oldclusters, sids, nids, verb='initial eventwaves split')
 
     def OpenEventsFile(self, fname):
-        """Open an .events.zip file, containing spike times, channels, and neuron ids. fname
-        is assumed to be relative to self.eventspath"""
+        """Open and import the data in an .events.zip file, containing spike times, channels,
+        and neuron ids. fname is assumed to be relative to self.eventspath. Spike waveforms
+        are extracted from the currently open stream"""
         if self.hpstream is None:
             raise RuntimeError("Need an open raw data stream before loading an events.zip "
                                "file")
@@ -2713,6 +2715,7 @@ class SpykeWindow(QtGui.QMainWindow):
             nalignis[neuron.id] = np.argmin([mintis.std(), maxtis.std()])
         weights2f = sort.extractor.weights2spatial
         f = sort.extractor.f
+        nreject = 0 # number spikes rejected during spatial localization
         for s, wd in zip(sort.spikes, sort.wavedata):
             # Get Vpp at each inclchan's tis, use as spatial weights:
             # see core.rowtake() or util.rowtake_cy() for indexing explanation:
@@ -2723,6 +2726,8 @@ class SpykeWindow(QtGui.QMainWindow):
             neuronchans = sort.neurons[nid].wave.chans
             assert (chans == neuronchans).all()
             s['tis'][:nchans] = ntis[nid] # wrt t0i=0
+            ## Note that aligni is a bit nonsensical, because KiloSort often doesn't actually
+            ## align to either peak:
             s['aligni'] = nalignis[nid]
             maxchani, = np.where(chans == chan) # index into spike's chan list
             chanis = det.chans.searchsorted(chans)
@@ -2738,6 +2743,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 # leave s['nlockchans'] = 0, don't display raster ticks for rejected spikes
                 treject = intround(s['t']) # nearest us
                 print("reject spike %d at t=%d based on fit params" % (sid, treject))
+                nreject += 1
                 continue # skip to next spike
             # Save spatial fit params, and "lockout" only the channels within lockrx*sx
             # of the fit spatial location of the spike, up to a max of self.inclr.
@@ -2757,6 +2763,8 @@ class SpykeWindow(QtGui.QMainWindow):
             nlockchans = len(lockchans)
             s['lockchans'][:nlockchans], s['nlockchans'] = lockchans, nlockchans
 
+        print('rejected %d/%d spikes, set as unclustered' % (nreject, nspikes))
+
         # remove any empty neurons due to all their spikes being rejected:
         for neuron in sort.neurons.values():
             if len(neuron.sids) == 0:
@@ -2771,7 +2779,8 @@ class SpykeWindow(QtGui.QMainWindow):
     def convert_kilosortnpy2eventszip(self, path):
         """Read relevant KiloSort .npy results files in path, process them slightly,
         and save them with standard spyke variable names to an ".events.zip" npz file.
-        KiloSort .npy results are assumed to correspond to currently open stream"""
+        KiloSort .npy results are assumed to correspond to currently open stream. Note that
+        KiloSort's cluster IDs are not necessarily contiguous!"""
         s = self.hpstream
         assert s != None
 
@@ -2809,7 +2818,9 @@ class SpykeWindow(QtGui.QMainWindow):
         assert maxchans.min() >= 0
         maxchans = np.uint8(maxchans) # save space, use same dtype as in SPIKEDTYPE
 
-        # convert to 1-based neuron IDs, reserve 0 for unclustered spikes:
+        # convert to 1-based neuron IDs, reserve 0 for unclustered spikes. Note that
+        # KiloSort's 0-based neuron IDs might have gaps, i.e., the don't necessarily span
+        # the range 0..nneurons-1:
         nids += 1
         # check limits, convert nids to int16:
         assert nids.max() < 2**15
