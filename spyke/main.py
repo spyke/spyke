@@ -2668,6 +2668,7 @@ class SpykeWindow(QtGui.QMainWindow):
             nchans = len(inclchans)
             s['nchans'] = nchans
             s['chans'][:nchans] = inclchans
+            s['chani'], = np.where(inclchans == maxchan) # index into spike's chan list
 
         # bind to self:
         sort.spikes = spikes
@@ -2713,6 +2714,7 @@ class SpykeWindow(QtGui.QMainWindow):
             ntis[neuron.id] = np.column_stack([mintis, maxtis])
             # choose aligni with least variance:
             nalignis[neuron.id] = np.argmin([mintis.std(), maxtis.std()])
+        AD2uV = sort.converter.AD2uV
         weights2f = sort.extractor.weights2spatial
         f = sort.extractor.f
         nreject = 0 # number spikes rejected during spatial localization
@@ -2729,7 +2731,12 @@ class SpykeWindow(QtGui.QMainWindow):
             ## Note that aligni is a bit nonsensical, because KiloSort often doesn't actually
             ## align to either peak:
             s['aligni'] = nalignis[nid]
-            maxchani, = np.where(chans == chan) # index into spike's chan list
+            maxchani = s['chani']
+            t0i, t1i = int(s['tis'][maxchani, 0]), int(s['tis'][maxchani, 1])
+            s['dt'] = abs(t1i - t0i) / sort.sampfreq * 1e6 # us
+            s['V0'], s['V1'] = AD2uV(wd[maxchani, t0i]), wd[maxchani, t1i] # uV
+            ## TODO: should probably assert here that V0 and V1 are of opposite sign:
+            s['Vpp'] = abs(s['V1'] - s['V0']) # uV
             chanis = det.chans.searchsorted(chans)
             w = np.float32(wd[np.arange(s['nchans'])[:, None], s['tis'][:nchans]])
             w = abs(w).sum(axis=1)
