@@ -2649,8 +2649,8 @@ class SpykeWindow(QtGui.QMainWindow):
         det = sort.detector
         assert det.extractparamsondetect == True
         self.init_extractor() # init the Extractor
-        det.predetect()
-        
+        det.predetect(logpath=self.eventspath)
+
         # manually set detection results:
         spikes = np.zeros(nspikes, det.SPIKEDTYPE)
         spikes['id'] = np.arange(nspikes)
@@ -2750,7 +2750,12 @@ class SpykeWindow(QtGui.QMainWindow):
                 sw.MoveSpikes2List(neuron, [sid], update=False)
                 # leave s['nlockchans'] = 0, don't display raster ticks for rejected spikes
                 treject = intround(s['t']) # nearest us
-                print("reject spike %d at t=%d based on fit params" % (sid, treject))
+                if DEBUG: det.log("reject spike %d at t=%d based on fit params"
+                                  % (sid, treject))
+                # to find out afterwards exactly which spikes were rejected, run:
+                # import numpy as np; np.where(self.sort.spikes['nlockchans'] == 0)[0]
+                # in the IPython shell. You can also inspect the initial contents of the
+                # unclustered spike list
                 nreject += 1
                 continue # skip to next spike
             # Save spatial fit params, and "lockout" only the channels within lockrx*sx
