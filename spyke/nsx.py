@@ -124,7 +124,11 @@ class File(object):
         offset = self.datapacket.dataoffset
         self.f.seek(offset)
         datbasefname = os.path.splitext(self.fname)[0]
-        fulldatfname = self.join('%s_%ss.dat' % (datbasefname, dtstr))
+        if dtstr == '':
+            datfname = '%s.dat' % datbasefname
+        else:
+            datfname = '%s_%ss.dat' % (datbasefname, dtstr)
+        fulldatfname = self.join(datfname)
         print('writing raw ephys data to %r' % fulldatfname)
         print('starting from dataoffset at %d bytes' % offset)
         with open(fulldatfname, 'wb') as datf:
