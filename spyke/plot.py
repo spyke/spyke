@@ -1480,7 +1480,7 @@ class SpikeSortPanel(SortPanel, SpikePanel):
     def wheelEvent(self, event):
         """Scroll gainComboBox or incltComboBox on mouse wheel scroll"""
         modifiers = event.modifiers()
-        ctrl = Qt.ControlModifier == modifiers # only modifier is ctrl
+        ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
         sw = self.topLevelWidget() # SortWindow
         if ctrl: # scroll gainComboBox
             cbox = sw.gainComboBox

@@ -684,7 +684,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def wheelEvent(self, event):
         modifiers = event.modifiers()
-        shift = Qt.ShiftModifier == modifiers # only modifier is shift
+        shift = modifiers == Qt.ShiftModifier # only modifier is shift
         ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
         if shift or ctrl: # modify sigma
             # event.delta() seems to always be a multiple of 120 for some reason:
@@ -697,8 +697,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         key = event.key()
         modifiers = event.modifiers()
         sw = self.spw.windows['Sort']
-        shift = Qt.ShiftModifier == modifiers # only modifier is shift
-        ctrl = Qt.ControlModifier == modifiers # only modifier is ctrl
+        shift = modifiers == Qt.ShiftModifier # only modifier is shift
+        ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
         if key == Qt.Key_Left:
             if shift:
                 self.pan(-0.05, 0)
@@ -800,7 +800,7 @@ class GLWidget(QtOpenGL.QGLWidget):
     def keyReleaseEvent(self, event):
         key = event.key()
         modifiers = event.modifiers()
-        shift = Qt.ShiftModifier == modifiers # only modifier is shift
+        shift = modifiers == Qt.ShiftModifier # only modifier is shift
         if not event.isAutoRepeat() and not shift and key in [Qt.Key_S, Qt.Key_D]:
             # stop selecting/deselecting
             if self.collected_sids:

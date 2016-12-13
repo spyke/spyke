@@ -2172,7 +2172,7 @@ class SortWindow(SpykeToolWindow):
         up to here"""
         key = event.key()
         modifiers = event.modifiers()
-        ctrl = Qt.ControlModifier & modifiers # ctrl is down
+        ctrl = modifiers & t.ControlModifier # ctrl is down
         spw = self.spykewindow
         if key == Qt.Key_A: # ignored in SpykeListViews
             spw.ui.plotButton.click() # same as hitting ENTER in nslist

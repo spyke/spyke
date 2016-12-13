@@ -256,7 +256,7 @@ class SpykeToolWindow(QtGui.QMainWindow):
     def keyPressEvent(self, event):
         key = event.key()
         modifiers = event.modifiers()
-        shift = Qt.ShiftModifier == modifiers # only modifier is shift
+        shift = modifiers == Qt.ShiftModifier # only modifier is shift
         if key == Qt.Key_F11:
             self.toggleMaximized()
         elif key == Qt.Key_S and shift:
@@ -358,7 +358,7 @@ class SpykeListView(QtGui.QListView):
     def keyPressEvent(self, event):
         key = event.key()
         modifiers = event.modifiers()
-        ctrldown = bool(Qt.ControlModifier & modifiers)
+        ctrldown = bool(modifiers & Qt.ControlModifier)
         ctrlup = not ctrldown
         if (key in [Qt.Key_A, Qt.Key_M, Qt.Key_G, Qt.Key_Equal, Qt.Key_Minus, Qt.Key_Slash,
                     Qt.Key_P, Qt.Key_Backslash, Qt.Key_NumberSign, Qt.Key_F, Qt.Key_R,
