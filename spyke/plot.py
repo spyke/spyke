@@ -1000,6 +1000,39 @@ class PlotPanel(FigureCanvas):
               'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
         self.setToolTip(tip)
 
+    def wheelEvent(self, event):
+        """Scale voltage or time, or step left or right"""
+        SCALEX = 5
+        spw = self.spykewindow
+        winclass2wintype = {SpikePanel: 'Spike', ChartPanel: 'Chart', LFPPanel: 'LFP'}
+        wintype2wintw = {'Spike': 'spiketw', 'Chart': 'charttw', 'LFP': 'lfptw'}
+        wintype = winclass2wintype[type(self)]
+        modifiers = event.modifiers()
+        ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
+        shift = modifiers == Qt.ShiftModifier # only modifier is shift
+        # event.delta() seems to always be a multiple of 120 for some reason:
+        di = event.delta() / 120
+        sign = np.sign(di)
+        absdi = abs(di)
+        if ctrl: # scale voltage
+            if sign == 1:
+                self.gain = self.gain * (1 + absdi / SCALEX)
+            else:
+                self.gain = self.gain / (1 + absdi / SCALEX)
+        elif shift: # scale time
+            if sign == 1:
+                tw = tuple([t / (1 + absdi / SCALEX) for t in self.tw])
+            else:
+                tw = tuple([t * (1 + absdi / SCALEX) for t in self.tw])
+            self.update_tw(tw) # update Panel display tw
+            spw.__dict__[wintype2wintw[wintype]] = tw # update spyke window's data fetch tw
+        else: # step left/right on wheel up/down
+            win = self.parent()
+            win.step(-di)
+        spw.plot(wintypes=[wintype])
+        print('%s window gain=%g, tw=(%g, %g) ms' %
+              (wintype, self.gain, self.tw[0]/1000, self.tw[1]/1000))
+
 
 class SpikePanel(PlotPanel):
     """Spike panel. Presents a narrow temporal window of all channels
@@ -1058,7 +1091,7 @@ class ChartPanel(PlotPanel):
     RASTERHEIGHT = 75 # uV, TODO: calculate this instead
 
     def __init__(self, *args, **kwargs):
-        self.gain = 1
+        self.gain = 1.0
         PlotPanel.__init__(self, *args, **kwargs)
 
     def do_layout(self):
@@ -1110,7 +1143,7 @@ class ChartPanel(PlotPanel):
 class LFPPanel(ChartPanel):
     """LFP Panel"""
     def __init__(self, *args, **kwargs):
-        self.gain = 1
+        self.gain = 1.0
         ChartPanel.__init__(self, *args, **kwargs)
 
     def init_plots(self):
