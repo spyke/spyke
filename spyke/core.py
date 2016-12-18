@@ -8,13 +8,12 @@ __authors__ = ['Martin Spacek', 'Reza Lotun']
 
 import hashlib
 import time
-from datetime import timedelta
+import datetime
 import os
 
 import random
 import string
 from copy import copy
-import datetime
 
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt

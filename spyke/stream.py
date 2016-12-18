@@ -8,11 +8,12 @@ __authors__ = ['Martin Spacek']
 
 import os
 import time
+from datetime import timedelta
 import numpy as np
 
 import core
 from core import (WaveForm, EmptyClass, intround, intfloor, intceil, lrstrip, MU,
-                  hamming, filterord, WMLDR)
+                  hamming, filterord, WMLDR, td2usec)
 from core import (DEFHPRESAMPLEX, DEFHPSRFSHCORRECT, DEFHPNSXSHCORRECT, DEFNSXFILTMETH,
                   BWF0, BWORDER, NCHANSPERBOARD, KERNELSIZE, NSXXSPOINTS)
 import probes
