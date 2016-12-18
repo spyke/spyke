@@ -72,7 +72,8 @@ class File(object):
         self._pickle_all_records = False # signal to __getstate__ whether to pickle all records
 
     def join(self, fname):
-        return os.path.join(self.path, fname)
+        """Return fname joined to self.path"""
+        return os.path.abspath(os.path.expanduser(os.path.join(self.path, fname)))
 
     def open(self):
         """(Re)open previously closed .srf file"""

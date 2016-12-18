@@ -37,7 +37,8 @@ class File(object):
         self.lpstream = NSXStream(self, kind='lowpass')
 
     def join(self, fname):
-        return os.path.join(self.path, fname)
+        """Return fname joined to self.path"""
+        return os.path.abspath(os.path.expanduser(os.path.join(self.path, fname)))
 
     def open(self):
         """(Re)open previously closed .nsx file"""
