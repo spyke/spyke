@@ -2719,6 +2719,7 @@ class SpykeWindow(QtGui.QMainWindow):
         weights2f = sort.extractor.weights2spatial
         f = sort.extractor.f
         nreject = 0 # number spikes rejected during spatial localization
+        print('running spatial localization on all spikes')
         for s, wd in zip(sort.spikes, sort.wavedata):
             # Get Vpp at each inclchan's tis, use as spatial weights:
             # see core.rowtake() or util.rowtake_cy() for indexing explanation:
@@ -2792,8 +2793,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def convert_kilosortnpy2eventszip(self, path):
         """Read relevant KiloSort .npy results files in path, process them slightly,
         and save them with standard spyke variable names to an ".events.zip" npz file.
-        KiloSort .npy results are assumed to correspond to currently open stream. Note that
-        KiloSort's cluster IDs are not necessarily contiguous!"""
+        KiloSort .npy results are assumed to correspond to currently open stream."""
         s = self.hpstream
         assert s != None
 
