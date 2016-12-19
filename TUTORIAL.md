@@ -19,9 +19,10 @@ vertical positions correspond across all three voltage waveform windows. You can
 data in several ways: using the slider widget in the main window; entering a time point in
 microseconds in the edit box near the middle top; clicking the start and end buttons on either
 side of the edit box; or clicking on the timepoint you want to center on in any of the voltage
-data windows. Now, toggle all 3 voltage data windows in the toolbar to hide them and tidy up
-the GUI before we go and detect some spikes. Note that even when the data windows are hidden,
-the `.srf` file remains open.
+data windows. You can also scale voltage and time with `Ctrl+Scrollwheel` and
+`Shift+Scrollwheel` respectively. Now, toggle all 3 voltage data windows in the toolbar to
+hide them and tidy up the GUI before we go and detect some spikes. Note that even when the
+data windows are hidden, the `.srf` file remains open.
 
 4. Press the `Detect` button in the Detect tab. This will run spike detection on the entire
 file, given the current detection settings.
