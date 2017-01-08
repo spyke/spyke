@@ -282,6 +282,8 @@ class NSXStream(Stream):
 
         self.chans = f.fileheader.chans
 
+        self.contiguous = f.contiguous
+
         self.t0, self.t1 = f.t0, f.t1
         self.tranges = np.int64([[self.t0, self.t1]])
 
@@ -738,7 +740,8 @@ class MultiStream(object):
     used to simultaneously cluster all spikes from many (or all) recordings from the same
     track. Designed to have as similar an interface as possible to a normal Stream. fs
     needs to be a list of open and parsed data file objects, in temporal order"""
-    def __init__(self, fs, trackfname, kind='highpass', sampfreq=None, shcorrect=None):
+    def __init__(self, fs, trackfname, kind='highpass', filtmeth=None,
+                 sampfreq=None, shcorrect=None):
         # to prevent pickling problems, don't bind fs
         self.fname = trackfname
         self.kind = kind
@@ -776,11 +779,15 @@ class MultiStream(object):
         self.t0 = self.streamtranges[0, 0]
         self.t1 = self.streamtranges[-1, 1]
 
-        self.layout = streams[0].layout # assume they're identical
-        intgains = np.asarray([ stream.converter.intgain for stream in streams ])
-        if max(intgains) != min(intgains):
+        try: self.layout = streams[0].layout # assume they're identical
+        except AttributeError: pass
+        try:
+            gains = np.asarray([ stream.converter.intgain for stream in streams ])
+        except AttributeError:
+            gains = np.asarray([ stream.converter.AD2uVx for stream in streams ])
+        if max(gains) != min(gains):
             import pdb; pdb.set_trace() # investigate which are the deviant files
-            raise NotImplementedError("not all files have the same intgain")
+            raise NotImplementedError("not all files have the same gain")
             # TODO: find recording with biggest intgain, call that value maxintgain. For each
             # recording, scale its AD values by its intgain/maxintgain when returning a slice
             # from its stream. Note that this ratio should always be a factor of 2, so all you
@@ -802,13 +809,23 @@ class MultiStream(object):
             raise RuntimeError("some files have different probe types")
         self.probe = probe # they're identical
 
-        # set sampfreq and shcorrect for all streams
-        if kind == 'highpass':
-            self.sampfreq = sampfreq or DEFHPSRFSAMPFREQ # desired sampling frequency
-            self.shcorrect = shcorrect or DEFHPSRFSHCORRECT
-        else: # kind == 'lowpass'
-            self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
-            self.shcorrect = shcorrect or False # don't s+h correct by default
+        # set sampfreq, shcorrect and filtmeth for all streams
+        streamtype = type(streams[0])
+        if streamtype == SurfStream:
+            if kind == 'highpass':
+                self.sampfreq = sampfreq or self.rawsampfreq * DEFHPRESAMPLEX
+                self.shcorrect = shcorrect or DEFHPSRFSHCORRECT
+            else: # kind == 'lowpass'
+                self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
+                self.shcorrect = shcorrect or False # don't s+h correct by default
+            self.filtmeth = None
+        elif streamtype == NSXStream:
+            if kind == 'highpass':
+                self.sampfreq = sampfreq or self.rawsampfreq * DEFHPRESAMPLEX
+                self.shcorrect = shcorrect or DEFHPNSXSHCORRECT
+                self.filtmeth = filtmeth or DEFNSXFILTMETH
+            else: # kind == 'lowpass'
+                return None
 
     def is_open(self):
         return np.all([stream.is_open() for stream in self.streams])

@@ -91,6 +91,7 @@ class File(object):
         if self.f.tell() != self.filesize: # make sure we're at EOF
             raise NotImplementedError("Can't handle pauses in recording yet")
         self.datapacket = datapacket
+        self.contiguous = True
 
     def get_data(self):
         try:
