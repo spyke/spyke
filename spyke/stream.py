@@ -936,9 +936,9 @@ class MultiStream(object):
             st1 = relt1 + stream.t0
             sdata = stream(st0, st1, chans).data # source data
             # destination time indices:
-            dt0i = intround((abst0 + relt0 - start) / tres) # absolute index
+            dt0i = int((abst0 + relt0 - start) // tres) # absolute index, trunc to int
             dt1i = dt0i + sdata.shape[1]
-
             data[:, dt0i:dt1i] = sdata
+            #print('dt0i, dt1i', dt0i, dt1i)
             #print('MLT:', start, stop, tres, sdata.shape, data.shape)
         return WaveForm(data=data, ts=ts, chans=chans)
