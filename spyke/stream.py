@@ -147,8 +147,8 @@ class Stream(object):
         # generate interpolated timepoints, use intfloor in case tres is a float, otherwise
         # arange might give one too many timepoints:
         #ts = np.arange(tstart, intfloor(tstart+tres*nt), tres)
-        # safer to user linspace in case of float tres, deals with endpoints better and gives
-        # slightly more accurate output float timestamps:
+        # safer to use linspace than arange in case of float tres, deals with endpoints
+        # better and gives slightly more accurate output float timestamps:
         ts = np.linspace(tstart, tstart+(nt-1)*tres, nt)
         assert len(ts) == nt
         # resampled data, leave as int32 for convolution, then convert to int16:
@@ -372,7 +372,7 @@ class NSXStream(Stream):
         lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
-
+        #print('NSX:', start, stop, self.tres, data.shape)
 
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
@@ -593,6 +593,7 @@ class SurfStream(Stream):
         lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
+        #print('SRF:', start, stop, self.tres, data.shape)
 
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
@@ -731,6 +732,7 @@ class SimpleStream(Stream):
         lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
+        #print('SIM:', start, stop, self.tres, data.shape)
 
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
@@ -918,12 +920,15 @@ class MultiStream(object):
             if (trange[0] <= start < trange[1]) or (trange[0] <= stop < trange[1]):
                 streamis.append(streami)
         tres = self.tres
-        ts = np.arange(start, stop, tres)
+        nt = intround((stop - start) / tres)
+        # safer to use linspace than arange in case of float tres, deals with endpoints
+        # better and gives slightly more accurate output float timestamps:
+        ts = np.linspace(start, start+(nt-1)*tres, nt)
         data = np.zeros((nchans, len(ts)), dtype=np.int16) # any gaps will have zeros
         for streami in streamis:
             stream = self.streams[streami]
             abst0 = self.streamtranges[streami, 0] # absolute start time of stream
-            # find start and end offsets relative to abst0
+            # find start and end offsets relative to abst0:
             relt0 = max(start - abst0, 0) # stay within stream's lower limit
             relt1 = min(stop - abst0, stream.t1 - stream.t0) # stay within stream's upper limit
             # source slice times:
@@ -931,8 +936,9 @@ class MultiStream(object):
             st1 = relt1 + stream.t0
             sdata = stream(st0, st1, chans).data # source data
             # destination time indices:
-            dt0i = (abst0 + relt0 - start) // tres # absolute index
+            dt0i = intround((abst0 + relt0 - start) / tres) # absolute index
             dt1i = dt0i + sdata.shape[1]
-            data[:, dt0i:dt1i] = sdata
-        return WaveForm(data=data, ts=ts, chans=chans)
 
+            data[:, dt0i:dt1i] = sdata
+            #print('MLT:', start, stop, tres, sdata.shape, data.shape)
+        return WaveForm(data=data, ts=ts, chans=chans)
