@@ -924,7 +924,8 @@ class MultiStream(object):
         # safer to use linspace than arange in case of float tres, deals with endpoints
         # better and gives slightly more accurate output float timestamps:
         ts = np.linspace(start, start+(nt-1)*tres, nt)
-        data = np.zeros((nchans, len(ts)), dtype=np.int16) # any gaps will have zeros
+        assert len(ts) == nt
+        data = np.zeros((nchans, nt), dtype=np.int16) # any gaps will have zeros
         for streami in streamis:
             stream = self.streams[streami]
             abst0 = self.streamtranges[streami, 0] # absolute start time of stream
