@@ -13,7 +13,7 @@ import numpy as np
 
 import core
 from core import (WaveForm, EmptyClass, intround, intfloor, intceil, lrstrip, MU,
-                  hamming, filterord, WMLDR, td2usec)
+                  hamming, filterord, WMLDR, td2fusec)
 from core import (DEFHPRESAMPLEX, DEFHPSRFSHCORRECT, DEFHPNSXSHCORRECT, DEFNSXFILTMETH,
                   BWF0, BWORDER, NCHANSPERBOARD, KERNELSIZE, NSXXSPOINTS)
 import probes
@@ -150,7 +150,6 @@ class Stream(object):
         # safer to user linspace in case of float tres, deals with endpoints better and gives
         # slightly more accurate output float timestamps:
         ts = np.linspace(tstart, tstart+(nt-1)*tres, nt)
-        #print('len(ts) is %r' % len(ts))
         assert len(ts) == nt
         # resampled data, leave as int32 for convolution, then convert to int16:
         data = np.empty((nchans, nt), dtype=np.int32)
@@ -263,9 +262,7 @@ class NSXStream(Stream):
         probetype = eval('probes.' + probename) # yucky. TODO: switch to a dict with keywords?
         self.probe = probetype()
 
-        # ignore decimation, should be set to 1 anyway, see nsx.FileHeader:
-        #self.rawsampfreq = intround(f.fileheader.sampfreq / f.fileheader.decimation) # Hz
-        self.rawsampfreq = f.fileheader.sampfreq
+        self.rawsampfreq = f.fileheader.sampfreq # Hz
         self.rawtres = 1 / self.rawsampfreq * 1e6 # float us
 
         if kind == 'highpass':
@@ -285,7 +282,7 @@ class NSXStream(Stream):
         self.contiguous = f.contiguous
 
         self.t0, self.t1 = f.t0, f.t1
-        self.tranges = np.int64([[self.t0, self.t1]])
+        self.tranges = np.asarray([[self.t0, self.t1]])
 
     def __call__(self, start, stop, chans=None):
         """Called when Stream object is called using (). start and stop indicate start and end
@@ -304,7 +301,7 @@ class NSXStream(Stream):
         # excess data in us at either end, to eliminate filtering and interpolation
         # edge effects:
         #print('NSXXSPOINTS: %d' % NSXXSPOINTS)
-        xs = intround(NSXXSPOINTS * rawtres)
+        xs = NSXXSPOINTS * rawtres
         #print('xs: %d, rawtres: %g' % (xs, rawtres))
 
         # stream limits, in us and in sample indices, wrt t=0 and sample=0:
@@ -369,12 +366,13 @@ class NSXStream(Stream):
         #print('ntxs, nresampletxs: %d, %d' % (ntxs, nresampletxs))
         #assert ntxs == len(tsxs)
 
-        # now trim down to just the requested time range:
-        lo, hi = tsxs.searchsorted([start, stop])
+        # now trim down to just the requested time range, work on us integer values to prevent
+        # floating point round-off error (when tres is non-integer us) that can occasionally
+        # cause searchsorted to produce off-by-one indices:
+        lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
 
-        #print(0, lo, hi, nresampletxs)
 
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
@@ -589,8 +587,10 @@ class SurfStream(Stream):
             dataxs, tsxs = self.resample(dataxs, tsxs, chans)
             #print('resample took %.3f sec' % (time.time()-tresample))
 
-        # now trim down to just the requested time range:
-        lo, hi = tsxs.searchsorted([start, stop])
+        # now trim down to just the requested time range, work on us integer values to prevent
+        # floating point round-off error (when tres is non-integer us) that can occasionally
+        # cause searchsorted to produce off-by-one indices:
+        lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
 
@@ -725,8 +725,10 @@ class SimpleStream(Stream):
             dataxs, tsxs = self.resample(dataxs, tsxs, chans)
             #print('resample took %.3f sec' % (time.time()-tresample))
 
-        # now trim down to just the requested time range:
-        lo, hi = tsxs.searchsorted([start, stop])
+        # now trim down to just the requested time range, work on us integer values to prevent
+        # floating point round-off error (when tres is non-integer us) that can occasionally
+        # cause searchsorted to produce off-by-one indices:
+        lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
 
@@ -763,19 +765,18 @@ class MultiStream(object):
         """Generate tranges, an array of all the contiguous data ranges in all the
         streams in self. These are relative to the start of acquisition (t=0) in the first
         stream. Also generate streamtranges, an array of each stream's t0 and t1"""
-        tranges = []
-        streamtranges = []
+        tranges, streamtranges = [], []
         for stream in streams:
             td = stream.datetime - datetimes[0] # time delta between stream i and stream 0
             for trange in stream.tranges:
-                t0 = td2usec(td + timedelta(microseconds=int(trange[0])))
-                t1 = td2usec(td + timedelta(microseconds=int(trange[1])))
+                t0 = td2fusec(td + timedelta(microseconds=trange[0]))
+                t1 = td2fusec(td + timedelta(microseconds=trange[1]))
                 tranges.append([t0, t1])
-            streamt0 = td2usec(td + timedelta(microseconds=int(stream.t0)))
-            streamt1 = td2usec(td + timedelta(microseconds=int(stream.t1)))
+            streamt0 = td2fusec(td + timedelta(microseconds=stream.t0))
+            streamt1 = td2fusec(td + timedelta(microseconds=stream.t1))
             streamtranges.append([streamt0, streamt1])
-        self.tranges = np.int64(tranges)
-        self.streamtranges = np.int64(streamtranges)
+        self.tranges = np.asarray(tranges)
+        self.streamtranges = np.asarray(streamtranges)
         self.t0 = self.streamtranges[0, 0]
         self.t1 = self.streamtranges[-1, 1]
 

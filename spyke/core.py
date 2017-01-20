@@ -1293,10 +1293,15 @@ def rowtake(a, i):
         return a[np.arange(a.shape[0])[:, None], i]
 
 def td2usec(td):
-    """Convert datetime.timedelta to microseconds"""
+    """Convert datetime.timedelta to int microseconds"""
     sec = td.total_seconds() # float
     usec = intround(sec * 1000000) # round to nearest us
     return usec
+
+def td2fusec(td):
+    """Convert datetime.timedelta to float microseconds"""
+    sec = td.total_seconds() # float
+    return sec * 1000000
 
 def td2days(td):
     """Convert datetime.timedelta to days"""
