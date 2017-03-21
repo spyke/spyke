@@ -17,7 +17,7 @@ Dependencies:
 
 spyke requires recent versions of the following to be installed:
 
-* [Python](http://python.org) (2.7.x, 3.x hasn't been tested)
+* [Python](http://python.org) (3.x, but 2.7.x should also work)
 * [IPython](http://ipython.org)
 * [numpy](http://numpy.org)
 * [scipy](http://scipy.org)
@@ -30,7 +30,7 @@ spyke requires recent versions of the following to be installed:
 * [scikit-learn](http://scikit-learn.org)
 * [PyWavelets](http://www.pybytes.com/pywavelets/)
 
-spyke is developed in Xubuntu 14.04. It should work in other Linux distributions. In
+spyke is developed in Xubuntu 16.04. It should work in other Linux distributions. In
 principle, it should also work in Windows and OSX.
 
 A much older version is described in the paper [Python for large-scale electrophysiology]

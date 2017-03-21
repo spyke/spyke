@@ -9,7 +9,7 @@ __authors__ = ['Martin Spacek', 'Reza Lotun']
 
 import numpy as np
 import os
-import cPickle
+import pickle
 #import cProfile
 from struct import Struct, unpack
 from copy import copy
@@ -117,7 +117,7 @@ class File(object):
             # misleading TimeStamp of 0
             # There should always be at least 2 SurfMessageRecords, so no need to check
             # for StopIteration:
-            rec = msgreciter.next()
+            rec = next(msgreciter)
             if type(rec) == UserMessageRecord:
                 continue
             break
@@ -221,7 +221,8 @@ class File(object):
         f = self.f
         while True:
             # returns an empty string when EOF is reached
-            flag = f.read(2).rstrip(NULL) # TODO: should this strip NULL as defined above?
+            # TODO: should this strip NULL as defined above?:
+            flag = f.read(2).rstrip(NULL).decode()
             if flag == '':
                 break
             # put file pointer back to start of flag
@@ -472,7 +473,7 @@ class File(object):
         wasopen = self.is_open()
         if wasopen: self.close()
         # pickle self to .parse file, use most efficient (least human readable) protocol:
-        cPickle.dump(self, pf, protocol=-1)
+        pickle.dump(self, pf, protocol=-1)
         pf.close()
         if wasopen: self.open() # reopen it
         self._pickle_all_records = False # reset to not pickle all records by default
@@ -482,8 +483,8 @@ class File(object):
         """Unpickle self from a .parse file"""
         print('Trying to recover parse info from %r' % self.parsefname)
         pf = open(self.join(self.parsefname), 'rb') # can also uncompress pickle with gzip
-        #self = cPickle.load(pf) # NOTE: this doesn't work as intended
-        other = cPickle.load(pf)
+        #self = pickle.load(pf) # NOTE: this doesn't work as intended
+        other = pickle.load(pf)
         pf.close()
         for thisstream in [other.hpstream, other.lpstream]: # can't use module name `stream`
             if thisstream:
@@ -530,7 +531,7 @@ class FileHeader(object):
         assert self.FH_rec_type == 1
         self.FH_rec_type_ext, = unpack('B', f.read(1)) # must be 0
         assert self.FH_rec_type_ext == 0
-        self.UFF_name = f.read(self.UFF_NAME_LEN).rstrip(NULL) # must be 'UFF'
+        self.UFF_name = f.read(self.UFF_NAME_LEN).rstrip(NULL).decode() # must be 'UFF'
         assert self.UFF_name == 'UFF'
         # major UFF ver
         self.UFF_major, = unpack('B', f.read(1))
@@ -543,7 +544,7 @@ class FileHeader(object):
         # 2 bi-directional seeks format
         self.bi_di_seeks, = unpack('H', f.read(2))
         # OS name, ie "WINDOWS 2000"
-        self.OS_name = f.read(self.UFF_OSNAME_LEN).rstrip(NULL)
+        self.OS_name = f.read(self.UFF_OSNAME_LEN).rstrip(NULL).decode()
         self.OS_major, = unpack('B', f.read(1)) # OS major rev
         self.OS_minor, = unpack('B', f.read(1)) # OS minor rev
         # creation time & date: Sec,Min,Hour,Day,Month,Year + 6 junk bytes
@@ -554,22 +555,22 @@ class FileHeader(object):
         self.append = TimeDate()
         self.append.parse(f)
         # system node name - same as BDT
-        self.node = f.read(self.UFF_NODENAME_LEN).rstrip(NULL)
+        self.node = f.read(self.UFF_NODENAME_LEN).rstrip(NULL).decode()
         # device name - same as BDT
-        self.device = f.read(self.UFF_DEVICE_LEN).rstrip(NULL)
+        self.device = f.read(self.UFF_DEVICE_LEN).rstrip(NULL).decode()
         # path name
-        self.path = f.read(self.UFF_PATH_LEN).rstrip(NULL)
+        self.path = f.read(self.UFF_PATH_LEN).rstrip(NULL).decode()
         # original file name at creation
-        self.filename = f.read(self.UFF_FILENAME_LEN).rstrip(NULL)
+        self.filename = f.read(self.UFF_FILENAME_LEN).rstrip(NULL).decode()
         # pad area to bring uff area to 512, no need to save it, skip it instead
-        #self.pad = f.read(self.UFF_FH_PAD_LEN).replace(NULL, ' ')
+        #self.pad = f.read(self.UFF_FH_PAD_LEN).replace(NULL, ' ').decode()
         f.seek(self.UFF_FH_PAD_LEN, 1)
         # application task name & version
-        self.app_info = f.read(self.UFF_APPINFO_LEN).rstrip(NULL)
+        self.app_info = f.read(self.UFF_APPINFO_LEN).rstrip(NULL).decode()
         # user's name as owner of file
-        self.user_name = f.read(self.UFF_OWNER_LEN).rstrip(NULL)
+        self.user_name = f.read(self.UFF_OWNER_LEN).rstrip(NULL).decode()
         # description of file/exp
-        self.file_desc = f.read(self.UFF_FILEDESC_LEN).rstrip(NULL)
+        self.file_desc = f.read(self.UFF_FILEDESC_LEN).rstrip(NULL).decode()
         # non user area of UFF header should be 512 bytes
         assert f.tell() - self.offset == 512
         # additional user area, no need to save it, skip it instead
@@ -648,21 +649,21 @@ class DRDB(object):
         # Data Record type for DRDB 3-255, ie 'P' or 'V' or 'M', etc..
         # don't know quite why SurfBawd required these byte values, this is
         # more than the normal set of ASCII chars
-        self.DR_rec_type = f.read(1)
+        self.DR_rec_type = f.read(1) # bytes
         assert int(unpack('B', self.DR_rec_type)[0]) in range(3, 256)
         # Data Record type ext; ignored
         self.DR_rec_type_ext, = unpack('B', f.read(1))
         # Data Record size in bytes, signed, -1 means dynamic
         self.DR_size, = unpack('i', f.read(4))
         # Data Record name
-        self.DR_name = f.read(self.UFF_DRDB_NAME_LEN).rstrip(NULL)
+        self.DR_name = f.read(self.UFF_DRDB_NAME_LEN).rstrip(NULL).decode()
         # number of sub-fields in Data Record
         self.DR_num_fields, = unpack('H', f.read(2))
         # pad bytes for expansion, no need to save it, skip it instead
         #self.DR_pad = unpack('B'*self.UFF_DRDB_PAD_LEN, f.read(self.UFF_DRDB_PAD_LEN))
         f.seek(self.UFF_DRDB_PAD_LEN, 1)
         # sub fields desc. RSFD = Record Subfield Descriptor
-        for rsfdi in xrange(self.UFF_RSFD_PER_DRDB):
+        for rsfdi in range(self.UFF_RSFD_PER_DRDB):
             rsfd = RSFD()
             rsfd.parse(f)
             self.DR_subfields.append(rsfd)
@@ -700,7 +701,7 @@ class RSFD(object):
     def parse(self, f):
         self.offset = f.tell()
         # DRDB subfield name
-        self.subfield_name = f.read(self.UFF_DRDB_RSFD_NAME_LEN).rstrip(NULL)
+        self.subfield_name = f.read(self.UFF_DRDB_RSFD_NAME_LEN).rstrip(NULL).decode()
         # underlying data type
         self.subfield_data_type, = unpack('H', f.read(2))
         # sub field size in bytes, signed
@@ -719,7 +720,7 @@ class LayoutRecord(object):
 
     def parse(self, f):
         # Record type 'L'
-        self.UffType = f.read(1)
+        self.UffType = f.read(1).decode()
         # hack to skip next 7 bytes
         f.seek(7, 1)
         # Time stamp, 64 bit signed int
@@ -741,7 +742,7 @@ class LayoutRecord(object):
         # probe number
         self.Probe, = unpack('h', f.read(2))
         # =E,S,C for epochspike, spikestream, or continuoustype
-        self.ProbeSubType = f.read(1)
+        self.ProbeSubType = f.read(1).decode()
         # hack to skip next byte
         f.seek(1, 1)
         # number of channels in the probe (54, 1)
@@ -789,11 +790,11 @@ class LayoutRecord(object):
         # hack to skip next byte
         f.seek(1, 1)
         # ShortString (uMap54_2a, 65um spacing)
-        self.probe_descrip = f.read(255).rstrip(NULL)
+        self.probe_descrip = f.read(255).rstrip(NULL).decode()
         # hack to skip next byte
         f.seek(1, 1)
         # ShortString (uMap54_2a)
-        self.electrode_name = f.read(255).rstrip(NULL)
+        self.electrode_name = f.read(255).rstrip(NULL).decode()
         # hack to skip next 2 bytes
         f.seek(2, 1)
         # MOVE BELOW ADCHANLIST FOR CAT 9
@@ -846,9 +847,9 @@ class MessageRecord(DatedRecord):
 
     def parse(self, f):
         # 1 byte -- SURF_MSG_REC_UFFTYPE: 'M'
-        self.UffType = f.read(1)
+        self.UffType = f.read(1).decode()
         # 1 byte -- 'U' user or 'S' Surf-generated
-        self.SubType = f.read(1)
+        self.SubType = f.read(1).decode()
         # hack to skip next 6 bytes
         f.seek(6, 1)
         # Time stamp, 64 bit signed int
@@ -858,7 +859,7 @@ class MessageRecord(DatedRecord):
         # 4 bytes -- length of the msg string
         self.MsgLength, = unpack('i', f.read(4))
         # any length message {shortstring - for cat9!!!}
-        self.Msg = f.read(self.MsgLength)
+        self.Msg = f.read(self.MsgLength).decode()
 
 
 class SurfMessageRecord(MessageRecord):
@@ -876,7 +877,7 @@ class DisplayRecord(DatedRecord):
 
     def parse(self, f):
         # 1 byte -- SURF_DSP_REC_UFFTYPE = 'D'
-        self.UffType = f.read(1)
+        self.UffType = f.read(1).decode()
         # hack to skip next 7 bytes
         f.seek(7, 1)
         # Cardinal, 64 bit signed int
@@ -905,16 +906,17 @@ class StimulusHeader(object):
                     self.PYTHON_TBL_LEN + 28)
 
     def parse(self, f):
-        self.header = f.read(2).rstrip(NULL) # always 'DS'?
+        self.header = f.read(2).rstrip(NULL).decode() # always 'DS'?
         self.version, = unpack('H', f.read(2))
         if self.version not in (100, 110): # Cat < 15, Cat >= 15
-            raise ValueError, 'Unknown stimulus header version %d' % self.version
+            raise ValueError('Unknown stimulus header version %d' % self.version)
         if self.version == 100: # Cat < 15 has filename field length == 16
             # ends with a NULL followed by spaces for some reason,
             # at least in Cat 13 file 03 - ptumap#751a_track5_m-seq.srf
-            self.filename = f.read(self.OLD_STIMULUS_HEADER_FILENAME_LEN).rstrip().rstrip(NULL)
+            self.filename = (
+                f.read(self.OLD_STIMULUS_HEADER_FILENAME_LEN).rstrip().rstrip(NULL).decode())
         elif self.version == 110: # Cat >= 15 has filename field length == 64
-            self.filename = f.read(self.STIMULUS_HEADER_FILENAME_LEN).rstrip(NULL)
+            self.filename = f.read(self.STIMULUS_HEADER_FILENAME_LEN).rstrip(NULL).decode()
         # NVS binary header, array of single floats
         self.parameter_tbl = list(unpack('f'*self.NVS_PARAM_LEN, f.read(4*self.NVS_PARAM_LEN)))
         for parami, param in enumerate(self.parameter_tbl):
@@ -924,7 +926,7 @@ class StimulusHeader(object):
                 self.parameter_tbl[parami] = None
         # dimstim's text header
         if self.version == 110: # only Cat >= 15 has the text header
-            self.python_tbl = f.read(self.PYTHON_TBL_LEN).rstrip()
+            self.python_tbl = f.read(self.PYTHON_TBL_LEN).rstrip().decode()
         self.screen_width, = unpack('f', f.read(4)) # cm, single float
         self.screen_height, = unpack('f', f.read(4)) # cm
         self.view_distance, = unpack('f', f.read(4)) # cm

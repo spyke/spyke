@@ -225,7 +225,7 @@ class Stream(object):
         kernels = {} # dict of array of kernels, indexed by [chan][resample point]
         for chan, d in zip(chans, ds): # chans and corresponding delays
             kernelrow = []
-            for point in xrange(resamplex): # iterate over resampled points per raw point
+            for point in range(resamplex): # iterate over resampled points per raw point
                 t0 = point/resamplex # some fraction of 1
                 tstart = -N/2 - t0 - d
                 tend = tstart + (N+1)
@@ -939,6 +939,8 @@ class MultiStream(object):
             # destination time indices:
             dt0i = int((abst0 + relt0 - start) // tres) # absolute index, trunc to int
             dt1i = dt0i + sdata.shape[1]
+            ## TODO: indexing bug again when zooming in quite far, doesn't happen for
+            ## single stream?
             data[:, dt0i:dt1i] = sdata
             #print('dt0i, dt1i', dt0i, dt1i)
             #print('MLT:', start, stop, tres, sdata.shape, data.shape)

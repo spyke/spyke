@@ -1,5 +1,10 @@
 """Main spyke window"""
-
+'''
+TODO:
+    - make setup.py install a ./spyke executable so you can run spyke without having to
+      cd to it
+    - import numpy as np every time ipython shell is called! should do this in neuropy too
+'''
 from __future__ import division
 from __future__ import print_function
 from __init__ import __version__
@@ -40,7 +45,7 @@ import platform
 import time
 import datetime
 import gc
-import cPickle
+import pickle
 import random
 from copy import copy
 from struct import unpack
@@ -94,6 +99,7 @@ LFPWINDOWSIZE = 250+2*BORDER, SPIKEWINDOWHEIGHT
 CLUSTERWINDOWHEIGHT = 700
 
 MAXRECENTFILES = 10 # anything > 10 will probably mess up keyboard accelerators
+FILEPOSFMT = '%.3f'
 WINDOWUPDATEORDER = ['Spike', 'LFP', 'Chart'] # chart goes last cuz it's slowest
 
 # if updating at least this many selected spikes in .wave file, update them all
@@ -478,6 +484,8 @@ class SpykeWindow(QtGui.QMainWindow):
             v = self.update_0_8_to_0_9()
         if v == 0.9:
             v = self.update_0_9_to_1_0()
+        if v == 1.0:
+            v = self.update_1_0_to_1_1()
         print('now save me!')
             
     def update_0_3_to_0_4(self):
@@ -568,7 +576,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def update_0_7_to_0_8(self):
         """Update sort 0.7 to 0.8:
-            - rename/move classes (done by core.unpickler_find_global()):
+            - rename/move classes (done by core.Sort_0_7_to_0_8_Unpickler.find_class()):
                 - core.Stream -> stream.SurfStream
                 - core.SimpleStream -> stream.SimpleStream
                 - core.TrackStream -> stream.MultiStream
@@ -652,6 +660,16 @@ class SpykeWindow(QtGui.QMainWindow):
         s.__version__ = '1.0' # update
         print('done updating sort from version 0.9 to 1.0')
         return float(s.__version__)
+
+    def update_1_0_to_1_1(self):
+        """Update sort 1.0 to 1.1:
+            - convert from Py2 to Py3 pickles, work around string encoding issues during
+              conversion. This happens during the unpickler.load() call
+        """
+        print('updating sort from version 1.0 to 1.1')
+        self.__version__ = '1.1' # update
+        print('done updating sort from version 1.0 to 1.1')
+        return float(self.__version__)
 
     @QtCore.pyqtSlot()
     def on_actionCloseSort_triggered(self):
@@ -1091,8 +1109,8 @@ class SpykeWindow(QtGui.QMainWindow):
         dims = self.GetClusterPlotDims()
         try:
             X, sids = self.get_param_matrix(dims=dims)
-        except RuntimeError, errmsg:
-            print(errmsg)
+        except RuntimeError as err:
+            print(err)
             return
 
         nids = s.spikes['nid'][sids] # copy
@@ -1477,8 +1495,8 @@ class SpykeWindow(QtGui.QMainWindow):
         dims = self.GetClusterPlotDims()
         try:
             X, sids = self.get_param_matrix(dims=dims)
-        except RuntimeError, errmsg:
-            print(errmsg)
+        except RuntimeError as err:
+            print(err)
             return
         if len(X) == 0:
             return # nothing to plot
@@ -1551,7 +1569,7 @@ class SpykeWindow(QtGui.QMainWindow):
         all unsorted spikes. Also calculate which cluster each unsorted spike matches best"""
         spikes = self.sort.spikes
         wavedata = self.sort.wavedata
-        cids = np.sort(self.sort.clusters.keys())
+        cids = np.sort(list(self.sort.clusters))
         sids = self.sort.usids.copy()
         ncids, nsids = len(cids), len(sids)
         print('calculating rmserror between all %d clusters and all %d unsorted spikes'
@@ -2118,7 +2136,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Open a filename from the clicked recent file in the File menu"""
         action = self.sender()
         if action:
-            fullfname = str(action.data().toString())
+            fullfname = action.data() # a string in Py3, QVariant in Py2
             self.OpenFile(fullfname)
 
     def updateRecentFiles(self, fullfname=None):
@@ -2126,9 +2144,7 @@ class SpykeWindow(QtGui.QMainWindow):
         last fname opened or closed, which should hence go to the top of the list.
         Some of this code is taken from PySide's examples/mainwindows/recentfiles.py"""
         settings = QtCore.QSettings('spyke', 'spyke') # retrieve setting
-        fullfnames = settings.value('recentFileList').toList()
-        for i in range(len(fullfnames)): # convert each entry from QVariant to QString
-            fullfnames[i] = fullfnames[i].toString()
+        fullfnames = settings.value('recentFileList') # list of strings in Py3, QVariant in Py2
         if fullfname:
             try:
                 fullfnames.remove(fullfname)
@@ -2254,7 +2270,7 @@ class SpykeWindow(QtGui.QMainWindow):
                       'now': self.t, # FIXME: this won't track self.t automatically
                       'end': self.hpstream.t1}
         self.range = (self.hpstream.t0, self.hpstream.t1) # us
-        self.ui.filePosLineEdit.setText(str(self.t))
+        self.ui.filePosLineEdit.setText(FILEPOSFMT % self.t)
         self.ui.filePosStartButton.setText(str(self.hpstream.t0))
         self.ui.filePosEndButton.setText(str(self.hpstream.t1))
         # set all slider values in multiples of SLIDERTRES
@@ -2355,7 +2371,7 @@ class SpykeWindow(QtGui.QMainWindow):
     
         """
         with open(join(self.streampath, fname), 'rb') as f:
-            header = f.read(16)
+            header = f.read(16).decode()
             assert header == 'Test spike file '
             version, = unpack('i', f.read(4))
 
@@ -2373,7 +2389,7 @@ class SpykeWindow(QtGui.QMainWindow):
         except IOError:
             print("can't find file %r" % fname)
             return
-        header = f.read(16)
+        header = f.read(16).decode()
         assert header == 'Test spike file '
         version, = unpack('i', f.read(4))
         assert version == 1002
@@ -2425,7 +2441,7 @@ class SpykeWindow(QtGui.QMainWindow):
         except IOError:
             print("can't find file %r" % fname)
             return
-        header = f.read(16)
+        header = f.read(16).decode()
         assert header == 'Test spike file '
         version, = unpack('i', f.read(4))
         assert version == 1000
@@ -2450,7 +2466,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # not all .tsf files have ground truth data at end:
         pos = f.tell()
         groundtruth = f.read()
-        if groundtruth == '': # reached EOF
+        if groundtruth == b'': # reached EOF
             nbytes = f.tell()
             f.close()
             print('read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
@@ -2853,9 +2869,21 @@ class SpykeWindow(QtGui.QMainWindow):
         print('opening sort file %r' % fname)
         t0 = time.time()
         f = open(join(self.sortpath, fname), 'rb')
-        unpickler = cPickle.Unpickler(f)
-        unpickler.find_global = core.unpickler_find_global_0_7_to_0_8
-        sort = unpickler.load()
+        #unpickler = pickle.Unpickler(f)
+        # special pickler required in case .sort file version is 0.7, which requires renaming
+        # of classes:
+        try:
+            unpickler = core.Sort_0_7_to_0_8_Unpickler(f)
+            sort = unpickler.load()
+        except UnicodeDecodeError:
+            # pickle was likely created in Py2, and invalid bytes for ASCII were found in
+            # string-like bytes, probably belonging to numpy dtype fields.
+            # See: http://stackoverflow.com/a/11314602
+            # Try a wider encoding:
+            print('trying to decode strings with invalid ASCII bytes from Py2 pickle')
+            unpickler = core.Sort_0_7_to_0_8_Unpickler(f, encoding='latin_1',
+                                                       errors='strict')
+            sort = unpickler.load()
         print('done opening sort file, took %.3f sec' % (time.time()-t0))
         print('sort file was %d bytes long' % f.tell())
         f.close()
@@ -3009,7 +3037,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.save_window_states()
         s.fname = fname # bind it now that it's about to be saved
         f = open(join(self.sortpath, fname), 'wb')
-        cPickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
+        pickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
         f.close()
         print('done saving sort file, took %.3f sec' % (time.time()-t0))
         self.updateTitle()
@@ -3159,9 +3187,9 @@ class SpykeWindow(QtGui.QMainWindow):
                 self._chans_enabled[chan] = enable
         # ...or, leave only chans enabled
         else:
-            enabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems()
+            enabledchans = [ chan for (chan, enabled) in self._chans_enabled.items()
                              if enabled==True ]
-            disabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems()
+            disabledchans = [ chan for (chan, enabled) in self._chans_enabled.items()
                               if enabled==False ]
             notchans = set(allchans).difference(chans) # chans we don't want enabled
             # find difference between currently enabled chans and the chans to enable:
@@ -3200,7 +3228,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Close data windows and stream (both hpstream and lpstream)"""
         # need to specifically get a list of keys, not an iterator,
         # since self.windows dict changes size during iteration
-        for wintype in self.windows.keys():
+        for wintype in list(self.windows):
             if wintype in ['Spike', 'Chart', 'LFP']:
                 self.CloseWindow(wintype) # deletes from dict
         for stream in [self.hpstream, self.lpstream]:
@@ -3321,7 +3349,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def ShowRasters(self, enable=True):
         """Show/hide rasters for all applicable windows. Force menu states to correspond"""
         self.ui.actionRasters.setChecked(enable)
-        for wintype, window in self.windows.iteritems():
+        for wintype, window in self.windows.items():
             if wintype in ['Spike', 'Chart', 'LFP']:
                 window.panel.show_rasters(enable=enable)
                 self.plot(wintype)
@@ -3546,7 +3574,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # only plot if t has actually changed, though this doesn't seem to improve
         # performance, maybe mpl is already doing something like this?
         if self.t != oldt: # update controls first so they don't lag
-            self.ui.filePosLineEdit.setText(str(self.t))
+            self.ui.filePosLineEdit.setText(FILEPOSFMT % self.t)
             if self.t % SLIDERTRES == 0: # only update slider if at a SLIDERTRES tick
                 self.ui.slider.setValue(self.t // SLIDERTRES)
             self.plot()
@@ -3563,7 +3591,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Update the contents of all the data windows, or just specific ones.
         Center each data window on self.t"""
         if wintypes == None: # update all visible windows
-            wintypes = self.windows.keys()
+            wintypes = list(self.windows)
         else: # update only specific windows, if visible
             wintypes = toiter(wintypes)
         # reorder:

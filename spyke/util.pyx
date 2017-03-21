@@ -124,17 +124,17 @@ cpdef dostuff(np.ndarray[float64_t, ndim=1] a):
             a[i] += a[i] * b / (a[i]**2 + b)
             #a[i] *= 2.0
 
-
+'''
 def dostuffthreads(np.ndarray[float64_t, ndim=1] a):
     """Demo use of multithreading pool from within Cython"""
-    from spyke import threadpool_alt
+    from spyke import threadpool_alt # threadpool_alt is not Py3 compatible
     from multiprocessing import cpu_count
     ncpus = cpu_count()
     pool = threadpool_alt.Pool(ncpus)
     units = np.split(a, ncpus)
     pool.map(dostuff, units)
     pool.terminate()
-
+'''
 
 def testrange(np.ndarray[int32_t, ndim=1] a,
               int start, int end):

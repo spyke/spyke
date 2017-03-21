@@ -77,7 +77,7 @@ class Sort(object):
 
     def get_nextnid(self):
         """nextnid is used to retrieve the next unique single unit ID"""
-        nids = self.neurons.keys()
+        nids = list(self.neurons)
         if len(nids) == 0:
             return 1 # single unit nids start at 1
         else:
@@ -87,7 +87,7 @@ class Sort(object):
 
     def get_nextmuid(self):
         """nextmuid is used to retrieve the next unique multiunit ID"""
-        nids = self.neurons.keys()
+        nids = list(self.neurons)
         if len(nids) == 0:
             return -1 # multiunit ids start at -1
         else:
@@ -108,7 +108,7 @@ class Sort(object):
 
     def set_good(self, good):
         """Set good flag to True for nids in good, False otherwise"""
-        nids = self.neurons.keys()
+        nids = list(self.neurons)
         assert np.all([ nid in nids for nid in good ]) # make sure all nids in good exist
         notgood = np.setdiff1d(nids, good)
         for nid in notgood:
@@ -232,11 +232,11 @@ class Sort(object):
                                (spikes[sid], sid))
         det = self.detector
         if det.srffname != self.stream.srffname:
-            msg = ("Spike %d was extracted from .srf file %s.\n"
+            err = ("Spike %d was extracted from .srf file %s.\n"
                    "The currently opened .srf file is %s.\n"
                    "Can't get spike %d's wave" %
                    (sid, det.srffname, self.stream.srffname, sid))
-            raise RuntimeError(msg)
+            raise RuntimeError(err)
         return self.stream(t0, t1, chans)
 
     def get_mean_wave(self, sids, nid=None):
@@ -945,7 +945,7 @@ class Sort(object):
             del self.neurons[id] # may already be removed due to recursive call
             del self.clusters[id]
             self.norder.remove(id)
-        except KeyError, ValueError:
+        except (KeyError, ValueError):
             pass
 
     def shift(self, sids, nt):
@@ -1457,7 +1457,7 @@ class Sort(object):
         coords = np.asarray(dm.coords)
         xcoords = coords[:, 0]
         ycoords = coords[:, 1]
-        sids = self.spikes.keys() # self.spikes is a dict!
+        sids = list(self.spikes) # self.spikes is a dict!
         sids.sort()
         for sid in sids:
             spike = self.spikes[sid]
@@ -2612,8 +2612,8 @@ class SortWindow(SpykeToolWindow):
         spw = self.spykewindow
         try:
             cluster = spw.GetCluster()
-        except RuntimeError, msg:
-            print(msg)
+        except RuntimeError as err:
+            print(err)
             return
         gw = spw.windows['Cluster'].glWidget
         dims = spw.GetClusterPlotDims()
@@ -2626,8 +2626,8 @@ class SortWindow(SpykeToolWindow):
         spw = self.spykewindow
         try:
             sid = spw.GetSpike()
-        except RuntimeError, msg:
-            print(msg)
+        except RuntimeError as err:
+            print(err)
             return
         gw = spw.windows['Cluster'].glWidget
         pointis = gw.sids.searchsorted(sid)
@@ -2775,8 +2775,8 @@ class SortWindow(SpykeToolWindow):
         chans to compare on. Also, use only the timepoint range selected in incltComboBox"""
         try:
             source = self.getClusterComparisonSource()
-        except RuntimeError, errmsg:
-            print(errmsg)
+        except RuntimeError as err:
+            print(err)
             return
         destinations = self.sort.clusters.values()
         destinations.remove(source)

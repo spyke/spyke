@@ -27,7 +27,7 @@ class Probe(object):
     def siteloc_arr(self):
         #return np.asarray(self.SiteLoc.values()) # doesn't ensure sorted channel order
         # ensure sorted channel order:
-        chans = self.SiteLoc.keys()
+        chans = list(self.SiteLoc)
         chans.sort()
         return np.asarray([ self.SiteLoc[chan] for chan in chans ])
 

@@ -65,8 +65,8 @@ def _eintr_retry_call(func, *args):
     while True:
         try:
             return func(*args)
-        except (OSError, IOError), e:
-            if e.errno == errno.EINTR:
+        except (OSError, IOError) as err:
+            if err.errno == errno.EINTR:
                 continue
             raise
 
@@ -184,6 +184,7 @@ class Detector(object):
 
     chans = property(get_chans, set_chans)
 
+    ## TODO: shouldn't this be renamed for use with all multifile streams?
     def get_srffnames(self):
         return self.sort.stream.srffnames
 
@@ -666,6 +667,8 @@ class Detector(object):
             # Neuron.update_wave()
             ts = wave.ts[t0i:t1i] # potentially floats
             # use ts = np.arange(s['t0'], s['t1'], stream.tres) to reconstruct
+            ## TODO: maybe to always get the right number of points, should use floor and ceil,
+            ## respectively, now that wave.ts is potentially float?:
             s['t0'], s['t1'] = intround(wave.ts[t0i]), intround(wave.ts[t1i]) # nearest us
             s['tis'][:ninclchans] = incltis # wrt t0i=0
             s['aligni'] = aligni # 0 or 1

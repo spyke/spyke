@@ -14,6 +14,7 @@ import os
 import random
 import string
 from copy import copy
+import pickle
 
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
@@ -37,7 +38,7 @@ np.seterr(all='raise')
 
 UNIXEPOCH = datetime.datetime(1970, 1, 1, 0, 0, 0) # UNIX epoch: Jan 1, 1970
 
-NULL = '\x00'
+NULL = b'\x00'
 
 MU = '\xb5' # greek mu symbol
 MICRO = 'u'
@@ -485,7 +486,7 @@ class SpykeListView(QtGui.QListView):
         stop = min(self.nrows, stop)
         nrows = stop - start
         nsamples = min(nsamples, nrows)
-        rows = random.sample(xrange(start, stop), nsamples)
+        rows = random.sample(range(start, stop), nsamples)
         self.selectRows(rows, scrollTo=False)
 
 
@@ -1044,7 +1045,7 @@ def eucd(coords):
     coords = np.asarray(coords)
     n, m = coords.shape
     delta = np.zeros((n, n), dtype=np.float64)
-    for d in xrange(m):
+    for d in range(m):
         data = coords[:, d]
         delta += (data - data[:, np.newaxis]) ** 2
     return np.sqrt(delta)
@@ -1404,18 +1405,16 @@ def lrstrip(s, lstr, rstr):
     """Strip lstr from start of s and rstr from end of s"""
     return rstrip(lstrip(s, lstr), rstr)
 
-def isascii(c):
-    """Check if character c is a printable character, TAB, LF, or CR"""
-    d = ord(c) # decimal representation
-    return 32 <= d <= 127 or d in [9, 10, 13]
+def isascii(n):
+    """Check if int n is in the set of printable characters, TAB, LF, or CR"""
+    return 32 <= n <= 127 or n in [9, 10, 13]
 
-def rstripnonascii(s):
-    """Return a new string with all characters after the first non-ASCII character
-    stripped from the string"""
-    for i, c in enumerate(s):
-        if not isascii(c):
-            return s[:i]
-    return s
+def rstripnonascii(b):
+    """Given bytes b, return string s that is stripped of all bytes following the first non-ASCII byte"""
+    for i, d in enumerate(b): # iterating over bytes gives ints
+        if not isascii(d):
+            return b[:i].decode()
+    return s.decode()
 
 def pad(x, align=8):
     """Pad x with null bytes so it's a multiple of align bytes long"""
@@ -1763,21 +1762,45 @@ def updatenpyfilerows(fname, rows, arr):
         f.write(arr[row])
     f.close()
 
-def unpickler_find_global_0_7_to_0_8(oldmod, oldcls):
+# this should inherit from pickle.Unpickler for speed, or pickle._Unpickler for debugging:
+class Sort_0_7_to_0_8_Unpickler(pickle._Unpickler):
     """Required for unpickling .sort version 0.7 files and upgrading them to version 0.8.
     Rename class names that changed between the two versions. Unfortunately, you can't check
     the .sort version number until after unpickling, so this has to be done for all .sort
     files during unpickling - it can't be done after unpickling"""
-    old2new_streammod = {'core': 'stream'}
-    old2new_streamcls = {'Stream': 'SurfStream',
-                         'SimpleStream': 'SimpleStream',
-                         'TrackStream': 'MultiStream'}
-    try:
-        newmod = old2new_streammod[oldmod]
-        newcls = old2new_streamcls[oldcls]
-    except KeyError: # no old to new conversion
-        exec('import %s' % oldmod)
-        return eval('%s.%s' % (oldmod, oldcls))
-    print('Rename on unpickle: %s.%s -> %s.%s' % (oldmod, oldcls, newmod, newcls))
-    exec('import %s' % newmod)
-    return eval('%s.%s' % (newmod, newcls))
+    def find_class(self, oldmod, oldcls):
+        old2new_streammod = {'core': 'stream',
+                             'datetime': ''}
+        old2new_streamcls = {'Stream': 'SurfStream',
+                             'SimpleStream': 'SimpleStream',
+                             'TrackStream': 'MultiStream',
+                             'datetime': 'SpykePy2DateTime'}
+        try:
+            print('try %s.%s mapping' % (oldmod, oldcls))
+            newmod = old2new_streammod[oldmod]
+            newcls = old2new_streamcls[oldcls]
+        except KeyError: # no old to new conversion
+            print('except get existing %s.%s' % (oldmod, oldcls))
+            exec('import %s' % oldmod)
+            return eval('%s.%s' % (oldmod, oldcls))
+        print('Rename on unpickle: %s.%s -> %s.%s' % (oldmod, oldcls, newmod, newcls))
+        if newmod:
+            exec('import %s' % newmod)
+            return eval('%s.%s' % (newmod, newcls))
+        else:
+            print('returning class %s' % newcls)
+            return eval(newcls)
+
+
+class SpykePy2DateTime(datetime.datetime):
+    def __init__(self, blah):
+        print('in init')
+        print(blah.decode())
+        #import ipdb; ipdb.set_trace()
+        #raise RuntimeError
+        super(SpykePy2DateTime).__init__(self, blah)
+
+    def __setstate__(self, d):
+        print('in setstate')
+        print(d)
+        self.__dict__ = d

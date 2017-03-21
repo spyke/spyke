@@ -95,7 +95,7 @@ RASTERZORDER = 6
 class ColourDict(dict):
     """Just an easy way to cycle through colours given some index,
     like say a chan id or a neuron id. Better than using a generator,
-    cuz you don't need to keep calling .next(). This is like a dict
+    cuz you don't need to keep calling next(). This is like a dict
     of infinite length"""
     def __init__(self, colours=None, nocolour=None):
         self.colours = colours
@@ -366,7 +366,7 @@ class PlotPanel(FigureCanvas):
             probe = self.stream.probe
         self.probe = probe
         self.SiteLoc = probe.SiteLoc # probe site locations with origin at center top
-        self.chans = probe.SiteLoc.keys()
+        self.chans = list(probe.SiteLoc) # keys into SiteLoc
         self.chans.sort() # a sorted list of chans, keeps from having to do this over and over
         self.nchans = probe.nchans
         self.chans_selected = [] # for clustering, or potentially other uses as well
@@ -375,7 +375,7 @@ class PlotPanel(FigureCanvas):
         siteloc = copy(self.SiteLoc) # lowercase means bottom origin
         ys = [ y for x, y in siteloc.values() ]
         maxy = max(ys)
-        for key, (x, y) in siteloc.iteritems():
+        for key, (x, y) in siteloc.items():
             y = maxy - y
             siteloc[key] = (x, y) # update
         self.siteloc = siteloc # center bottom origin
@@ -461,7 +461,7 @@ class PlotPanel(FigureCanvas):
         elif ref == 'Caret':
             self._add_caret()
         else:
-            raise ValueError, 'invalid ref: %r' % ref
+            raise (ValueError, 'invalid ref: %r' % ref)
 
     def show_ref(self, ref, enable=True):
         """Helper method for external use"""
@@ -474,20 +474,20 @@ class PlotPanel(FigureCanvas):
         elif ref == 'Caret':
             self._show_caret(enable)
         else:
-            raise ValueError, 'invalid ref: %r' % ref
+            raise (ValueError, 'invalid ref: %r' % ref)
         self.draw_refs()
 
     def draw_refs(self):
         """Redraws all enabled reflines, resaves reflines_background"""
         plotvisibility = {} # mapping of currently shown plots to their visibility status
-        for pltid, plt in self.used_plots.iteritems():
+        for pltid, plt in self.used_plots.items():
             plotvisibility[pltid] = plt.visible()
             plt.hide()
         self.show_rasters(False)
         self.draw() # only draw all enabled refs - defined in FigureCanvas
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # update
         self.background = None # no longer valid
-        for pltid, plt in self.used_plots.iteritems():
+        for pltid, plt in self.used_plots.items():
             visible = plotvisibility[pltid]
             plt.show(visible) # re-show just the plots that were previously visible
             plt.draw()
@@ -633,14 +633,14 @@ class PlotPanel(FigureCanvas):
         TODO: fix code duplication"""
         if order == 'vertical':
             # first, sort x coords, then y: (secondary, then primary)
-            xychans = [ (x, y, chan) for chan, (x, y) in self.siteloc.iteritems() ] # list of (x, y, chan) 3-tuples
+            xychans = [ (x, y, chan) for chan, (x, y) in self.siteloc.items() ] # list of (x, y, chan) 3-tuples
             xychans.sort() # stable sort in-place according to x values (first in tuple)
             yxchans = [ (y, x, chan) for (x, y, chan) in xychans ]
             yxchans.sort() # stable sort in-place according to y values (first in tuple)
             chans = [ chan for (y, x, chan) in yxchans ] # unload the chan indices, now sorted bottom to top, left to right
         elif order == 'horizontal':
             # first, sort y coords, then x: (secondary, then primary)
-            yxchans = [ (y, x, chan) for chan, (x, y) in self.siteloc.iteritems() ] # list of (y, x, chan) 3-tuples
+            yxchans = [ (y, x, chan) for chan, (x, y) in self.siteloc.items() ] # list of (y, x, chan) 3-tuples
             yxchans.sort() # stable sort in-place according to y values (first in tuple)
             xychans = [ (x, y, chan) for (y, x, chan) in yxchans ] # list of (x, y, chan) 3-tuples
             xychans.sort() # stable sort in-place according to x values (first in tuple)
@@ -850,8 +850,8 @@ class PlotPanel(FigureCanvas):
         spikes = spw.sort.spikes
         try:
             sid = spw.GetSpike()
-        except RuntimeError, msg:
-            print(msg)
+        except RuntimeError as err:
+            print(err)
             return
         if peaktype == 'primary':
             spw.primarypeakt = t
@@ -874,8 +874,8 @@ class PlotPanel(FigureCanvas):
         AD2uV = sort.converter.AD2uV
         try:
             sid = spw.GetSpike()
-        except RuntimeError, msg:
-            print(msg)
+        except RuntimeError as err:
+            print(err)
             return
         abort = False
         try:
@@ -1061,7 +1061,7 @@ class SpikePanel(PlotPanel):
             self.pos[chan] = (self.um2us(self.siteloc[chan][0]),
                               self.um2uv(self.siteloc[chan][1]))
             # assign colours so that they cycle vertically in space:
-            self.vcolours[chan] = colourgen.next()
+            self.vcolours[chan] = next(colourgen)
     '''
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
@@ -1110,7 +1110,7 @@ class ChartPanel(PlotPanel):
             # x=0 centers horizontally, equal vertical spacing:
             self.pos[chan] = (0, chani*vspace)
             # assign colours so that they cycle vertically in space:
-            self.vcolours[chan] = colourgen.next()
+            self.vcolours[chan] = next(colourgen)
     '''
     def _zoomx(self, x):
         """Zoom x axis by factor x"""
@@ -1166,7 +1166,7 @@ class LFPPanel(ChartPanel):
         # need to specifically get a list of keys, not an iterator,
         # since self.pos dict changes size during iteration
         # don't remember why this was sometimes necessary to do:
-        for chan in self.pos.keys():
+        for chan in list(self.pos):
             if chan not in self.stream.layout.chans:
                 del self.pos[chan] # remove siteloc chans not in lowpassmultichan record
                 try:
