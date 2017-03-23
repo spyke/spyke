@@ -55,30 +55,30 @@ from core import DJS, g, dist
 import stream
 from stream import SimpleStream, MultiStream
 import surf, nsx
-from sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES, NPCSPERCHAN
+from sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES
 from plot import SpikePanel, ChartPanel, LFPPanel
 from detect import Detector, calc_SPIKEDTYPE, DEBUG
 from extract import Extractor
 import probes
 
 # spike window temporal window (us)
-SPIKETW = {'.srf': (-400, 600), '.ns6': (-500, 1500), '.tsf': (-1000, 2000)}
+SPIKETW = {'.srf': (-400, 600), '.ns6': (-500, 1500), '.tsf': (-1000, 2000),  '.kwd': (-500, 1500),}
 # chart window temporal window (us)
-CHARTTW = {'.srf': (-25000, 25000), '.ns6': (-25000, 25000), '.tsf': (-50000, 50000)}
+CHARTTW = {'.srf': (-25000, 25000), '.ns6': (-25000, 25000), '.tsf': (-50000, 50000),'.kwd': (-25000, 25000), }
 # LFP window temporal window (us)
 LFPTW = -500000, 500000
 
 # spatial channel layout:
 # UVPERUM affects vertical channel spacing and voltage gain (which is further multiplied by
 # each plot window's gain):
-UVPERUM = {'.srf': 2, '.ns6': 5, '.tsf': 20}
+UVPERUM = {'.srf': 2, '.ns6': 5, '.tsf': 20 , '.kwd':5}
 # USPERUM affects horizontal channel spacing. Decreasing USPERUM increases horizontal overlap
 # between spike chans. For .srf data, 17 gives roughly no horizontal overlap for
 # self.tw[1] - self.tw[0] == 1000 us:
-USPERUM = {'.srf': 17, '.ns6': 17, '.tsf': 125} # untested for .ns6, need multicolumn data
+USPERUM = {'.srf': 17, '.ns6': 17, '.tsf': 125, '.kwd':15} # untested for .ns6, need multicolumn data
 
-DYNAMICNOISEX = {'.srf': 6, '.ns6': 4.5, '.tsf': 3} # noise multiplier
-DT = {'.srf': 400, '.ns6': 600, '.tsf': 1500} # maximum time between spike peaks (us)
+DYNAMICNOISEX = {'.srf': 6, '.ns6': 4.5, '.tsf': 3,'.kwd':3} # noise multiplier
+DT = {'.srf': 400, '.ns6': 600, '.tsf': 1500,'.kwd':500} # maximum time between spike peaks (us)
 
 SLIDERTRES = 100 # slider temporal resoluion (us), slider is limited to 2**32 ticks
 
@@ -189,7 +189,7 @@ class SpykeWindow(QtGui.QMainWindow):
                                 directory=self.streampath,
                                 filter="Surf, nsx, track, tsf, mat, event & sort files "
                                        "(*.srf *.ns6 *.track *.tsf *.mat *.event*.zip "
-                                       "*.sort );;"
+                                       "*.sort *.kwd );;"
                                        "All files (*.*)")
         fname = str(fname)
         if fname:
@@ -574,7 +574,6 @@ class SpykeWindow(QtGui.QMainWindow):
                 - core.TrackStream -> stream.MultiStream
             - rename Stream attrib .srff -> .f
             - rename MultiStream attrib .srffnames -> .fnames
-            - add potentially missing sort.npcsperchan attrib
         """
         print('updating sort from version 0.7 to 0.8')
         s = self.sort
@@ -593,10 +592,6 @@ class SpykeWindow(QtGui.QMainWindow):
             stream.fnames = fnames
         else:
             raise RuntimeError("don't know how to upgrade stream type %r" % classname)
-        try:
-            s.npcsperchan
-        except AttributeError:
-            s.npcsperchan = NPCSPERCHAN
 
         s.__version__ = '0.8' # update
         print('done updating sort from version 0.7 to 0.8')
@@ -2160,7 +2155,7 @@ class SpykeWindow(QtGui.QMainWindow):
         head, tail = os.path.split(fname)
         assert head # make sure fname has a path to it
         base, ext = os.path.splitext(tail)
-        if ext in ['.srf', '.ns6', '.track', '.tsf', '.mat']:
+        if ext in ['.srf', '.ns6', '.track', '.tsf', '.mat', '.kwd']:
             self.streampath = head
             self.OpenStreamFile(tail)
         elif ext == '.zip':
@@ -2219,6 +2214,9 @@ class SpykeWindow(QtGui.QMainWindow):
         elif ext == '.mat':
             self.hpstream = self.OpenQuirogaMATFile(fname)
             ext = '.srf' # use same *tw variables as for .srf
+        elif ext == '.kwd':
+            self.hpstream,self.lpstream = self.OpenKWD(fname)
+            ext = '.kwd'
         else:
             raise ValueError('unknown extension %r' % ext)
 
@@ -2271,6 +2269,49 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.slider.setInvertedControls(True)
 
         self.EnableStreamWidgets(True)
+
+    def OpenKWD(self,fname):
+        import h5py
+        fname = join(self.streampath, fname)
+        f = h5py.File(fname, 'r')
+        #except IOError:
+        #    print("can't find file %r" % fname)
+        #    return
+        #header = f.read(16)
+        rawsampfreq = f['recordings']['0'].attrs['sample_rate']
+        masterclockfreq = None
+        intgain = 0.195 # assumed
+        extgain = 1 # not sure what this is #unpack('f', f.read(4))
+        dataset=0
+        wavedata = f['recordings'][str(dataset)]['data']
+        nchans=wavedata.shape[1]
+        nt= wavedata.shape[0]
+        #siteloc = np.zeros((nchans, 2), dtype=np.int16)
+        import probes 
+        probe =probes.A1x32()
+        siteloc = probe.siteloc_arr()
+        readloc = np.zeros(nchans, dtype=np.int32) # optimal chan display order
+        #print('readloc:', readloc)
+        #for i in range(nchans):
+            # these two data types really shouldn't be intertwined like this:
+        #    siteloc[i, :] = unpack('hh', f.read(4))
+        #    readloc[i], = unpack('i', f.read(4))
+        # read row major data, ie, chan loop is outer loop:
+        #wavedata = np.fromfile(f, dtype=np.int16, count=nchans*nt)
+        
+        is_filtered=1;
+        if is_filtered:
+            hpwavedata=wavedata
+        else:
+            # filter into highpass data:
+            hpwavedata = core.WMLDR(wavedata)
+        # assume all 16 bits are actually used, not just 12 bits, so no bitshift is required:
+        hpstream = SimpleStream(fname, hpwavedata, siteloc, rawsampfreq, masterclockfreq,
+                                intgain, extgain, shcorrect=False, bitshift=False,
+                                tsfversion=0.1)
+        lpstream = None ## TODO: implement this
+        f.close()
+        return hpstream, lpstream
 
     def OpenQuirogaMATFile(self, fname):
         """Open Quiroga's .mat files containing single channel synthetic highpass spike data.
