@@ -1,3 +1,9 @@
+- add direct support for .dat files + some kind of meta data file (.xml?)
+
+- add t-SNE as a dimension reduction method
+
+- BUG: in some cases when opening streams and/or sorts of one polytrode layout, closing them, then opening one of another layout, the displayed channel arrangement in at least the sort window is wrong, or you might get a KeyError while trying to index into a channel that doesn't exist because the new layout has fewer channels than the old one
+
 - add ISI histogram to Verify->ISIs tab in main window
 
 - NVS: make NDsep less biased when comparing a pair of very unequally sized clusters, by sampling the same fraction of spikes from each cluster, not the same number of spikes

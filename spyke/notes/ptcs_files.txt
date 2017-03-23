@@ -56,6 +56,9 @@ datetimestr: ndatetimestrbytes of ASCII text
     (human readable string representation of datetime, preferrably ISO 8601,
      padded with null bytes if needed for 8 byte alignment)
 
+## TODO: add recording duration field here, maybe:
+    duration: uint64 (us)
+    and increment to version 4
 
 neuron i:
 -------------------
