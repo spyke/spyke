@@ -55,7 +55,7 @@ from core import DJS, g, dist
 import stream
 from stream import SimpleStream, MultiStream
 import surf, nsx
-from sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES
+from sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES, NPCSPERCHAN
 from plot import SpikePanel, ChartPanel, LFPPanel
 from detect import Detector, calc_SPIKEDTYPE, DEBUG
 from extract import Extractor
@@ -574,6 +574,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 - core.TrackStream -> stream.MultiStream
             - rename Stream attrib .srff -> .f
             - rename MultiStream attrib .srffnames -> .fnames
+            - add potentially missing sort.npcsperchan attrib
         """
         print('updating sort from version 0.7 to 0.8')
         s = self.sort
@@ -592,6 +593,10 @@ class SpykeWindow(QtGui.QMainWindow):
             stream.fnames = fnames
         else:
             raise RuntimeError("don't know how to upgrade stream type %r" % classname)
+        try:
+            s.npcsperchan
+        except AttributeError:
+            s.npcsperchan = NPCSPERCHAN
 
         s.__version__ = '0.8' # update
         print('done updating sort from version 0.7 to 0.8')
