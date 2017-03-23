@@ -51,7 +51,7 @@ class Stream(object):
     fname = property(get_fname)
 
     def get_fnames(self):
-        return [self.f.fname]
+        return [self.fname]
 
     fnames = property(get_fnames)
 
@@ -452,6 +452,14 @@ class SurfStream(Stream):
             self.tranges = np.int64(tranges) # int us, 2D
         self.t0 = self.tranges[0, 0] # int us
         self.t1 = self.tranges[-1, 1] # int us
+
+    def get_fname(self):
+        try:
+            return self.f.fname
+        except AttributeError:
+            return self.srff.fname # for SurfStream in older sorts
+
+    fname = property(get_fname)
 
     def get_srcfnameroot(self):
         """Get root of filename of source data. Also filter it to make recording
@@ -855,6 +863,16 @@ class MultiStream(object):
             stream.chans = chans
 
     chans = property(get_chans, set_chans)
+
+    def get_ext(self):
+        """Get file extension of data source"""
+        try:
+            fnames = self.fnames
+        except AttributeError:
+            fnames = self.srffnames # for .srf-based MultiStream in older sorts
+        return os.path.splitext(fnames[0])[-1] # take extension of first fname
+
+    ext = property(get_ext)
 
     def get_nchans(self):
         return len(self.chans)
