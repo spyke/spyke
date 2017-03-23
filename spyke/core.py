@@ -1721,21 +1721,22 @@ def WMLDR(data, wname="db4", maxlevel=6, mode='sym'):
     import pywt
 
     data = np.atleast_2d(data)
-    nt = data.shape[1]
+    nt = data.shape[0]
     # reconstructed signals always seem to have an even number of points. If the number of
     # input data points is odd, trim last data point from reconstructed signal:
     isodd = nt % 2
     # filter data in place, iterate over channels in rows:
-    nchans = len(data)
+    nchans = data.shape[1]
     for chani in range(nchans):
+        print("filtering "+str(chani))
         # decompose the signal:
-        cs = pywt.wavedec(data[chani], wname, mode=mode, level=maxlevel)
+        cs = pywt.wavedec(data[:,chani], wname, mode=mode, level=maxlevel)
         # destroy the appropriate approximation coefficients to get highpass data:
         cs[0] = None
         # reconstruct the signal:
         recsignal = pywt.waverec(cs, wname, mode=mode)
         ntrec = len(recsignal)
-        data[chani] = recsignal[:ntrec-isodd]
+        data[:,chani] = recsignal[:ntrec-isodd]
     
     return data
 
