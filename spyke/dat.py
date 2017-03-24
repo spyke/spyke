@@ -88,6 +88,7 @@ class FileHeader(object):
             j = json.load(mf) # should return a dict of key:val pairs
         assert type(j) == dict
 
+        # required fields:
         self.nchanstotal = j['n_chans'] # ephys + aux chans
         self.sampfreq = j['sample_rate'] # Hz
         self.tres = 1 / self.sampfreq * 1e6 # float us
@@ -97,11 +98,14 @@ class FileHeader(object):
         self.AD2uVx = j['uV_per_AD']
         self.probename = j['chan_layout_name']
         probe = probes.getprobe(self.probename) # make sure probename is recognized
-        chan0 = probe.chan0 # 0-based or 1-based
+        chan0 = probe.chan0 # base of channel indices: either 0-based or 1-based
 
-        # the rest are optional fields:
-        self.chans = j.get('chans') # ephys chan IDs, 0-based, ordered by row in .dat file
-        self.auxchans = j.get('aux_chans') # aux chan IDs, 0-based, order by row in .dat file
+        # optional fields:
+        # ephys channel indices, ordered by row in the .dat file, can be 0- or 1-based,
+        # depending on how they're defined for the above chan_layout_name:
+        self.chans = j.get('chans')
+        # auxiliary channel indices, e.g. optogenetic/LED channels:
+        self.auxchans = j.get('aux_chans')
         if self.chans:
             self.chans = np.asarray(self.chans) # convert list to array
             self.nchans = len(self.chans) # number of ephys chans
@@ -120,16 +124,16 @@ class FileHeader(object):
             self.auxchans = np.array([])
             self.nauxchans = 0
         assert self.nchans + self.nauxchans == self.nchanstotal
-        self.datetimestr = j.get('datetime') # ISO time string of first sample point
         # offset of first timepoint wrt t=0, in number of samples:
         self.t0i = j.get('nsamples_offset', 0)
+        self.datetimestr = j.get('datetime') # ISO 8601 datetime wrt t=0, local time, no TZ
         if self.datetimestr:
             self.datetime = datetime.datetime.strptime(self.datetimestr, "%Y-%m-%dT%H:%M:%S.%f")
         else:
             self.datetime = None
-        self.author = j.get('author')
-        self.version = j.get('version')
-        self.notes = j.get('notes')
+        self.author = j.get('author') # software that generated the .dat file
+        self.version = j.get('version') # version of software that generated the .dat file
+        self.notes = j.get('notes') # notes
 
     comment = property(lambda self: '') # for parent NSXStream
 
