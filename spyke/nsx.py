@@ -1,4 +1,5 @@
-"""Load Blackrock Neural Signal Processing System .nsx files.
+"""Load Blackrock Neural Signal Processing System .nsx files. Inherits from dat.File, because
+.nsx also stores its waveform data in flat .dat format
 
 Based on file documentation at:
 
@@ -12,15 +13,15 @@ __authors__ = ['Martin Spacek']
 
 import numpy as np
 import os
-import cPickle
-from struct import Struct, unpack
+from struct import unpack
 import datetime
 
 from core import NULL, rstripnonascii, intround
+import dat # for inheritance
 from stream import NSXStream
 
 
-class File(object):
+class File(dat.File):
     """Open an .nsx file and expose its header fields and data as attribs"""
     def __init__(self, fname, path):
         self.fname = fname
@@ -36,10 +37,6 @@ class File(object):
         self.hpstream = NSXStream(self, kind='highpass')
         self.lpstream = NSXStream(self, kind='lowpass')
 
-    def join(self, fname):
-        """Return fname joined to self.path"""
-        return os.path.abspath(os.path.expanduser(os.path.join(self.path, fname)))
-
     def open(self):
         """(Re)open previously closed file"""
         # the 'b' for binary is only necessary for MS Windows:
@@ -51,27 +48,6 @@ class File(object):
         except AttributeError: # hasn't been parsed before, self.datapacketoffset is missing
             self.parse()
         self.load()
-
-    def close(self):
-        """Close the file, don't do anything if already closed"""
-        if self.is_open():
-            # the only way to close a np.memmap is to close its underlying mmap and make sure
-            # there aren't any remaining handles to it
-            self.datapacket._data._mmap.close()
-            del self.datapacket._data
-            self.f.close()
-
-    def is_open(self):
-        try:
-            return not self.f.closed
-        except AttributeError: # self.f unbound
-            return False
-
-    def get_datetime(self):
-        """Return datetime stamp corresponding to t=0us timestamp"""
-        return self.fileheader.datetime
-
-    datetime = property(get_datetime)
 
     def parse(self):
         self._parseFileHeader()
@@ -92,23 +68,6 @@ class File(object):
             raise NotImplementedError("Can't handle pauses in recording yet")
         self.datapacket = datapacket
         self.contiguous = True
-
-    def get_data(self):
-        try:
-            return self.datapacket._data[:self.fileheader.nchans] # return only ephys data
-        except AttributeError:
-            raise RuntimeError('waveform data not available, file is closed/mmap deleted?')
-
-    data = property(get_data)
-
-    def __getstate__(self):
-        """Don't pickle open file handle or datapacket with open mmap"""
-        d = self.__dict__.copy() # copy it cuz we'll be making changes
-        try: del d['f'] # exclude open file handle, if any
-        except KeyError: pass
-        try: del d['datapacket'] # avoid pickling datapacket._data mmap
-        except KeyError: pass
-        return d
 
     def export_dat(self, dt=None):
         """Export contiguous data packet to .dat file, in the original (ti, chani) order

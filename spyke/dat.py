@@ -1,5 +1,5 @@
-"""Load flat .dat files with accompanying metadata. Inherits from nsx.File, which
-also stores its waveform data in flat .dat format"""
+"""Load flat .dat files with accompanying metadata. See notes/dat_metadata*.json for
+example metadata files"""
 
 from __future__ import division
 from __future__ import print_function
@@ -11,12 +11,11 @@ import os
 import datetime
 import json
 
-from stream import DatStream
-import nsx # for inheritance
 import probes
+from stream import DatStream
 
 
-class File(nsx.File):
+class File(object):
     """Open a .dat file"""
     def __init__(self, fname, path):
         self.fname = fname
@@ -32,6 +31,10 @@ class File(nsx.File):
         self.hpstream = DatStream(self, kind='highpass')
         self.lpstream = DatStream(self, kind='lowpass')
 
+    def join(self, fname):
+        """Return fname joined to self.path"""
+        return os.path.abspath(os.path.expanduser(os.path.join(self.path, fname)))
+
     def open(self):
         """(Re)open previously closed file"""
         # the 'b' for binary is only necessary for MS Windows:
@@ -43,6 +46,27 @@ class File(nsx.File):
         except AttributeError: # hasn't been parsed before, self.datapacketoffset is missing
             self.parse()
         self.load()
+
+    def close(self):
+        """Close the file, don't do anything if already closed"""
+        if self.is_open():
+            # the only way to close a np.memmap is to close its underlying mmap and make sure
+            # there aren't any remaining handles to it
+            self.datapacket._data._mmap.close()
+            del self.datapacket._data
+            self.f.close()
+
+    def is_open(self):
+        try:
+            return not self.f.closed
+        except AttributeError: # self.f unbound
+            return False
+
+    def get_datetime(self):
+        """Return datetime stamp corresponding to t=0us timestamp"""
+        return self.fileheader.datetime
+
+    datetime = property(get_datetime)
 
     def parse(self):
         self._parseFileHeader()
@@ -69,6 +93,23 @@ class File(nsx.File):
         assert self.f.tell() == self.filesize # make sure we're at EOF
         self.datapacket = datapacket
         self.contiguous = True
+
+    def get_data(self):
+        try:
+            return self.datapacket._data[:self.fileheader.nchans] # return only ephys data
+        except AttributeError:
+            raise RuntimeError('waveform data not available, file is closed/mmap deleted?')
+
+    data = property(get_data)
+
+    def __getstate__(self):
+        """Don't pickle open file handle or datapacket with open mmap"""
+        d = self.__dict__.copy() # copy it cuz we'll be making changes
+        try: del d['f'] # exclude open file handle, if any
+        except KeyError: pass
+        try: del d['datapacket'] # avoid pickling datapacket._data mmap
+        except KeyError: pass
+        return d
 
     def export_dat(self, dt=None):
         """Redundant feature"""
