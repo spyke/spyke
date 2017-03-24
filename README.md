@@ -1,14 +1,14 @@
 [spyke](http://spyke.github.io) is a Python application for visualizing, navigating, and spike
 sorting high-density multichannel extracellular neuronal waveform data.
 
-spyke currently works with [Swindale Lab](http://swindale.ecc.ubc.ca) `.srf` and `.tsf` files,
-Rodrigo Quian Quiroga's [simulated
-data](http://www.vis.caltech.edu/~rodri/Wave_clus/Simulator.zip) MATLAB files, and Blackrock
-`.nsx` files. spyke can be extended to work with other electrophysiology file formats. Some
-[sample data](http://swindale.ecc.ubc.ca/spyke) is available. [Spike sorting for polytrodes: a
-divide and conquer approach](http://dx.doi.org/10.3389/fnsys.2014.00006) is a paper describing
-the overall approach. spyke is described in greater detail in Chapter 3 and Appendix C.2 of
-this [thesis](http://mspacek.github.io/mspacek_thesis.pdf).
+spyke currently works with `.dat` files, Blackrock `.nsx` files, [Swindale
+Lab](http://swindale.ecc.ubc.ca) `.srf` and `.tsf` files, and Rodrigo Quian Quiroga's
+[simulated data](http://www.vis.caltech.edu/~rodri/Wave_clus/Simulator.zip) .mat files.
+spyke can be extended to work with other electrophysiology file formats. Some [sample
+data](http://swindale.ecc.ubc.ca/spyke) is available. [Spike sorting for polytrodes: a divide
+and conquer approach](http://dx.doi.org/10.3389/fnsys.2014.00006) is a paper describing the
+overall approach. spyke is described in greater detail in Chapter 3 and Appendix C.2 of this
+[thesis](http://mspacek.github.io/mspacek_thesis.pdf).
 
 Some functionality was inherited from Tim Blanche's Delphi program "SurfBawd". Some icons were
 copied from Ubuntu's [Humanity](http://launchpad.net/humanity) icon theme.
@@ -30,7 +30,7 @@ spyke requires recent versions of the following to be installed:
 * [scikit-learn](http://scikit-learn.org)
 * [PyWavelets](http://www.pybytes.com/pywavelets/)
 
-spyke is developed in Xubuntu 14.04. It should work in other Linux distributions. In
+spyke is developed in Xubuntu 16.04. It should work in other Linux distributions. In
 principle, it should also work in Windows and OSX.
 
 A much older version is described in the paper [Python for large-scale electrophysiology]
@@ -40,7 +40,7 @@ To run:
 ```
 $ python main.py # in the spyke folder
 ```
-To install for use as a library:
+To install for use as a library (TODO: doesn't currently work):
 ```
 $ python setup.py install
 ```
