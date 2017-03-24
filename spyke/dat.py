@@ -59,13 +59,13 @@ class File(nsx.File):
         nchanstotal instead of nchans"""
         assert self.filesize % 2 == 0 # 2 bytes per sample, make sure it divides evenly
         nsamples = int(self.filesize / 2) # total number of samples in file
-        nchanstotal = self.fileheader.nchanstotal
+        nchanstotal, t0i = self.fileheader.nchanstotal, self.fileheader.t0i
         if nsamples % nchanstotal != 0:
             raise ValueError('%d samples in self.fname is not an integer multiple of %d total '
                              'channels specified in .json file' % (nsamples, nchanstotal))
         nt = int(nsamples / nchanstotal) # total number of timepoints in file
 
-        datapacket = DataPacket(self.f, self.fileheader.nchanstotal, nt)
+        datapacket = DataPacket(self.f, nchanstotal, nt, t0i)
         assert self.f.tell() == self.filesize # make sure we're at EOF
         self.datapacket = datapacket
         self.contiguous = True
@@ -121,6 +121,8 @@ class FileHeader(object):
             self.nauxchans = 0
         assert self.nchans + self.nauxchans == self.nchanstotal
         self.datetimestr = j.get('datetime') # ISO time string of first sample point
+        # offset of first timepoint wrt t=0, in number of samples:
+        self.t0i = j.get('nsamples_offset', 0)
         if self.datetimestr:
             self.datetime = datetime.datetime.strptime(self.datetimestr, "%Y-%m-%dT%H:%M:%S.%f")
         else:
@@ -135,13 +137,9 @@ class FileHeader(object):
 class DataPacket(object):
     """.dat data packet"""
     
-    def __init__(self, f, nchans, nt):
+    def __init__(self, f, nchans, nt, t0i):
         self.offset = f.tell()
-        self.nchans, self.nt = nchans, nt
-        # nsamples offset of first timepoint from t=0; number of timepoints:
-        ## TODO: this should probably come from the .json file!!! Not sure if this is
-        ## actually 0 for open-ephys:
-        self.t0i = 0
+        self.nchans, self.nt, self.t0i = nchans, nt, t0i
         self.dataoffset = f.tell()
 
         # load all data into memory using np.fromfile. Time is MSB, chan is LSB:

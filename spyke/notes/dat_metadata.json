@@ -21,6 +21,7 @@
 // auxiliary channel IDs, e.g. optogenetic/LED channels:
 "aux_chans": [33, 34, 35],
 "datetime": "2017-03-23T16:00:39.262593", // ISO 8601 datetime string, local time, no timezone
+"nsamples_offset": 0, // offset of first timepoint from t=0, in number of samples
 "author": "Open-Ephys, Busse Lab", // software that generated the .dat file
 "version": "v0.4.0-419-g16fc344-dirty", // version of the software when .dat file was generated
 "notes": "" // any extra text can go here
