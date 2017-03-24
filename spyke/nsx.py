@@ -41,7 +41,7 @@ class File(object):
         return os.path.abspath(os.path.expanduser(os.path.join(self.path, fname)))
 
     def open(self):
-        """(Re)open previously closed .nsx file"""
+        """(Re)open previously closed file"""
         # the 'b' for binary is only necessary for MS Windows:
         self.f = open(self.join(self.fname), 'rb')
         # parse file and load datapacket here instead of in __init__, because during
@@ -53,7 +53,7 @@ class File(object):
         self.load()
 
     def close(self):
-        """Close the .nsx file, don't do anything if already closed"""
+        """Close the file, don't do anything if already closed"""
         if self.is_open():
             # the only way to close a np.memmap is to close its underlying mmap and make sure
             # there aren't any remaining handles to it
@@ -77,7 +77,7 @@ class File(object):
         self._parseFileHeader()
 
     def _parseFileHeader(self):
-        """Parse the .nsx file header"""
+        """Parse the file header"""
         self.fileheader = FileHeader()
         self.fileheader.parse(self.f)
         #print('Parsed fileheader')
@@ -102,9 +102,9 @@ class File(object):
     data = property(get_data)
 
     def __getstate__(self):
-        """Don't pickle open .nsx file handle or datapacket with open mmap"""
+        """Don't pickle open file handle or datapacket with open mmap"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes
-        try: del d['f'] # exclude open .nsx file handle, if any
+        try: del d['f'] # exclude open file handle, if any
         except KeyError: pass
         try: del d['datapacket'] # avoid pickling datapacket._data mmap
         except KeyError: pass

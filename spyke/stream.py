@@ -257,10 +257,7 @@ class NSXStream(Stream):
         probename = f.fileheader.comment # maybe the comment specifies the probe type?
         if probename == '':
             probename = probes.DEFNSXPROBETYPE # A1x32
-        ## TODO: could also use findprobe(chanpos) to get probetype, but unfortunately
-        ## chanpos isn't available in .nsx files
-        probetype = eval('probes.' + probename) # yucky. TODO: switch to a dict with keywords?
-        self.probe = probetype()
+        self.probe = probes.getprobe(probename)
 
         self.rawsampfreq = f.fileheader.sampfreq # Hz
         self.rawtres = 1 / self.rawsampfreq * 1e6 # float us
@@ -377,6 +374,10 @@ class NSXStream(Stream):
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
         return WaveForm(data=data, ts=ts, chans=chans)
+
+
+class DatStream(NSXStream):
+    pass
 
 
 class SurfStream(Stream):

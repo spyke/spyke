@@ -58,6 +58,14 @@ class Probe(object):
         """Check probe attributes"""
         assert len(self.SiteLoc) == self.nchans <= MAXNCHANS
 
+    def get_chan0(self):
+        """Are channel IDs 0-based or 1-based for this probe?"""
+        chan0 = min(self.SiteLoc.keys())
+        assert chan0 in [0, 1]
+        return chan0
+
+    chan0 = property(get_chan0)
+
 
 class uMap54_1a(Probe):
     """uMap54_1a, 65 um spacing, 3 column hexagonal"""
@@ -559,6 +567,12 @@ class A1x32(Probe):
 TYPES = [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b,
          pt16a_HS27, pt16b_HS27, single, IMEC30, A1x32]
 
+def getprobe(name):
+    for probetype in TYPES:
+        probe = probetype()
+        if probe.name == name:
+            return probe
+    raise ValueError("unknown probe name %r" % name)
 
 def findprobe(siteloc):
     """Return instantiation of first probe type whose layout matches siteloc"""

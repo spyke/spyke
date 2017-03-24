@@ -54,7 +54,7 @@ from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWind
 from core import DJS, g, dist
 import stream
 from stream import SimpleStream, MultiStream
-import surf, nsx
+import dat, nsx, surf
 from sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES, NPCSPERCHAN
 from plot import SpikePanel, ChartPanel, LFPPanel
 from detect import Detector, calc_SPIKEDTYPE, DEBUG
@@ -62,23 +62,30 @@ from extract import Extractor
 import probes
 
 # spike window temporal window (us)
-SPIKETW = {'.srf': (-400, 600), '.ns6': (-500, 1500), '.tsf': (-1000, 2000)}
+SPIKETW = {'.dat': (-500, 1500),
+           '.ns6': (-500, 1500),
+           '.srf': (-400, 600),
+           '.tsf': (-1000, 2000)}
 # chart window temporal window (us)
-CHARTTW = {'.srf': (-25000, 25000), '.ns6': (-25000, 25000), '.tsf': (-50000, 50000)}
+CHARTTW = {'.dat': (-25000, 25000),
+           '.ns6': (-25000, 25000),
+           '.srf': (-25000, 25000),
+           '.tsf': (-50000, 50000)}
 # LFP window temporal window (us)
 LFPTW = -500000, 500000
 
 # spatial channel layout:
 # UVPERUM affects vertical channel spacing and voltage gain (which is further multiplied by
 # each plot window's gain):
-UVPERUM = {'.srf': 2, '.ns6': 5, '.tsf': 20}
+UVPERUM = {'.dat': 5, '.ns6': 5, '.srf': 2, '.tsf': 20}
 # USPERUM affects horizontal channel spacing. Decreasing USPERUM increases horizontal overlap
 # between spike chans. For .srf data, 17 gives roughly no horizontal overlap for
 # self.tw[1] - self.tw[0] == 1000 us:
-USPERUM = {'.srf': 17, '.ns6': 17, '.tsf': 125} # untested for .ns6, need multicolumn data
+# untested for .dat and .ns6, need multicolumn data:
+USPERUM = {'.dat': 17, '.ns6': 17, '.srf': 17, '.tsf': 125}
 
-DYNAMICNOISEX = {'.srf': 6, '.ns6': 4.5, '.tsf': 3} # noise multiplier
-DT = {'.srf': 400, '.ns6': 600, '.tsf': 1500} # maximum time between spike peaks (us)
+DYNAMICNOISEX = {'.dat': 4.5, '.ns6': 4.5, '.srf': 6, '.tsf': 3} # noise multiplier
+DT = {'.dat': 600, '.ns6': 600, '.srf': 400, '.tsf': 1500} # max time between spike peaks (us)
 
 SLIDERTRES = 100 # slider temporal resoluion (us), slider is limited to 2**32 ticks
 
@@ -187,8 +194,8 @@ class SpykeWindow(QtGui.QMainWindow):
         getOpenFileName = QtGui.QFileDialog.getOpenFileName
         fname = getOpenFileName(self, caption="Open stream or sort",
                                 directory=self.streampath,
-                                filter="Surf, nsx, track, tsf, mat, event & sort files "
-                                       "(*.srf *.ns6 *.track *.tsf *.mat *.event*.zip "
+                                filter="dat, ns6, srf, track, tsf, mat, event & sort files "
+                                       "(*.dat *.ns6 *.srf *.track *.tsf *.mat *.event*.zip "
                                        "*.sort );;"
                                        "All files (*.*)")
         fname = str(fname)
@@ -436,10 +443,9 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def exportDat(self):
         """Export raw ephys data to .dat file, in (ti, chani) order"""
-        ext = self.hpstream.get_ext()
-        if ext == '.ns6':
+        try:
             self.hpstream.f.export_dat()
-        else:
+        except AttributeError:
             raise NotImplementedError("Can't (yet) export raw ephys data from %s to .dat")
 
     @QtCore.pyqtSlot()
@@ -2160,7 +2166,7 @@ class SpykeWindow(QtGui.QMainWindow):
         head, tail = os.path.split(fname)
         assert head # make sure fname has a path to it
         base, ext = os.path.splitext(tail)
-        if ext in ['.srf', '.ns6', '.track', '.tsf', '.mat']:
+        if ext in ['.dat', '.ns6', '.srf', '.track', '.tsf', '.mat']:
             self.streampath = head
             self.OpenStreamFile(tail)
         elif ext == '.zip':
@@ -2175,20 +2181,23 @@ class SpykeWindow(QtGui.QMainWindow):
             self.OpenSortFile(tail)
         else:
             critical = QtGui.QMessageBox.critical
-            critical(self, "Error", "%s is not a .srf, .ns6, .track, .tsf, .mat, .event*.zip "
-                     "or .sort file" % fname)
+            critical(self, "Error", "%s is not a .dat, .ns6, .srf, .track, .tsf, .mat, "
+                                    ".event*.zip or .sort file" % fname)
 
     def OpenStreamFile(self, fname):
-        """Open a stream (.srf, .nsx, .track, or .tsf file) and update display accordingly.
-        fname is assumed to be relative to self.streampath"""
+        """Open a stream (.dat, .ns6, .srf, .track, or .tsf file) and update display
+        accordingly. fname is assumed to be relative to self.streampath"""
         if self.hpstream != None:
             self.CloseStream() # in case a stream is already open
         ext = os.path.splitext(fname)[1]
-        if ext == '.srf':
-            f = surf.File(fname, self.streampath)
-            f.parse() # TODO: parsing progress dialog
+        if ext == '.dat':
+            f = dat.File(fname, self.streampath) # parses immediately
             self.hpstream = f.hpstream # highpass record (spike) stream
             self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
+            try:
+                self.sort # sort exists?
+            except AttributeError: # no sort exists, enable Filtering menu
+                self.EnableFilteringMenu(True)
         elif ext == '.ns6':
             f = nsx.File(fname, self.streampath) # parses immediately
             self.hpstream = f.hpstream # highpass record (spike) stream
@@ -2196,7 +2205,12 @@ class SpykeWindow(QtGui.QMainWindow):
             try:
                 self.sort # sort exists?
             except AttributeError: # no sort exists, enable Filtering menu
-                self.EnableFilteringMenu(True) # for now only .ns6 requires filtering
+                self.EnableFilteringMenu(True)
+        elif ext == '.srf':
+            f = surf.File(fname, self.streampath)
+            f.parse() # TODO: parsing progress dialog
+            self.hpstream = f.hpstream # highpass record (spike) stream
+            self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
         elif ext == '.track':
             fs = []
             with open(join(self.streampath, fname), 'r') as trackfile:
@@ -2205,11 +2219,11 @@ class SpykeWindow(QtGui.QMainWindow):
                         continue # skip it
                     fn = line.rstrip('\n')
                     fext = os.path.splitext(fn)[1]
-                    if fext == '.srf':
+                    if fext == '.ns6':
+                        f = nsx.File(fn, self.streampath)
+                    elif fext == '.srf':
                         f = surf.File(fn, self.streampath)
                         f.parse()
-                    elif fext == '.ns6':
-                        f = nsx.File(fn, self.streampath)
                     fs.append(f) # build up list of open and parsed data file objects
             self.hpstream = MultiStream(fs, fname, kind='highpass')
             self.lpstream = MultiStream(fs, fname, kind='lowpass')
