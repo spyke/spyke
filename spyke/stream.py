@@ -242,7 +242,7 @@ class Stream(object):
         return kernels
 
 
-class NSXStream(Stream):
+class DatStream(Stream):
     def __init__(self, f, kind='highpass', filtmeth=None, sampfreq=None, shcorrect=None):
         self.f = f
         self.kind = kind
@@ -252,29 +252,21 @@ class NSXStream(Stream):
             pass
         else: raise ValueError('Unknown stream kind %r' % kind)
 
-        self.filtmeth = filtmeth or DEFNSXFILTMETH
+        self.filtmeth = filtmeth or DEFDATFILTMETH
 
-        self.converter = core.NSXConverter(f.fileheader.AD2uVx)
+        self.converter = core.DatConverter(f.fileheader.AD2uVx)
 
-        probename = f.fileheader.comment # maybe the comment specifies the probe type?
-        if probename == '':
-            probename = probes.DEFNSXPROBETYPE # A1x32
-        self.probe = probes.getprobe(probename)
+        self.probe = f.fileheader.probe
 
         self.rawsampfreq = f.fileheader.sampfreq # Hz
         self.rawtres = 1 / self.rawsampfreq * 1e6 # float us
 
         if kind == 'highpass':
             self.sampfreq = sampfreq or DEFHPRESAMPLEX * self.rawsampfreq
-            self.shcorrect = shcorrect or DEFHPNSXSHCORRECT
+            self.shcorrect = shcorrect or DEFHPDATSHCORRECT
         else: # kind == 'lowpass'
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
             self.shcorrect = shcorrect or False # don't s+h correct by default
-
-        # no need for shcorrect for .nsx because the Blackrock Cerebrus NSP system has a
-        # 1 GHz multiplexer for every bank of 32 channels, according to Kian Torab
-        # <support@blackrock.com>
-        assert self.shcorrect == False
 
         self.chans = f.fileheader.chans
 
@@ -378,7 +370,7 @@ class NSXStream(Stream):
         return WaveForm(data=data, ts=ts, chans=chans)
 
 
-class DatStream(NSXStream):
+class NSXStream(DatStream):
     def __init__(self, f, kind='highpass', filtmeth=None, sampfreq=None, shcorrect=None):
         self.f = f
         self.kind = kind
@@ -388,21 +380,29 @@ class DatStream(NSXStream):
             pass
         else: raise ValueError('Unknown stream kind %r' % kind)
 
-        self.filtmeth = filtmeth or DEFDATFILTMETH
+        self.filtmeth = filtmeth or DEFNSXFILTMETH
 
-        self.converter = core.DatConverter(f.fileheader.AD2uVx)
+        self.converter = core.NSXConverter(f.fileheader.AD2uVx)
 
-        self.probe = f.fileheader.probe
+        probename = f.fileheader.comment # maybe the comment specifies the probe type?
+        if probename == '':
+            probename = probes.DEFNSXPROBETYPE # A1x32
+        self.probe = probes.getprobe(probename)
 
         self.rawsampfreq = f.fileheader.sampfreq # Hz
         self.rawtres = 1 / self.rawsampfreq * 1e6 # float us
 
         if kind == 'highpass':
             self.sampfreq = sampfreq or DEFHPRESAMPLEX * self.rawsampfreq
-            self.shcorrect = shcorrect or DEFHPDATSHCORRECT
+            self.shcorrect = shcorrect or DEFHPNSXSHCORRECT
         else: # kind == 'lowpass'
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
             self.shcorrect = shcorrect or False # don't s+h correct by default
+
+        # no need for shcorrect for .nsx because the Blackrock Cerebrus NSP system has a
+        # 1 GHz multiplexer for every bank of 32 channels, according to Kian Torab
+        # <support@blackrock.com>
+        assert self.shcorrect == False
 
         self.chans = f.fileheader.chans
 
@@ -410,6 +410,7 @@ class DatStream(NSXStream):
 
         self.t0, self.t1 = f.t0, f.t1
         self.tranges = np.asarray([[self.t0, self.t1]])
+
 
 
 class SurfStream(Stream):
