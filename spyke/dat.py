@@ -95,8 +95,6 @@ class FileHeader(object):
         if self.dtype != 'int16':
             raise ValueError('only int16 sample data type is supported, got %r' % dtype)
         self.AD2uVx = j['uV_per_AD']
-        self.units = j['units']
-        assert self.units == 'uV'
         self.probename = j['chan_layout_name']
         probe = probes.getprobe(self.probename) # make sure probename is recognized
         chan0 = probe.chan0 # 0-based or 1-based
