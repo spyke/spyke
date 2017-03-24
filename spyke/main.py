@@ -856,9 +856,8 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionAboutSpyke_triggered(self):
-        lf = open('../LICENSE', 'r')
-        LICENSE = lf.read()
-        lf.close()
+        with open('../LICENSE', 'r') as lf:
+            LICENSE = lf.read()
         system = """<p>Python %s, Qt %s, PyQt %s<br>
                     %s</p>""" % (platform.python_version(),
                                  QtCore.QT_VERSION_STR, QtCore.PYQT_VERSION_STR,
@@ -867,7 +866,7 @@ class SpykeWindow(QtGui.QMainWindow):
         <h2><a href=http://spyke.github.io>spyke</a> %s</h2>
         <p>A tool for neuronal waveform visualization and spike sorting</p>
 
-        <p>Copyright &copy; 2008-2016 <a href=http://mspacek.github.io>Martin Spacek</a>,
+        <p>Copyright &copy; 2008-2017 <a href=http://mspacek.github.io>Martin Spacek</a>,
                                                                        Reza Lotun<br>
            <a href=http://swindale.ecc.ubc.ca>Swindale</a> Lab,
            University of British Columbia, Vancouver, Canada<br>

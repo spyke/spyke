@@ -651,8 +651,8 @@ class PlotPanel(FigureCanvas):
 
     def get_xy_um(self):
         """Pull xy tuples in um out of self.pos, store in (2 x nchans) array,
-        in self.chans order. In chart and lfp frames, this is different from siteloc,
-        since these frames have only a single column"""
+        in self.chans order. In chart and lfp panels, this is different from siteloc,
+        since these panels have only a single column"""
         xy_um = np.asarray([ (self.us2um(self.pos[chan][0]), self.uv2um(self.pos[chan][1]))
                                   for chan in self.chans ]).T # x is row0, y is row1
         return xy_um
