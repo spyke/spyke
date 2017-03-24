@@ -12,7 +12,7 @@ import datetime
 import json
 
 import probes
-from stream import DatStream
+from stream import DATStream
 
 
 class File(object):
@@ -28,8 +28,8 @@ class File(object):
         self.t1i = self.t0i + self.nt - 1
         self.t0 = self.t0i * self.fileheader.tres # us
         self.t1 = self.t1i * self.fileheader.tres # us
-        self.hpstream = DatStream(self, kind='highpass')
-        self.lpstream = DatStream(self, kind='lowpass')
+        self.hpstream = DATStream(self, kind='highpass')
+        self.lpstream = DATStream(self, kind='lowpass')
 
     def join(self, fname):
         """Return fname joined to self.path"""

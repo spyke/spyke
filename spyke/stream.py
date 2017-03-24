@@ -242,7 +242,7 @@ class Stream(object):
         return kernels
 
 
-class DatStream(Stream):
+class DATStream(Stream):
     def __init__(self, f, kind='highpass', filtmeth=None, sampfreq=None, shcorrect=None):
         self.f = f
         self.kind = kind
@@ -370,7 +370,7 @@ class DatStream(Stream):
         return WaveForm(data=data, ts=ts, chans=chans)
 
 
-class NSXStream(DatStream):
+class NSXStream(DATStream):
     def __init__(self, f, kind='highpass', filtmeth=None, sampfreq=None, shcorrect=None):
         self.f = f
         self.kind = kind
@@ -856,7 +856,7 @@ class MultiStream(object):
 
         # set sampfreq, shcorrect and filtmeth for all streams:
         streamtype = type(streams[0])
-        if streamtype == DatStream:
+        if streamtype == DATStream:
             if kind == 'highpass':
                 self.sampfreq = sampfreq or self.rawsampfreq * DEFHPRESAMPLEX
                 self.shcorrect = shcorrect or DEFHPDATSHCORRECT

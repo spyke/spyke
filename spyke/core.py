@@ -63,7 +63,7 @@ KERNELSIZE = 12
 # perhaps because sampfreq always needs to be an integer multiple of rawsampfreq:
 assert KERNELSIZE % 2 == 0
 # number of excess raw datapoints to include on either side of each wideband Stream
-# (such as a DatStream or NSXStream) during a slice call. Due to the lack of analog filtering,
+# (such as a DATStream or NSXStream) during a slice call. Due to the lack of analog filtering,
 # a greater excess is needed than e.g. SurfStream because it's already analog filtered
 SRFNCHANSPERBOARD = 32 # TODO: would be better to not hard-code this
 XSWIDEBANDPOINTS = 200
