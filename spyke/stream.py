@@ -14,8 +14,10 @@ import numpy as np
 import core
 from core import (WaveForm, EmptyClass, intround, intfloor, intceil, lrstrip, MU,
                   hamming, filterord, WMLDR, td2fusec)
-from core import (DEFHPRESAMPLEX, DEFHPSRFSHCORRECT, DEFHPNSXSHCORRECT, DEFNSXFILTMETH,
-                  BWF0, BWORDER, NCHANSPERBOARD, KERNELSIZE, NSXXSPOINTS)
+from core import (DEFHPRESAMPLEX, DEFHPSRFSHCORRECT,
+                  DEFHPDATSHCORRECT, DEFDATFILTMETH,
+                  DEFHPNSXSHCORRECT, DEFNSXFILTMETH,
+                  BWF0, BWORDER, SRFNCHANSPERBOARD, KERNELSIZE, XSWIDEBANDPOINTS)
 import probes
 
 
@@ -215,7 +217,7 @@ class Stream(object):
         else:
             assert self.shcorrect == True
             # ordinal position of each ADchan in the hold queue of its ADC board:
-            i = ADchans % NCHANSPERBOARD
+            i = ADchans % SRFNCHANSPERBOARD
             ## TODO: stop hard-coding 1 masterclockfreq tick delay per ordinal position
             # per channel delays, us, usually 1 us/chan:
             dis = 1000000 / self.masterclockfreq * i
@@ -297,8 +299,8 @@ class NSXStream(Stream):
         resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
         # excess data in us at either end, to eliminate filtering and interpolation
         # edge effects:
-        #print('NSXXSPOINTS: %d' % NSXXSPOINTS)
-        xs = NSXXSPOINTS * rawtres
+        #print('XSWIDEBANDPOINTS: %d' % XSWIDEBANDPOINTS)
+        xs = XSWIDEBANDPOINTS * rawtres
         #print('xs: %d, rawtres: %g' % (xs, rawtres))
 
         # stream limits, in us and in sample indices, wrt t=0 and sample=0:
@@ -369,7 +371,7 @@ class NSXStream(Stream):
         lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
-        #print('NSX:', start, stop, self.tres, data.shape)
+        #print('slice:', start, stop, self.tres, data.shape)
 
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
@@ -377,7 +379,37 @@ class NSXStream(Stream):
 
 
 class DatStream(NSXStream):
-    pass
+    def __init__(self, f, kind='highpass', filtmeth=None, sampfreq=None, shcorrect=None):
+        self.f = f
+        self.kind = kind
+        if kind == 'highpass':
+            pass
+        elif kind == 'lowpass':
+            pass
+        else: raise ValueError('Unknown stream kind %r' % kind)
+
+        self.filtmeth = filtmeth or DEFDATFILTMETH
+
+        self.converter = core.DatConverter(f.fileheader.AD2uVx)
+
+        self.probe = f.fileheader.probe
+
+        self.rawsampfreq = f.fileheader.sampfreq # Hz
+        self.rawtres = 1 / self.rawsampfreq * 1e6 # float us
+
+        if kind == 'highpass':
+            self.sampfreq = sampfreq or DEFHPRESAMPLEX * self.rawsampfreq
+            self.shcorrect = shcorrect or DEFHPDATSHCORRECT
+        else: # kind == 'lowpass'
+            self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
+            self.shcorrect = shcorrect or False # don't s+h correct by default
+
+        self.chans = f.fileheader.chans
+
+        self.contiguous = f.contiguous
+
+        self.t0, self.t1 = f.t0, f.t1
+        self.tranges = np.asarray([[self.t0, self.t1]])
 
 
 class SurfStream(Stream):
@@ -821,16 +853,15 @@ class MultiStream(object):
             raise RuntimeError("some files have different probe types")
         self.probe = probe # they're identical
 
-        # set sampfreq, shcorrect and filtmeth for all streams
+        # set sampfreq, shcorrect and filtmeth for all streams:
         streamtype = type(streams[0])
-        if streamtype == SurfStream:
+        if streamtype == DatStream:
             if kind == 'highpass':
                 self.sampfreq = sampfreq or self.rawsampfreq * DEFHPRESAMPLEX
-                self.shcorrect = shcorrect or DEFHPSRFSHCORRECT
+                self.shcorrect = shcorrect or DEFHPDATSHCORRECT
+                self.filtmeth = filtmeth or DEFDATFILTMETH
             else: # kind == 'lowpass'
-                self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
-                self.shcorrect = shcorrect or False # don't s+h correct by default
-            self.filtmeth = None
+                return None
         elif streamtype == NSXStream:
             if kind == 'highpass':
                 self.sampfreq = sampfreq or self.rawsampfreq * DEFHPRESAMPLEX
@@ -838,6 +869,15 @@ class MultiStream(object):
                 self.filtmeth = filtmeth or DEFNSXFILTMETH
             else: # kind == 'lowpass'
                 return None
+        elif streamtype == SurfStream:
+            if kind == 'highpass':
+                self.sampfreq = sampfreq or self.rawsampfreq * DEFHPRESAMPLEX
+                self.shcorrect = shcorrect or DEFHPSRFSHCORRECT
+            else: # kind == 'lowpass'
+                self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
+                self.shcorrect = shcorrect or False # don't s+h correct by default
+            self.filtmeth = None
+
 
     def is_open(self):
         return np.all([stream.is_open() for stream in self.streams])

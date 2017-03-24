@@ -71,8 +71,8 @@ class File(nsx.File):
         self.contiguous = True
 
     def export_dat(self, dt=None):
-        """Irrelevant feature"""
-        pass
+        """Redundant feature"""
+        raise RuntimeError("export_dat() is redundant for a .dat file")
 
 
 class FileHeader(object):
@@ -97,8 +97,8 @@ class FileHeader(object):
             raise ValueError('only int16 sample data type is supported, got %r' % dtype)
         self.AD2uVx = j['uV_per_AD']
         self.probename = j['chan_layout_name']
-        probe = probes.getprobe(self.probename) # make sure probename is recognized
-        chan0 = probe.chan0 # base of channel indices: either 0-based or 1-based
+        self.probe = probes.getprobe(self.probename) # make sure probename is recognized
+        chan0 = self.probe.chan0 # base of channel indices: either 0-based or 1-based
 
         # optional fields:
         # ephys channel indices, ordered by row in the .dat file, can be 0- or 1-based,
@@ -135,8 +135,6 @@ class FileHeader(object):
         self.author = j.get('author') # software that generated the .dat file
         self.version = j.get('version') # version of software that generated the .dat file
         self.notes = j.get('notes') # notes
-
-    comment = property(lambda self: '') # for parent NSXStream
 
 
 class DataPacket(object):

@@ -42,13 +42,16 @@ NULL = '\x00'
 MU = '\xb5' # greek mu symbol
 MICRO = 'u'
 
+DEFDATFILTMETH = 'BW' # default .dat filter method: None, 'BW', 'WMLDR'
 DEFNSXFILTMETH = 'BW' # default .nsx filter method: None, 'BW', 'WMLDR'
 BWF0 = 300 # low-frequency butterworth filter cutoff, Hz
 BWORDER = 4 # butterworth filter order
 
 DEFHPRESAMPLEX = 2 # default highpass resampling factor for all stream types
-DEFHPSRFSHCORRECT = True
+DEFHPDATSHCORRECT = False ## TODO: this may not hold for open-ephys and Intan chips!
 DEFHPNSXSHCORRECT = False # no need for .nsx files, s+h delay is only 1 ns between chans
+DEFHPSRFSHCORRECT = True
+
 # Apparently KERNELSIZE == number of kernel zero crossings, but that seems to depend on
 # the phase of the kernel, some have one less, depending on the channel (when doing sample
 # and hold correction). Anyway, total number of points in the kernel is KERNELSIZE plus 1
@@ -56,13 +59,14 @@ DEFHPNSXSHCORRECT = False # no need for .nsx files, s+h delay is only 1 ns betwe
 # Should kernel size depend on the sampling rate? No, but perhaps the minimum kernel
 # size depends on the Nyquist rate.
 KERNELSIZE = 12
-assert KERNELSIZE % 2 == 0 # kernel size needs to be even, otherwise there's a slight but
-                           # undesireable time shift, perhaps because sampfreq always
-                           # needs to be an integer multiple of rawsampfreq
-NSXXSPOINTS = 200 # number of xs raw datapoints to include on either side of each NXSStream
-                  # slice call, separate for NSXStream because filtering requires more
-                  # excess
-NCHANSPERBOARD = 32 # TODO: stop hard coding this
+# kernel size needs to be even, otherwise there's a slight but undesireable time shift,
+# perhaps because sampfreq always needs to be an integer multiple of rawsampfreq:
+assert KERNELSIZE % 2 == 0
+# number of excess raw datapoints to include on either side of each wideband Stream
+# (such as a DatStream or NSXStream) during a slice call. Due to the lack of analog filtering,
+# a greater excess is needed than e.g. SurfStream because it's already analog filtered
+SRFNCHANSPERBOARD = 32 # TODO: would be better to not hard-code this
+XSWIDEBANDPOINTS = 200
 
 MAXLONGLONG = 2**63-1
 MAXNBYTESTOFILE = 2**31 # max array size safe to call .tofile() on in Numpy 1.5.0 on Windows
@@ -132,6 +136,10 @@ class SimpleConverter(object):
         
     def uV2AD(self, uV, dtype=np.int16):
         return dtype(np.round(self.uV2ADx * uV))
+
+
+class DatConverter(SimpleConverter):
+    pass
 
 
 class NSXConverter(SimpleConverter):
