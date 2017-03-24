@@ -126,6 +126,7 @@ class FileHeader(object):
         assert self.nchans + self.nauxchans == self.nchanstotal
         # offset of first timepoint wrt t=0, in number of samples:
         self.t0i = j.get('nsamples_offset', 0)
+        assert type(self.t0i) == int
         self.datetimestr = j.get('datetime') # ISO 8601 datetime wrt t=0, local time, no TZ
         if self.datetimestr:
             self.datetime = datetime.datetime.strptime(self.datetimestr, "%Y-%m-%dT%H:%M:%S.%f")
