@@ -9,7 +9,7 @@
 "sample_rate": 30000, // Hz
 "dtype": "int16", // data type of each AD value, spyke currently only accepts int16
 "uV_per_AD": 0.195, // multiply by this to convert AD values to microvolts
-"chan_layout_name": "A1x32", // use this to lookup the spatial channel layout
+"chan_layout_name": "A1x32", // key to look up the spatial channel layout
 
 // OPTIONAL:
 

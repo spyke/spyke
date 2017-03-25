@@ -243,6 +243,7 @@ class Stream(object):
 
 
 class DATStream(Stream):
+    """Stream interface for .dat files"""
     def __init__(self, f, kind='highpass', filtmeth=None, sampfreq=None, shcorrect=None):
         self.f = f
         self.kind = kind
@@ -371,6 +372,7 @@ class DATStream(Stream):
 
 
 class NSXStream(DATStream):
+    """Stream interface for .nsx files"""
     def __init__(self, f, kind='highpass', filtmeth=None, sampfreq=None, shcorrect=None):
         self.f = f
         self.kind = kind
@@ -412,11 +414,9 @@ class NSXStream(DATStream):
         self.tranges = np.asarray([[self.t0, self.t1]])
 
 
-
 class SurfStream(Stream):
-    """Data stream object - provides stream interface to .srf files.
-    Maps from timestamps to record index of stream data to retrieve the
-    approriate range of waveform data from disk"""
+    """Stream interface for .srf files. Maps from timestamps to record index
+    of stream data to retrieve the approriate range of waveform data from disk"""
     def __init__(self, f, kind='highpass', sampfreq=None, shcorrect=None):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
         sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords.
