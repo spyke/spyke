@@ -130,7 +130,7 @@ class FileHeader(object):
         assert type(j) == dict
 
         # required fields:
-        self.nchanstotal = j['n_chans'] # ephys + aux chans
+        self.nchanstotal = j['nchans'] # ephys + aux chans
         self.sampfreq = j['sample_rate'] # Hz
         self.tres = 1 / self.sampfreq * 1e6 # float us
         self.dtype = j['dtype']

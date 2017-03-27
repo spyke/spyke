@@ -5,7 +5,7 @@
 {
 // REQUIRED:
 
-"n_chans": 35, // total number of channels: ephys channels + any auxiliary channels
+"nchans": 35, // total number of channels: ephys channels + any auxiliary channels
 "sample_rate": 30000, // Hz
 "dtype": "int16", // data type of each AD value, spyke currently only accepts int16
 "uV_per_AD": 0.195, // multiply by this to convert AD values to microvolts

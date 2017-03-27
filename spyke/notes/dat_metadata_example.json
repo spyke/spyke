@@ -1,5 +1,5 @@
 {
-"n_chans": 32,
+"nchans": 32,
 "sample_rate": 30000,
 "dtype": "int16",
 "uV_per_AD": 0.195,
