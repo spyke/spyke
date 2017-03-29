@@ -85,8 +85,9 @@ class File(object):
         nsamples = int(self.filesize / 2) # total number of samples in file
         nchanstotal, t0i = self.fileheader.nchanstotal, self.fileheader.t0i
         if nsamples % nchanstotal != 0:
-            raise ValueError('%d samples in self.fname is not an integer multiple of %d total '
-                             'channels specified in .json file' % (nsamples, nchanstotal))
+            raise ValueError('%d total samples in self.fname is not an integer multiple of '
+                             '%d total channels specified in .json file'
+                             % (nsamples, nchanstotal))
         nt = int(nsamples / nchanstotal) # total number of timepoints in file
 
         datapacket = DataPacket(self.f, nchanstotal, nt, t0i)
