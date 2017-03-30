@@ -14,10 +14,11 @@ import numpy as np
 import core
 from core import (WaveForm, EmptyClass, intround, intfloor, intceil, lrstrip, MU,
                   hamming, filterord, WMLDR, td2fusec)
-from core import (DEFHPRESAMPLEX, DEFHPSRFSHCORRECT,
+from core import (DEFHPRESAMPLEX, DEFLPSAMPLFREQ, DEFHPSRFSHCORRECT,
                   DEFHPDATSHCORRECT, DEFDATFILTMETH,
                   DEFHPNSXSHCORRECT, DEFNSXFILTMETH,
-                  BWF0, BWORDER, SRFNCHANSPERBOARD, KERNELSIZE, XSWIDEBANDPOINTS)
+                  BWHPF0, BWLPF1, BWHPORDER, BWLPORDER,
+                  SRFNCHANSPERBOARD, KERNELSIZE, XSWIDEBANDPOINTS)
 import probes
 
 
@@ -247,11 +248,8 @@ class DATStream(Stream):
     def __init__(self, f, kind='highpass', filtmeth=None, sampfreq=None, shcorrect=None):
         self.f = f
         self.kind = kind
-        if kind == 'highpass':
-            pass
-        elif kind == 'lowpass':
-            pass
-        else: raise ValueError('Unknown stream kind %r' % kind)
+        if kind not in ['highpass', 'lowpass']:
+            raise ValueError('Unknown stream kind %r' % kind)
 
         self.filtmeth = filtmeth or DEFDATFILTMETH
 
@@ -266,8 +264,13 @@ class DATStream(Stream):
             self.sampfreq = sampfreq or DEFHPRESAMPLEX * self.rawsampfreq
             self.shcorrect = shcorrect or DEFHPDATSHCORRECT
         else: # kind == 'lowpass'
-            self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
-            self.shcorrect = shcorrect or False # don't s+h correct by default
+            self.sampfreq = sampfreq or DEFLPSAMPLFREQ
+            # make sure that after low-pass filtering the raw data, we can easily decimate
+            # the result to get the desired lowpass sampfreq:
+            assert self.rawsampfreq % self.sampfreq == 0
+            self.shcorrect = shcorrect or False
+            # for simplicity, don't allow s+h correction of lowpass data, no reason to anyway:
+            assert self.shcorrect == False
 
         self.chans = f.fileheader.chans
 
@@ -282,14 +285,21 @@ class DATStream(Stream):
         specified chans"""
         if chans is None:
             chans = self.chans
+        kind = self.kind
         if not set(chans).issubset(self.chans):
             raise ValueError("requested chans %r are not a subset of available enabled "
-                             "chans %r in %s stream" % (chans, self.chans, self.kind))
+                             "chans %r in %s stream" % (chans, self.chans, kind))
         nchans = len(chans)
         chanis = self.f.fileheader.chans.searchsorted(chans)
 
         rawtres = self.rawtres
-        resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
+        if kind == 'highpass':
+            resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
+            decimate = False
+        else: # kind == 'lowpass'
+            resample = False # which also means no s+h correction allowed
+            decimate = True
+
         # excess data in us at either end, to eliminate filtering and interpolation
         # edge effects:
         #print('XSWIDEBANDPOINTS: %d' % XSWIDEBANDPOINTS)
@@ -316,10 +326,13 @@ class DATStream(Stream):
         # init data as int32 so we have bitwidth to rescale and zero, then convert to int16
         dataxs = np.zeros((nchans, ntxs), dtype=np.int32) # any gaps will have zeros
 
+        '''
+        Load up data+excess. The same raw data is used for high and low pass streams,
+        the only difference being the subsequent filtering. It would be convenient to
+        immediately subsample to get lowpass, but that would result in aliasing. We can
+        only subsample after filtering.
+        '''
         #tload = time.time()
-        # load up data+excess, same data for high and low pass, difference will only be in the
-        # filtering. It would be convenient to immediately subsample to get lowpass, but that's
-        # not a valid thing to do: you can only subsample after filtering.
         # source indices:
         st0i = max(t0xsi - t0i, 0)
         st1i = min(t1xsi - t0i, nt)
@@ -334,12 +347,20 @@ class DATStream(Stream):
         if self.filtmeth == None:
             pass
         elif self.filtmeth == 'BW':
-            # high-pass filter using butterworth filter:
-            dataxs, b, a = filterord(dataxs, sampfreq=self.rawsampfreq, f0=BWF0, f1=None,
-                                     order=BWORDER, rp=None, rs=None,
-                                     btype='highpass', ftype='butter')
+            # high or low pass filter using butterworth filter:
+            if kind == 'highpass':
+                btype, order, f0, f1 = kind, BWHPORDER, BWHPF0, None
+            else: # kind == 'lowpass'
+                btype, order, f0, f1 = kind, BWLPORDER, None, BWLPF1
+            dataxs, b, a = filterord(dataxs, sampfreq=self.rawsampfreq, f0=f0, f1=f1,
+                                     order=order, rp=None, rs=None,
+                                     btype=btype, ftype='butter')
         elif self.filtmeth == 'WMLDR':
-            # high-pass filter using wavelet multi-level decomposition and reconstruction:
+            # high pass filter using wavelet multi-level decomposition and reconstruction,
+            # can't directly use this for low pass filtering, but it might be possible to
+            # approximate low pass filtering with WMLDR by subtracting the high pass data
+            # from the raw data...:
+            assert kind == 'highpass' # for now
             ## TODO: fix weird slow wobbling of amplitude as a function of exactly what
             ## the WMLDR filtering time range happens to be. Setting a much bigger xs
             ## helps, but only until you move xs amount of time away from the start of
@@ -353,6 +374,9 @@ class DATStream(Stream):
             #tresample = time.time()
             dataxs, tsxs = self.resample(dataxs, tsxs, chans)
             #print('resample took %.3f sec' % (time.time()-tresample))
+        if decimate:
+            decimatex = intround(self.rawsampfreq / self.sampfreq)
+            dataxs, tsxs = dataxs[:, ::decimatex], tsxs[::decimatex]
 
         #nresampletxs = len(tsxs)
         #print('ntxs, nresampletxs: %d, %d' % (ntxs, nresampletxs))
@@ -376,11 +400,8 @@ class NSXStream(DATStream):
     def __init__(self, f, kind='highpass', filtmeth=None, sampfreq=None, shcorrect=None):
         self.f = f
         self.kind = kind
-        if kind == 'highpass':
-            pass
-        elif kind == 'lowpass':
-            pass
-        else: raise ValueError('Unknown stream kind %r' % kind)
+        if kind not in ['highpass', 'lowpass']:
+            raise ValueError('Unknown stream kind %r' % kind)
 
         self.filtmeth = filtmeth or DEFNSXFILTMETH
 
@@ -398,8 +419,13 @@ class NSXStream(DATStream):
             self.sampfreq = sampfreq or DEFHPRESAMPLEX * self.rawsampfreq
             self.shcorrect = shcorrect or DEFHPNSXSHCORRECT
         else: # kind == 'lowpass'
-            self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
-            self.shcorrect = shcorrect or False # don't s+h correct by default
+            self.sampfreq = sampfreq or DEFLPSAMPLFREQ
+            # make sure that after low-pass filtering the raw data, we can easily decimate
+            # the result to get the desired lowpass sampfreq:
+            assert self.rawsampfreq % self.sampfreq == 0
+            self.shcorrect = shcorrect or False
+            # for simplicity, don't allow s+h correction of lowpass data, no reason to anyway:
+            assert self.shcorrect == False
 
         # no need for shcorrect for .nsx because the Blackrock Cerebrus NSP system has a
         # 1 GHz multiplexer for every bank of 32 channels, according to Kian Torab

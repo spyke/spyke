@@ -44,10 +44,13 @@ MICRO = 'u'
 
 DEFDATFILTMETH = 'BW' # default .dat filter method: None, 'BW', 'WMLDR'
 DEFNSXFILTMETH = 'BW' # default .nsx filter method: None, 'BW', 'WMLDR'
-BWF0 = 300 # low-frequency butterworth filter cutoff, Hz
-BWORDER = 4 # butterworth filter order
+BWHPF0 = 300 # butterworth high-pass filter low-frequency cutoff, Hz
+BWLPF1 = 300 # butterworth low-pass filter high-frequency cutoff, Hz
+BWHPORDER = 4 # butterworth high-pass filter order
+BWLPORDER = 4 # butterworth low-pass filter order
 
 DEFHPRESAMPLEX = 2 # default highpass resampling factor for all stream types
+DEFLPSAMPLFREQ = 1000 # default lowpass sampling rate for wide-band stream types, Hz
 DEFHPDATSHCORRECT = False ## TODO: this may not hold for open-ephys and Intan chips!
 DEFHPNSXSHCORRECT = False # no need for .nsx files, s+h delay is only 1 ns between chans
 DEFHPSRFSHCORRECT = True
