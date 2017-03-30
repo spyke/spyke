@@ -457,8 +457,7 @@ class SurfStream(Stream):
             self.shcorrect = shcorrect or False # don't s+h correct by default
         probename = self.layout.electrode_name
         probename = probename.replace(MU, 'u') # replace any 'micro' symbols with 'u'
-        probetype = eval('probes.' + probename) # yucky. TODO: switch to a dict with keywords?
-        self.probe = probetype() # instantiate it
+        self.probe = probes.getprobe(probename)
 
         rts = self.records['TimeStamp'] # array of record timestamps
         NumSamples = np.unique(self.records['NumSamples'])
