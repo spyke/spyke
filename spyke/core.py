@@ -1673,12 +1673,19 @@ def filterord(data, sampfreq=1000, f0=300, f1=None, order=4, rp=None, rs=None,
 
     For 'ellip', need to also specify passband and stopband ripple with rp and rs.
     """
-    if f1 != None:
+    if f0 != None and f1 != None: # both are specified
+        assert btype in ['bandpass', 'bandstop']
         fn = np.array([f0, f1])
-    else:
+    elif f0 != None: # only f0 is specified
+        assert btype == 'highpass'
         fn = f0
-    wn = fn / (sampfreq / 2)
-    b, a = scipy.signal.iirfilter(order, wn, rp=None, rs=None, btype=btype, analog=0,
+    elif f1 != None: # only f1 is specified
+        assert btype == 'lowpass'
+        fn = f1
+    else: # neither f0 nor f1 are specified
+        raise ValueError('at least one of f0 or f1 have to be specified')
+    wn = fn / (sampfreq / 2) # wn can be either a scalar or a length 2 vector
+    b, a = scipy.signal.iirfilter(order, wn, rp=rp, rs=rs, btype=btype, analog=0,
                                   ftype=ftype, output='ba')
     data = scipy.signal.lfilter(b, a, data)
     return data, b, a
