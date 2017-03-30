@@ -64,6 +64,13 @@ class Stream(object):
 
     ext = property(get_ext)
 
+    def get_srcfnameroot(self):
+        """Get root of filename of source data"""
+        srcfnameroot = lrstrip(self.fname, '../', self.ext)
+        return srcfnameroot
+
+    srcfnameroot = property(get_srcfnameroot)
+
     def get_nchans(self):
         return len(self.chans)
 
