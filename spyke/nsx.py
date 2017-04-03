@@ -15,6 +15,8 @@ import numpy as np
 import os
 from struct import unpack
 import datetime
+from collections import OrderedDict as odict
+import json
 
 from core import NULL, rstripnonascii, intround
 import dat # for inheritance
@@ -71,8 +73,8 @@ class File(dat.File):
 
     def export_dat(self, dt=None):
         """Export contiguous data packet to .dat file, in the original (ti, chani) order
-        using same base file name in the same folder. dt is duration to export from start
-        of recording, in sec"""
+        using same base file name in the same folder. Also export companion .json metadata
+        file. dt is duration to export from start of recording, in sec"""
         if dt == None:
             nt = self.nt
             dtstr = ''
@@ -80,27 +82,54 @@ class File(dat.File):
             nt = intround(dt * self.fileheader.sampfreq)
             dtstr = str(dt)
         assert self.is_open()
-        nchanstotal = self.fileheader.nchanstotal
-        nbytes = nt * nchanstotal * 2 # number of bytes requested, 2 bytes per datapoint
+        fh = self.fileheader
+        nbytes = nt * fh.nchanstotal * 2 # number of bytes requested, 2 bytes per datapoint
         offset = self.datapacket.dataoffset
         self.f.seek(offset)
-        datbasefname = os.path.splitext(self.fname)[0]
-        if dtstr == '':
-            datfname = '%s.dat' % datbasefname
-        else:
-            datfname = '%s_%ss.dat' % (datbasefname, dtstr)
+        basefname = os.path.splitext(self.fname)[0]
+        if dtstr:
+            basefname = '%s_%ss' % (basefname, dtstr)
+        datfname = basefname + '.dat'
+        jsonfname = datfname + '.json'
         fulldatfname = self.join(datfname)
+        fulljsonfname = self.join(jsonfname)
+
+        # export .dat file:
         print('writing raw ephys data to %r' % fulldatfname)
         print('starting from dataoffset at %d bytes' % offset)
         with open(fulldatfname, 'wb') as datf:
             datf.write(self.f.read(nbytes))
         nbyteswritten = self.f.tell() - offset
         print('%d bytes written' % nbyteswritten)
-        print('%d attempted, %d actual timepoints written' % (nt, nbyteswritten/nchanstotal/2))
-        print('voltage gain: %g uV/AD' % self.fileheader.AD2uVx)
-        print('sample rate: %d Hz' % self.fileheader.sampfreq)
-        print('total number of chans: %d' % nchanstotal)
-        print('total number of ephys chans: %d' % self.fileheader.nchans)
+        print('%d attempted, %d actual timepoints written'
+              % (nt, nbyteswritten / fh.nchanstotal / 2))
+
+        # export companion .json metadata file:
+        od = odict()
+        fh = self.fileheader
+        od['nchans'] = fh.nchanstotal
+        od['sample_rate'] = fh.sampfreq
+        od['dtype'] = 'int16' # hard-coded, only dtype supported for now
+        od['uV_per_AD'] = fh.AD2uVx
+        od['chan_layout_name'] = self.hpstream.probe.name
+        od['chans'] = list(fh.chans)
+        od['aux_chans'] = list(fh.auxchans)
+        od['nsamples_offset'] = self.t0i
+        od['datetime'] = fh.datetime.isoformat()
+        od['author'] = ''
+        od['version'] = '' # no way to extract Blackrock NSP version from .nsx?
+        od['notes'] = fh.comment
+        with open(fulljsonfname, 'w') as jsonf:
+            json.dump(od, jsonf, indent=0) # write contents of odict to file
+            jsonf.write('\n') # end with a blank line
+        print('wrote metadata file %r' % fulljsonfname)
+
+        # print the important metadata:
+        print('total chans: %d' % fh.nchanstotal)
+        print('ephys chans: %d' % fh.nchans)
+        print('sample rate: %d Hz' % fh.sampfreq)
+        print('voltage gain: %g uV/AD' % fh.AD2uVx)
+        print('chan layout: %s' % self.hpstream.probe.name)
 
 
 class FileHeader(object):
