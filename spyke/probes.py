@@ -562,12 +562,58 @@ class A1x32(Probe):
         sl[32] = 0, 750
         self.SiteLoc = sl
         self.check()
-        
+
+
+class A1x32_edge(Probe):
+    """A1x32 edge, 20 um spacing, single column, 1-based channel IDs"""
+    def __init__(self):
+        self.layout = 'A1x32_edge'
+        self.name = 'A1x32_edge'
+        self.nchans = 32
+        self.ncols = 1
+        sl = {}
+        sl[1] = 0, 0
+        sl[2] = 0, 20
+        sl[3] = 0, 40
+        sl[4] = 0, 60
+        sl[5] = 0, 80
+        sl[6] = 0, 100
+        sl[7] = 0, 120
+        sl[8] = 0, 140
+        sl[9] = 0, 160
+        sl[10] = 0, 180
+        sl[11] = 0, 200
+        sl[12] = 0, 220
+        sl[13] = 0, 240
+        sl[14] = 0, 260
+        sl[15] = 0, 280
+        sl[16] = 0, 300
+        sl[17] = 0, 320
+        sl[18] = 0, 340
+        sl[19] = 0, 360
+        sl[20] = 0, 380
+        sl[21] = 0, 400
+        sl[22] = 0, 420
+        sl[23] = 0, 440
+        sl[24] = 0, 460
+        sl[25] = 0, 480
+        sl[26] = 0, 500
+        sl[27] = 0, 520
+        sl[28] = 0, 540
+        sl[29] = 0, 560
+        sl[30] = 0, 580
+        sl[31] = 0, 600
+        sl[32] = 0, 620
+        self.SiteLoc = sl
+        self.check()
+
 
 TYPES = [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b,
-         pt16a_HS27, pt16b_HS27, single, IMEC30, A1x32]
+         pt16a_HS27, pt16b_HS27, single, IMEC30, A1x32, A1x32_edge]
+
 
 def getprobe(name):
+    """Get instantiated probe type by name"""
     for probetype in TYPES:
         probe = probetype()
         if probe.name == name:
