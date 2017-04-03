@@ -17,7 +17,7 @@ from core import (WaveForm, EmptyClass, intround, intfloor, intceil, lrstrip, MU
 from core import (DEFHPRESAMPLEX, DEFLPSAMPLFREQ, DEFHPSRFSHCORRECT,
                   DEFHPDATSHCORRECT, DEFDATFILTMETH,
                   DEFHPNSXSHCORRECT, DEFNSXFILTMETH,
-                  BWHPF0, BWLPF1, BWHPORDER, BWLPORDER,
+                  BWHPF0, BWLPF1, BWHPORDER, BWLPORDER, LOWPASSFILTER,
                   SRFNCHANSPERBOARD, KERNELSIZE, XSWIDEBANDPOINTS)
 import probes
 
@@ -357,11 +357,15 @@ class DATStream(Stream):
             # high or low pass filter using butterworth filter:
             if kind == 'highpass':
                 btype, order, f0, f1 = kind, BWHPORDER, BWHPF0, None
+                dataxs, b, a = filterord(dataxs, sampfreq=self.rawsampfreq, f0=f0, f1=f1,
+                                         order=order, rp=None, rs=None,
+                                         btype=btype, ftype='butter')
             else: # kind == 'lowpass'
-                btype, order, f0, f1 = kind, BWLPORDER, None, BWLPF1
-            dataxs, b, a = filterord(dataxs, sampfreq=self.rawsampfreq, f0=f0, f1=f1,
-                                     order=order, rp=None, rs=None,
-                                     btype=btype, ftype='butter')
+                if LOWPASSFILTER:
+                    btype, order, f0, f1 = kind, BWLPORDER, None, BWLPF1
+                    dataxs, b, a = filterord(dataxs, sampfreq=self.rawsampfreq, f0=f0, f1=f1,
+                                             order=order, rp=None, rs=None,
+                                             btype=btype, ftype='butter')
         elif self.filtmeth == 'WMLDR':
             # high pass filter using wavelet multi-level decomposition and reconstruction,
             # can't directly use this for low pass filtering, but it might be possible to
