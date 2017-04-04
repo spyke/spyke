@@ -308,8 +308,10 @@ class Detector(object):
         info('\nfound %d spikes in total' % self.nspikes)
         info('inside .detect() took %.3f sec' % (time.time()-t0))
         if not issorted(spikes['t']):
-            raise RuntimeError("spikes aren't sorted for some reason")
-        spikes['id'] = np.arange(self.nspikes) # assign ids (should be in temporal order)
+            print('WARNING: detected spike times of %d spikes are out of order for some '
+                  'reason, probably due to minor jitter in detection algorithm')
+        # assign ids (should be almost entirely in temporal order):
+        spikes['id'] = np.arange(self.nspikes)
         self.datetime = datetime.datetime.now()
         return spikes, wavedata
 

@@ -1322,15 +1322,24 @@ def td2days(td):
     days = sec / 3600 / 24
     return days
 
-def issorted(x):
-    """Check if x is sorted"""
+def unsortedis(x):
+    """Return indices of entries in x that are out of order"""
+    x = np.asarray(x)
     try:
         if x.dtype.kind == 'u':
             # x is unsigned int array, risk of int underflow in np.diff
             x = np.int64(x)
     except AttributeError:
         pass # no dtype, not an array
-    return (np.diff(x) >= 0).all() # is difference between consecutive entries >= 0?
+    return np.where(np.diff(x) < 0)[0] # where is the diff between consecutive entries < 0?
+
+def nunsorted(x):
+    """Return number of unsorted entries in x"""
+    return len(unsortedis(x))
+
+def issorted(x):
+    """Check if x is sorted"""
+    return nunsorted(x) == 0
     # or, you could compare the array to an explicitly sorted version of itself,
     # and see if they're identical
 
