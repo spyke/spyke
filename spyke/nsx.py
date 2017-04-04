@@ -120,6 +120,7 @@ class File(dat.File):
         od['version'] = '' # no way to extract Blackrock NSP version from .nsx?
         od['notes'] = fh.comment
         with open(fulljsonfname, 'w') as jsonf:
+            ## TODO: make list fields not have a newline for each entry
             json.dump(od, jsonf, indent=0) # write contents of odict to file
             jsonf.write('\n') # end with a blank line
         print('wrote metadata file %r' % fulljsonfname)

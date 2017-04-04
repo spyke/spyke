@@ -1,8 +1,12 @@
-- add direct support for .dat files + some kind of meta data file (.xml?)
+- do more preprocessing to get rid of large artifacts (such as motion artifacts) spanning many channels
+    - do this after filtering but before resampling
+    - for each timepoint on a channel, subtract mean or median across other channels, maybe weighted inversely by a Guassian of sigma = inclr, so that correlated signal on more distant channels contributes more than correlated signal on nearby channels, i.e., try and remove widespread correlated noise without diminishing spike amplitudes
+        - "common average referencing" cited in Kilosort paper, ref: Ludwig...Kipke, 2009, J Neurophysiol
+    - whitening? done by Kilosort and spyking-circus
 
 - add t-SNE as a dimension reduction method
 
-- BUG: in some cases when opening streams and/or sorts of one polytrode layout, closing them, then opening one of another layout, the displayed channel arrangement in at least the sort window is wrong, or you might get a KeyError while trying to index into a channel that doesn't exist because the new layout has fewer channels than the old one
+- BUG: in some cases when opening streams and/or sorts of one polytrode layout, closing them, then opening one of another layout, the displayed channel arrangement in at least the sort window is wrong, or you might get a KeyError while trying to index into a channel that doesn't exist, because the new layout has fewer channels than the old one
 
 - add ISI histogram to Verify->ISIs tab in main window
 
@@ -11,6 +15,7 @@
 - do a screencast of core features on sample data: detection, initial clustering, renumbering, viewing clusters in various spaces, projecting multiple clusters simultaneously, exporting. Should give voiceover
 
 - during detection, check for any DC offset (perhaps due to ADC issues?) by randomly sampling each channel (maybe do this during the noise estimation), and subtract the DC offset from the raw data
+    - this would be done automatically by the above "common average referencing" preprocessing step?
 
 - instead of keeping time as a separate dimension, try including spike time or ISI as input into dimension reduction (PCA and/or ICA)
     - or maybe use log(ISI), like Delescluse2006
@@ -1365,8 +1370,7 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - try PCA and FastICA implementations in sklearn instead of MDP - there are indications they might be faster.
     - FastICA is faster in sklearn, PCA seems to be slower
 - to help clean out noise events, make one of the cluster dimension rms error wrt to the template, and leave the other two as PCs or ICs
-
-
+- add direct support for .dat files + some kind of meta data file (.json)
 
 
 
