@@ -1333,13 +1333,9 @@ def unsortedis(x):
         pass # no dtype, not an array
     return np.where(np.diff(x) < 0)[0] # where is the diff between consecutive entries < 0?
 
-def nunsorted(x):
-    """Return number of unsorted entries in x"""
-    return len(unsortedis(x))
-
 def issorted(x):
     """Check if x is sorted"""
-    return nunsorted(x) == 0
+    return len(unsortedis(x)) == 0
     # or, you could compare the array to an explicitly sorted version of itself,
     # and see if they're identical
 
