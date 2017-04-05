@@ -332,8 +332,9 @@ class DATStream(Stream):
         tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*rawtres, ntxs)
         #print('ntxs: %d' % ntxs)
 
-        # init data as int32 so we have bitwidth to rescale and zero, then convert to int16
-        dataxs = np.zeros((nchans, ntxs), dtype=np.int32) # any gaps will have zeros
+        # init dataxs; unlike for .srf files, int32 dataxs array isn't necessary for
+        # int16 .dat or .nsx files, since there's no need to zero or rescale
+        dataxs = np.zeros((nchans, ntxs), dtype=np.int16) # any gaps will have zeros
 
         '''
         Load up data+excess. The same raw data is used for high and low pass streams,
