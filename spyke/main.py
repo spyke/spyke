@@ -115,6 +115,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui = SpykeUi()
         self.ui.setupUi(self) # lay it out
         self.groupMenuFiltering()
+        self.groupMenuCAR()
         self.groupMenuSampling()
         self.addRecentFileActions()
         self.updateRecentFiles()
@@ -146,6 +147,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.EnableStreamWidgets(False)
         self.EnableSortWidgets(False)
         self.EnableFilteringMenu(False) # disable by default, not all file types need filtering
+        self.EnableCARMenu(False) # disable until stream is open
         self.EnableSamplingMenu(False) # disable until stream is open
         
     def addRecentFileActions(self):
@@ -169,6 +171,17 @@ class SpykeWindow(QtGui.QMainWindow):
         filteringGroup.addAction(ui.actionFiltmethNone)
         filteringGroup.addAction(ui.actionFiltmethBW)
         filteringGroup.addAction(ui.actionFiltmethWMLDR)
+
+    def groupMenuCAR(self):
+        """Group common average referencing methods in CAR menu into a QActionGroup such
+        that only one is ever active at a time. This isn't possible to do from within
+        QtDesigner 4.7, so it's done here manually instead"""
+        ui = self.ui
+        CARGroup = QtGui.QActionGroup(self)
+        CARGroup.addAction(ui.actionCARNone)
+        CARGroup.addAction(ui.actionCARMedian)
+        CARGroup.addAction(ui.actionCARMean)
+
     def groupMenuSampling(self):
         """Group sampling rates in sampling menu into a QActionGroup such that only
         one is ever active at a time. This isn't possible to do from within
@@ -799,6 +812,21 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SetFiltmeth('WMLDR')
 
     @QtCore.pyqtSlot()
+    def on_actionCARNone_triggered(self):
+        """None CAR menu choice event"""
+        self.SetCAR(None)
+
+    @QtCore.pyqtSlot()
+    def on_actionCARMedian_triggered(self):
+        """Median CAR menu choice event"""
+        self.SetCAR('Median')
+
+    @QtCore.pyqtSlot()
+    def on_actionCARMean_triggered(self):
+        """Mean CAR menu choice event"""
+        self.SetCAR('Mean')
+
+    @QtCore.pyqtSlot()
     def on_action20kHz_triggered(self):
         """20kHz menu choice event"""
         self.SetSampfreq(20000)
@@ -910,8 +938,11 @@ class SpykeWindow(QtGui.QMainWindow):
         # create struct array of spikes and 3D array of spike waveform data:
         sort.spikes, sort.wavedata = sort.detector.detect(logpath=self.streampath)
         sort.update_usids()
-        sort.filtmeth = sort.stream.filtmeth # lock down filtmeth attrib
-        sort.sampfreq = sort.stream.sampfreq # lock down sampfreq and shcorrect attribs
+
+        # lock down filtmeth, car, sampfreq and shcorrect attribs:
+        sort.filtmeth = sort.stream.filtmeth
+        sort.car = sort.stream.car
+        sort.sampfreq = sort.stream.sampfreq
         sort.shcorrect = sort.stream.shcorrect
 
         self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
@@ -2248,6 +2279,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.updateRecentFiles(join(self.streampath, fname))
 
         self.ui.__dict__['actionFiltmeth%s' % self.hpstream.filtmeth ].setChecked(True)
+        self.ui.__dict__['actionCAR%s' % self.hpstream.car ].setChecked(True)
         try:
             sampfreqkHz = self.hpstream.sampfreq / 1000
             self.ui.__dict__['action%dkHz' % sampfreqkHz].setChecked(True)
@@ -2615,8 +2647,9 @@ class SpykeWindow(QtGui.QMainWindow):
 
         sort.update_usids() # required for self.on_plotButton_clicked()
 
-        # lock down filtmeth, sampfreq and shcorrect attribs:
+        # lock down filtmeth, car, sampfreq and shcorrect attribs:
         #sort.filtmeth = sort.stream.filtmeth
+        #sort.car = sort.stream.car
         #sort.sampfreq = sort.stream.sampfreq
         #sort.shcorrect = sort.stream.shcorrect
 
@@ -2703,8 +2736,9 @@ class SpykeWindow(QtGui.QMainWindow):
 
         sort.update_usids() # required for self.on_plotButton_clicked()
 
-        # lock down filtmeth, sampfreq and shcorrect attribs:
+        # lock down filtmeth, car, sampfreq and shcorrect attribs:
         sort.filtmeth = sort.stream.filtmeth
+        sort.car = sort.stream.car
         sort.sampfreq = sort.stream.sampfreq
         sort.shcorrect = sort.stream.shcorrect
 
@@ -2906,7 +2940,9 @@ class SpykeWindow(QtGui.QMainWindow):
         self.update_spiketw(sort.tw)
         # restore filtering method:
         self.SetFiltmeth(sort.filtmeth)
-        # restore sampling variables:
+        # restore CAR method:
+        self.SetCAR(sort.car)
+        # restore sampfreq and shcorrect:
         self.SetSampfreq(sort.sampfreq)
         self.SetSHCorrect(sort.shcorrect)
         self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
@@ -3367,6 +3403,13 @@ class SpykeWindow(QtGui.QMainWindow):
             self.plot()
         self.ui.__dict__['actionFiltmeth%s' % filtmeth].setChecked(True)
 
+    def SetCAR(self, car):
+        """Set common average reference method"""
+        if self.hpstream != None:
+            self.hpstream.car = car
+            self.plot()
+        self.ui.__dict__['actionCAR%s' % car].setChecked(True)
+
     def SetSampfreq(self, sampfreq):
         """Set highpass stream sampling frequency, update widgets"""
         if self.hpstream != None:
@@ -3383,10 +3426,11 @@ class SpykeWindow(QtGui.QMainWindow):
         self.plot()
 
     def EnableStreamWidgets(self, enable):
-        """Enable/disable all widgets that require an open stream"""
+        """Enable/disable all widgets that require an open stream, regardless of type"""
         try:
             self.sort
         except AttributeError:
+            self.EnableCARMenu(enable) # change state only if sort doesn't already exist
             self.EnableSamplingMenu(enable) # change state only if sort doesn't already exist
         self.EnableConvertMenu(enable)
         self.ui.filePosStartButton.setEnabled(enable)
@@ -3398,6 +3442,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def EnableSortWidgets(self, enable):
         """Enable/disable all widgets that require a sort"""
         self.EnableFilteringMenu(not enable)
+        self.EnableCARMenu(not enable)
         self.EnableSamplingMenu(not enable)
         self.ui.actionRasters.setEnabled(enable)
         self.ShowRasters(enable)
@@ -3408,6 +3453,12 @@ class SpykeWindow(QtGui.QMainWindow):
         """Enable/disable all items in Filtering menu, while still allowing
         the menu to be opened and its contents viewed"""
         for action in self.ui.menuFiltering.actions():
+            action.setEnabled(enable)
+
+    def EnableCARMenu(self, enable):
+        """Enable/disable all items in CAR menu, while still allowing
+        the menu to be opened and its contents viewed"""
+        for action in self.ui.menuCAR.actions():
             action.setEnabled(enable)
 
     def EnableSamplingMenu(self, enable):

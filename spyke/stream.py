@@ -15,8 +15,7 @@ import core
 from core import (WaveForm, EmptyClass, intround, intfloor, intceil, lrstrip, MU,
                   hamming, filterord, WMLDR, td2fusec)
 from core import (DEFHPRESAMPLEX, DEFLPSAMPLFREQ, DEFHPSRFSHCORRECT,
-                  DEFHPDATSHCORRECT, DEFDATFILTMETH,
-                  DEFHPNSXSHCORRECT, DEFNSXFILTMETH,
+                  DEFHPDATSHCORRECT, DEFDATFILTMETH, DEFHPNSXSHCORRECT, DEFNSXFILTMETH, DEFCAR,
                   BWHPF0, BWLPF1, BWHPORDER, BWLPORDER, LOWPASSFILTER,
                   SRFNCHANSPERBOARD, KERNELSIZE, XSWIDEBANDPOINTS)
 import probes
@@ -252,13 +251,15 @@ class Stream(object):
 
 class DATStream(Stream):
     """Stream interface for .dat files"""
-    def __init__(self, f, kind='highpass', filtmeth=None, sampfreq=None, shcorrect=None):
+    def __init__(self, f, kind='highpass', filtmeth=None, car=None, sampfreq=None,
+                 shcorrect=None):
         self.f = f
         self.kind = kind
         if kind not in ['highpass', 'lowpass']:
             raise ValueError('Unknown stream kind %r' % kind)
 
         self.filtmeth = filtmeth or DEFDATFILTMETH
+        self.car = car or DEFCAR
 
         self.converter = core.DatConverter(f.fileheader.AD2uVx)
 
@@ -380,6 +381,22 @@ class DATStream(Stream):
         else:
             raise ValueError('unknown filter method %s' % self.filtmeth)
 
+        # do common average reference (CAR): remove correlated noise by subtracting the
+        # average across all channels (Ludwig et al, 2009, Pachitariu et al, 2016):
+        ## TODO: don't slice out desired chans until the very end. We need all the enabled
+        ## self.chans to calculate CAR, not just the requested subset chans
+        assert (chans == self.chans).all()
+
+        if self.car and kind == 'highpass': # for now, only apply CAR to highpass stream
+            if self.car == 'Median':
+                carfunc = np.median
+            elif self.car == 'Mean':
+                carfunc = np.mean
+            else:
+                raise ValueError('Unknown CAR method %r' % self.car)
+            car = carfunc(dataxs, axis=0) # at each timepoint, find average across all chans
+            dataxs -= car # at each timepoint, subtract average across all chans
+
         # do any resampling if necessary:
         if resample:
             #tresample = time.time()
@@ -408,13 +425,15 @@ class DATStream(Stream):
 
 class NSXStream(DATStream):
     """Stream interface for .nsx files"""
-    def __init__(self, f, kind='highpass', filtmeth=None, sampfreq=None, shcorrect=None):
+    def __init__(self, f, kind='highpass', filtmeth=None, car=None, sampfreq=None,
+                 shcorrect=None):
         self.f = f
         self.kind = kind
         if kind not in ['highpass', 'lowpass']:
             raise ValueError('Unknown stream kind %r' % kind)
 
         self.filtmeth = filtmeth or DEFNSXFILTMETH
+        self.car = car or DEFCAR
 
         self.converter = core.NSXConverter(f.fileheader.AD2uVx)
 
@@ -456,7 +475,7 @@ class NSXStream(DATStream):
 class SurfStream(Stream):
     """Stream interface for .srf files. Maps from timestamps to record index
     of stream data to retrieve the approriate range of waveform data from disk"""
-    def __init__(self, f, kind='highpass', sampfreq=None, shcorrect=None):
+    def __init__(self, f, kind='highpass', car=None, sampfreq=None, shcorrect=None):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
         sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords.
         sampfreq arg is useful for interpolation. Assumes that all HighPassRecords belong
@@ -470,6 +489,7 @@ class SurfStream(Stream):
         else: raise ValueError('Unknown stream kind %r' % kind)
 
         self.filtmeth = None
+        self.car = car or DEFCAR
 
         # assume same layout for all records of type "kind"
         self.layout = self.f.layoutrecords[self.records['Probe'][0]]
@@ -667,6 +687,10 @@ class SurfStream(Stream):
             dataxs, tsxs = self.resample(dataxs, tsxs, chans)
             #print('resample took %.3f sec' % (time.time()-tresample))
 
+        ## TODO: add CAR here, probably better to do after S+H correction (in
+        ## self.resample) because of assumption it makes about simultaneous timepoints across
+        ## chans
+
         # now trim down to just the requested time range, work on us integer values to prevent
         # floating point round-off error (when tres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
@@ -683,11 +707,12 @@ class SurfStream(Stream):
 class SimpleStream(Stream):
     """Simple Stream loaded fully in advance"""
     def __init__(self, fname, wavedata, siteloc, rawsampfreq, masterclockfreq,
-                 intgain, extgain, sampfreq=None, shcorrect=None, bitshift=4,
-                 tsfversion=None):
+                 intgain, extgain, filtmeth=None, car=None, sampfreq=None,
+                 shcorrect=None, bitshift=4, tsfversion=None):
         self._fname = fname
         self.wavedata = wavedata
-        self.filtmeth = None
+        self.filtmeth = filtmeth
+        self.car = car or DEFCAR
         nchans, nt = wavedata.shape
         self.chans = np.arange(nchans) # this sets self.nchans
         self.nt = nt
@@ -806,6 +831,10 @@ class SimpleStream(Stream):
             dataxs, tsxs = self.resample(dataxs, tsxs, chans)
             #print('resample took %.3f sec' % (time.time()-tresample))
 
+        ## TODO: add CAR here, probably better to do after S+H correction (in
+        ## self.resample) because of assumption it makes about simultaneous timepoints across
+        ## chans
+
         # now trim down to just the requested time range, work on us integer values to prevent
         # floating point round-off error (when tres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
@@ -824,7 +853,7 @@ class MultiStream(object):
     used to simultaneously cluster all spikes from many (or all) recordings from the same
     track. Designed to have as similar an interface as possible to a normal Stream. fs
     needs to be a list of open and parsed data file objects, in temporal order"""
-    def __init__(self, fs, trackfname, kind='highpass', filtmeth=None,
+    def __init__(self, fs, trackfname, kind='highpass', filtmeth=None, car=None,
                  sampfreq=None, shcorrect=None):
         # to prevent pickling problems, don't bind fs
         self.fname = trackfname
@@ -892,31 +921,34 @@ class MultiStream(object):
             raise RuntimeError("some files have different probe types")
         self.probe = probe # they're identical
 
-        # set sampfreq, shcorrect and filtmeth for all streams:
+        # set filtmeth, car, sampfreq, and shcorrect for all streams:
         streamtype = type(streams[0])
         if streamtype == DATStream:
             if kind == 'highpass':
+                self.filtmeth = filtmeth or DEFDATFILTMETH
+                self.car = car or DEFCAR
                 self.sampfreq = sampfreq or self.rawsampfreq * DEFHPRESAMPLEX
                 self.shcorrect = shcorrect or DEFHPDATSHCORRECT
-                self.filtmeth = filtmeth or DEFDATFILTMETH
             else: # kind == 'lowpass'
                 return None
         elif streamtype == NSXStream:
             if kind == 'highpass':
+                self.filtmeth = filtmeth or DEFNSXFILTMETH
+                self.car = car or DEFCAR
                 self.sampfreq = sampfreq or self.rawsampfreq * DEFHPRESAMPLEX
                 self.shcorrect = shcorrect or DEFHPNSXSHCORRECT
-                self.filtmeth = filtmeth or DEFNSXFILTMETH
             else: # kind == 'lowpass'
                 return None
         elif streamtype == SurfStream:
             if kind == 'highpass':
+                self.filtmeth = None
+                self.car = car or DEFCAR
                 self.sampfreq = sampfreq or self.rawsampfreq * DEFHPRESAMPLEX
                 self.shcorrect = shcorrect or DEFHPSRFSHCORRECT
             else: # kind == 'lowpass'
+                self.filtmeth = None
                 self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
                 self.shcorrect = shcorrect or False # don't s+h correct by default
-            self.filtmeth = None
-
 
     def is_open(self):
         return np.all([stream.is_open() for stream in self.streams])

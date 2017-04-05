@@ -51,6 +51,9 @@ BWLPORDER = 4 # butterworth low-pass filter order
 # don't filter raw data, only decimate to get low pass? simple, but aliases
 LOWPASSFILTER = False
 
+DEFCAR = 'Median' # default common average reference method: None, 'Median', 'Mean';
+                  # 'Median' works best because it's least affected by spikes
+
 DEFHPRESAMPLEX = 2 # default highpass resampling factor for all stream types
 DEFLPSAMPLFREQ = 1000 # default lowpass sampling rate for wide-band stream types, Hz
 DEFHPDATSHCORRECT = False ## TODO: this may not hold for open-ephys and Intan chips!

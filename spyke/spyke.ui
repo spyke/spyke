@@ -1879,7 +1879,7 @@ or remove all duplicate spikes from selected neurons
      <x>0</x>
      <y>0</y>
      <width>497</width>
-     <height>23</height>
+     <height>25</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
@@ -1996,10 +1996,19 @@ or remove all duplicate spikes from selected neurons
     <addaction name="actionFiltmethBW"/>
     <addaction name="actionFiltmethWMLDR"/>
    </widget>
+   <widget class="QMenu" name="menuCAR">
+    <property name="title">
+     <string>CAR</string>
+    </property>
+    <addaction name="actionCARNone"/>
+    <addaction name="actionCARMedian"/>
+    <addaction name="actionCARMean"/>
+   </widget>
    <addaction name="menuFile"/>
    <addaction name="menuEdit"/>
    <addaction name="menuView"/>
    <addaction name="menuFiltering"/>
+   <addaction name="menuCAR"/>
    <addaction name="menuSampling"/>
    <addaction name="menuHelp"/>
   </widget>
@@ -2589,6 +2598,30 @@ or remove all duplicate spikes from selected neurons
    </property>
    <property name="toolTip">
     <string>Convert relevant KiloSort .npy files to a single .events.zip file</string>
+   </property>
+  </action>
+  <action name="actionCARNone">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>None</string>
+   </property>
+  </action>
+  <action name="actionCARMedian">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Median</string>
+   </property>
+  </action>
+  <action name="actionCARMean">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Mean</string>
    </property>
   </action>
  </widget>
