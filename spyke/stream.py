@@ -691,9 +691,10 @@ class SurfStream(Stream):
             dataxs, tsxs = self.resample(dataxs, tsxs, chans)
             #print('resample took %.3f sec' % (time.time()-tresample))
 
-        ## TODO: add CAR here, probably better to do after S+H correction (in
-        ## self.resample) because of assumption it makes about simultaneous timepoints across
-        ## chans
+        ## TODO: add CAR here, after S+H correction (in self.resample) rather than before it,
+        ## because CAR assumes simultaneous timepoints across chans
+        if self.car:
+            raise NotImplementedError("SurfStream doesn't support CAR yet")
 
         # now trim down to just the requested time range, work on us integer values to prevent
         # floating point round-off error (when tres is non-integer us) that can occasionally
@@ -839,9 +840,10 @@ class SimpleStream(Stream):
             dataxs, tsxs = self.resample(dataxs, tsxs, chans)
             #print('resample took %.3f sec' % (time.time()-tresample))
 
-        ## TODO: add CAR here, probably better to do after S+H correction (in
-        ## self.resample) because of assumption it makes about simultaneous timepoints across
-        ## chans
+        ## TODO: add CAR here, after S+H correction (in self.resample) rather than before it,
+        ## because CAR assumes simultaneous timepoints across chans
+        if self.car:
+            raise NotImplementedError("SurfStream doesn't support CAR yet")
 
         # now trim down to just the requested time range, work on us integer values to prevent
         # floating point round-off error (when tres is non-integer us) that can occasionally
