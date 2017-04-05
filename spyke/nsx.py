@@ -220,7 +220,6 @@ class ChanHeader(object):
 
 class DataPacket(object):
     """.nsx data packet"""
-    
     def __init__(self, f, nchans):
         self.offset = f.tell()
         self.nchans = nchans
