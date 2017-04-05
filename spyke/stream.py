@@ -386,8 +386,6 @@ class DATStream(Stream):
 
         # do common average reference (CAR): remove correlated noise by subtracting the
         # average across all channels (Ludwig et al, 2009, Pachitariu et al, 2016):
-        assert (chans == self.chans).all()
-
         if self.car and kind == 'highpass': # for now, only apply CAR to highpass stream
             if self.car == 'Median':
                 avg = np.median
