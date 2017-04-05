@@ -1004,6 +1004,24 @@ class MultiStream(object):
 
     nchans = property(get_nchans)
 
+    def get_filtmeth(self):
+        return self.streams[0].filtmeth # they're identical
+
+    def set_filtmeth(self, filtmeth):
+        for stream in self.streams:
+            stream.filtmeth = filtmeth
+
+    filtmeth = property(get_filtmeth, set_filtmeth)
+
+    def get_car(self):
+        return self.streams[0].car # they're identical
+
+    def set_car(self, car):
+        for stream in self.streams:
+            stream.car = car
+
+    car = property(get_car, set_car)
+
     def get_sampfreq(self):
         return self.streams[0].sampfreq # they're identical
 
