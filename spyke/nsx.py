@@ -151,7 +151,10 @@ class FileHeader(object):
         self.comment = rstripnonascii(f.read(256)) # null terminated, trailing junk bytes (bug)
         # "Period" wrt sampling freq; sampling freq in Hz:
         self.decimation, self.sampfreq = unpack('II', f.read(8))
-        assert self.decimation == 1 # doesn't have to be, but probably should for neural data
+        if self.decimation != 1: # doesn't have to be, but should for wideband neural data
+            self.sampfreq = self.sampfreq / self.decimation
+            print('WARNING: decimation: %d, final sampfreq: %g Hz'
+                  % (self.decimation, self.sampfreq))
         self.tres = 1 / self.sampfreq * 1e6 # float us
         #print('FileHeader.tres = %f' % self.tres)
 
@@ -171,7 +174,7 @@ class FileHeader(object):
             chanheader.parse(f)
             label, id = chanheader.label, chanheader.id
             if label != ('chan%d' % id):
-                print('excluding chan%d (%r) as auxiliary channel' % (id, label))
+                print('chan%d (%r) is an auxiliary channel' % (id, label))
                 self.auxchanheaders[id] = chanheader
             else: # save ephys channel
                 self.chanheaders[id] = chanheader
@@ -179,26 +182,40 @@ class FileHeader(object):
         self.nauxchans = len(self.auxchanheaders) # number of aux chans
         assert self.nchans + self.nauxchans == self.nchanstotal
         if self.nauxchans > 0: # some chans were aux chans
-            print('excluded %d auxiliary channels' % (self.nauxchans))
+            if self.nchans == 0:
+                print('WARNING: only auxchans found in file %s' % f.name)
+                self.nchans = self.nauxchans
+            else:
+                print('excluded %d auxiliary channels' % (self.nauxchans))
         assert len(self) == f.tell() # header should be of expected length
         self.chans = np.asarray(sorted(self.chanheaders)) # sorted array of keys
         self.auxchans = np.asarray(sorted(self.auxchanheaders)) # sorted array of keys
-        if len(self.auxchans) > 0:
+        if len(self.chans) > 0 and len(self.auxchans) > 0:
             # ensure that the last ephys chan comes before the first aux chan:
             assert self.chans[-1] < self.auxchans[0]
 
-        # check AD2uV params of all ephys chans:
-        c0 = self.chanheaders[self.chans[0]] # reference channel for comparing AD2uV params
-        assert c0.units == 'uV' # assumed later during AD2uV conversion
+        # check params of all ephys chans:
+        if len(self.chanheaders) > 0:
+            chans = self.chans
+            chanheaders = self.chanheaders
+        elif len(self.auxchanheaders) > 0:
+            chans = self.auxchans
+            chanheaders = self.auxchanheaders
+        else:
+            raise ValueError('no chan or auxchan headers!')
+        c0 = chanheaders[chans[0]] # reference channel for comparing params
+        assert c0.units in ['uV', 'mV'] # used later during AD2uV calculation
         assert c0.maxaval == abs(c0.minaval) # not strictly necessary, but check anyway
         assert c0.maxdval == abs(c0.mindval)
         ref = c0.units, c0.maxaval, c0.minaval, c0.maxdval, c0.mindval
-        for c in self.chanheaders.values():
+        for c in chanheaders.values():
             if (c.units, c.maxaval, c.minaval, c.maxdval, c.mindval) != ref:
-                raise ValueError('not all chans have the same AD2uV params')
+                raise ValueError('not all chans have the same params')
+
         # calculate AD2uV conversion factor:
         self.AD2uVx = (c0.maxaval-c0.minaval) / float(c0.maxdval-c0.mindval)
-
+        if c0.units == 'mV':
+            self.AD2uVx = self.AD2uVx * 1000
 
 class ChanHeader(object):
     """.nsx header information for a single channel"""

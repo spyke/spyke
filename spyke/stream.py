@@ -59,7 +59,9 @@ class Stream(object):
 
     def get_ext(self):
         """Get file extension of data source"""
-        return os.path.splitext(self.fnames[0])[-1] # take extension of first fname
+        ext = os.path.splitext(self.fnames[0])[-1] # take extension of first fname
+        if ext.startswith('.ns'): ext = '.ns*'
+        return
 
     ext = property(get_ext)
 
