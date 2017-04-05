@@ -114,8 +114,8 @@ class SpykeWindow(QtGui.QMainWindow):
         QtGui.QMainWindow.__init__(self)
         self.ui = SpykeUi()
         self.ui.setupUi(self) # lay it out
-        self.groupMenuFiltmeth()
-        self.groupMenuSamplingRates()
+        self.groupMenuFiltering()
+        self.groupMenuSampling()
         self.addRecentFileActions()
         self.updateRecentFiles()
         
@@ -142,10 +142,10 @@ class SpykeWindow(QtGui.QMainWindow):
 
         self.dirtysids = set() # sids whose waveforms in .wave file are out of date
         
-        # disable most widgets until a data or .sort file is opened
+        # disable most widgets until a stream or a sort is opened:
         self.EnableStreamWidgets(False)
         self.EnableSortWidgets(False)
-        self.EnableFilteringMenu(False) # disable by default, few file types need filtering
+        self.EnableFilteringMenu(False) # disable by default, not all file types need filtering
         self.EnableSamplingMenu(False) # disable until stream is open
         
     def addRecentFileActions(self):
@@ -160,7 +160,16 @@ class SpykeWindow(QtGui.QMainWindow):
             self.ui.menuFile.insertAction(self.ui.actionSaveSort, action)
         self.ui.menuFile.insertSeparator(self.ui.actionSaveSort)
 
-    def groupMenuSamplingRates(self):
+    def groupMenuFiltering(self):
+        """Group filtering methods in filtering menu into a QActionGroup such that only
+        one is ever active at a time. This isn't possible to do from within
+        QtDesigner 4.7, so it's done here manually instead"""
+        ui = self.ui
+        filteringGroup = QtGui.QActionGroup(self)
+        filteringGroup.addAction(ui.actionFiltmethNone)
+        filteringGroup.addAction(ui.actionFiltmethBW)
+        filteringGroup.addAction(ui.actionFiltmethWMLDR)
+    def groupMenuSampling(self):
         """Group sampling rates in sampling menu into a QActionGroup such that only
         one is ever active at a time. This isn't possible to do from within
         QtDesigner 4.7, so it's done here manually instead"""
@@ -174,16 +183,6 @@ class SpykeWindow(QtGui.QMainWindow):
         samplingGroup.addAction(ui.action60kHz)
         samplingGroup.addAction(ui.action80kHz)
         samplingGroup.addAction(ui.action100kHz)
-
-    def groupMenuFiltmeth(self):
-        """Group filtering methods in filtering menu into a QActionGroup such that only
-        one is ever active at a time. This isn't possible to do from within
-        QtDesigner 4.7, so it's done here manually instead"""
-        ui = self.ui
-        filteringGroup = QtGui.QActionGroup(self)
-        filteringGroup.addAction(ui.actionFiltmethNone)
-        filteringGroup.addAction(ui.actionFiltmethBW)
-        filteringGroup.addAction(ui.actionFiltmethWMLDR)
 
     @QtCore.pyqtSlot()
     def on_actionNew_triggered(self):
