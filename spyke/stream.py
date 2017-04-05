@@ -389,13 +389,16 @@ class DATStream(Stream):
 
         if self.car and kind == 'highpass': # for now, only apply CAR to highpass stream
             if self.car == 'Median':
-                carfunc = np.median
+                avg = np.median
             elif self.car == 'Mean':
-                carfunc = np.mean
+                avg = np.mean
             else:
                 raise ValueError('Unknown CAR method %r' % self.car)
-            car = carfunc(dataxs, axis=0) # at each timepoint, find average across all chans
-            dataxs -= car # at each timepoint, subtract average across all chans
+            # at each timepoint, find average across all chans:
+            car = avg(dataxs, axis=0) # float64
+            # at each timepoint, subtract average across all chans, don't do in place
+            # because dataxs might be int16 or float64, depending on filtering:
+            dataxs = dataxs - car
 
         # do any resampling if necessary:
         if resample:
