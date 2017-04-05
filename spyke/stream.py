@@ -1078,13 +1078,15 @@ class MultiStream(object):
             raise ValueError("requested chans %r are not a subset of available enabled "
                              "chans %r in %s stream" % (chans, self.chans, self.kind))
         nchans = len(chans)
-        start, stop = max(start, self.t0), min(stop, self.t1) # stay in bounds
+        tres = self.tres
+        start = intfloor(start / tres) * tres # round down to nearest mult of tres
+        stop = intceil(stop / tres) * tres # round up to nearest mult of tres
+        start, stop = max(start, self.t0), min(stop, self.t1) # stay within stream limits
         streamis = []
         ## TODO: this could probably be more efficient by not iterating over all streams:
         for streami, trange in enumerate(self.streamtranges):
             if (trange[0] <= start < trange[1]) or (trange[0] <= stop < trange[1]):
                 streamis.append(streami)
-        tres = self.tres
         nt = intround((stop - start) / tres)
         # safer to use linspace than arange in case of float tres, deals with endpoints
         # better and gives slightly more accurate output float timestamps:
@@ -1104,8 +1106,6 @@ class MultiStream(object):
             # destination time indices:
             dt0i = int((abst0 + relt0 - start) // tres) # absolute index, trunc to int
             dt1i = dt0i + sdata.shape[1]
-            ## TODO: indexing bug again when zooming in quite far, doesn't happen for
-            ## single stream?
             data[:, dt0i:dt1i] = sdata
             #print('dt0i, dt1i', dt0i, dt1i)
             #print('MLT:', start, stop, tres, sdata.shape, data.shape)
