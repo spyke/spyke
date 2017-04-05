@@ -193,7 +193,8 @@ class Stream(object):
         #print('convolve loop took %.3f sec' % (time.time()-tconvolve))
         #print('convolve calls took %.3f sec total' % (tconvolvesum))
         #tundoscaling = time.time()
-        data >>= 16 # undo kernel scaling, shift 16 bits right in place, same as //= 2**16
+        # undo kernel scaling, shift 16 bits right in place, same as //= 2**16, leave as int32
+        data >>= 16
         #print('undo kernel scaling took %.3f sec total' % (time.time()-tundoscaling))
         return data, ts
 
@@ -355,18 +356,18 @@ class DATStream(Stream):
         if self.filtmeth == None:
             pass
         elif self.filtmeth == 'BW':
-            # high or low pass filter using butterworth filter:
+            # high or low pass filter using Butterworth filter:
             if kind == 'highpass':
                 btype, order, f0, f1 = kind, BWHPORDER, BWHPF0, None
                 dataxs, b, a = filterord(dataxs, sampfreq=self.rawsampfreq, f0=f0, f1=f1,
                                          order=order, rp=None, rs=None,
-                                         btype=btype, ftype='butter')
+                                         btype=btype, ftype='butter') # float64
             else: # kind == 'lowpass'
                 if LOWPASSFILTER:
                     btype, order, f0, f1 = kind, BWLPORDER, None, BWLPF1
                     dataxs, b, a = filterord(dataxs, sampfreq=self.rawsampfreq, f0=f0, f1=f1,
                                              order=order, rp=None, rs=None,
-                                             btype=btype, ftype='butter')
+                                             btype=btype, ftype='butter') # float64
         elif self.filtmeth == 'WMLDR':
             # high pass filter using wavelet multi-level decomposition and reconstruction,
             # can't directly use this for low pass filtering, but it might be possible to
@@ -376,7 +377,8 @@ class DATStream(Stream):
             ## TODO: fix weird slow wobbling of amplitude as a function of exactly what
             ## the WMLDR filtering time range happens to be. Setting a much bigger xs
             ## helps, but only until you move xs amount of time away from the start of
-            ## the recording
+            ## the recording. Perhaps WMLDR doesn't quite remove all the low freqs the way
+            ## Butterworth filtering does
             dataxs = WMLDR(dataxs)
         else:
             raise ValueError('unknown filter method %s' % self.filtmeth)

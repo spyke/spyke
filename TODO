@@ -1,8 +1,9 @@
-- do more preprocessing to get rid of large artifacts (such as motion artifacts) spanning many channels
-    - do this after filtering but before resampling
-    - for each timepoint on a channel, subtract mean or median across other channels, maybe weighted inversely by a Guassian of sigma = inclr, so that correlated signal on more distant channels contributes more than correlated signal on nearby channels, i.e., try and remove widespread correlated noise without diminishing spike amplitudes
-        - "common average referencing" cited in Kilosort paper, ref: Ludwig...Kipke, 2009, J Neurophysiol
-    - whitening? done by Kilosort and spyking-circus
+- also add CAR to SurfStream and SimpleStreams, and also to lowpass streams
+
+- do proper low pass filtering (not just decimation) to get LFP data from wideband data
+    - when exporting to lfp.zip, do slicing and filtering and decimation in the same 10 sec chunks of wideband data as spike detection, to avoid memory errors
+
+- do whitening of raw data? done by Kilosort and spyking-circus
 
 - add t-SNE as a dimension reduction method
 
@@ -1371,6 +1372,7 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
     - FastICA is faster in sklearn, PCA seems to be slower
 - to help clean out noise events, make one of the cluster dimension rms error wrt to the template, and leave the other two as PCs or ICs
 - add direct support for .dat files + some kind of meta data file (.json)
+- add "common average referencing" cited in Kilosort paper, ref: Ludwig...Kipke, 2009, J Neurophysiol
 
 
 
