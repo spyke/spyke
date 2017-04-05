@@ -402,7 +402,7 @@ class DATStream(Stream):
         # do any resampling if necessary:
         if resample:
             #tresample = time.time()
-            dataxs, tsxs = self.resample(dataxs, tsxs, chans)
+            dataxs, tsxs = self.resample(dataxs, tsxs, self.chans)
             #print('resample took %.3f sec' % (time.time()-tresample))
         if decimate:
             decimatex = intround(self.rawsampfreq / self.sampfreq)
