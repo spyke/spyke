@@ -475,7 +475,8 @@ class NSXStream(DATStream):
 class SurfStream(Stream):
     """Stream interface for .srf files. Maps from timestamps to record index
     of stream data to retrieve the approriate range of waveform data from disk"""
-    def __init__(self, f, kind='highpass', car=None, sampfreq=None, shcorrect=None):
+    def __init__(self, f, kind='highpass', filtmeth=None, car=None, sampfreq=None,
+                 shcorrect=None):
         """Takes a sorted temporal (not necessarily evenly-spaced, due to pauses in recording)
         sequence of ContinuousRecords: either HighPassRecords or LowPassMultiChanRecords.
         sampfreq arg is useful for interpolation. Assumes that all HighPassRecords belong
@@ -488,7 +489,7 @@ class SurfStream(Stream):
             self.records = f.lowpassmultichanrecords
         else: raise ValueError('Unknown stream kind %r' % kind)
 
-        self.filtmeth = None
+        self.filtmeth = filtmeth
         self.car = car or DEFCAR
 
         # assume same layout for all records of type "kind"
@@ -681,6 +682,9 @@ class SurfStream(Stream):
         # AD to about 0.02
         dataxs <<= 4 # data is still int32 at this point
 
+        ## TODO: add highpass filtering, although it probably won't make much difference
+        if self.filtmeth:
+            raise NotImplementedError("SurfStream doesn't support filtering yet")
         # do any resampling if necessary:
         if resample:
             #tresample = time.time()
@@ -825,6 +829,10 @@ class SimpleStream(Stream):
         if self.bitshift:
             dataxs <<= self.bitshift # data is still int32 at this point
 
+        ## TODO: add highpass filtering
+        if self.filtmeth:
+            raise NotImplementedError("SurfStream doesn't support filtering yet")
+
         # do any resampling if necessary:
         if resample:
             #tresample = time.time()
@@ -941,12 +949,12 @@ class MultiStream(object):
                 return None
         elif streamtype == SurfStream:
             if kind == 'highpass':
-                self.filtmeth = None
+                self.filtmeth = filtmeth
                 self.car = car or DEFCAR
                 self.sampfreq = sampfreq or self.rawsampfreq * DEFHPRESAMPLEX
                 self.shcorrect = shcorrect or DEFHPSRFSHCORRECT
             else: # kind == 'lowpass'
-                self.filtmeth = None
+                self.filtmeth = filtmeth
                 self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
                 self.shcorrect = shcorrect or False # don't s+h correct by default
 

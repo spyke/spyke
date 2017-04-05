@@ -2239,18 +2239,10 @@ class SpykeWindow(QtGui.QMainWindow):
             f = dat.File(fname, self.streampath) # parses immediately
             self.hpstream = f.hpstream # highpass record (spike) stream
             self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
-            try:
-                self.sort # sort exists?
-            except AttributeError: # no sort exists, enable Filtering menu
-                self.EnableFilteringMenu(True)
         elif ext == '.ns6':
             f = nsx.File(fname, self.streampath) # parses immediately
             self.hpstream = f.hpstream # highpass record (spike) stream
             self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
-            try:
-                self.sort # sort exists?
-            except AttributeError: # no sort exists, enable Filtering menu
-                self.EnableFilteringMenu(True)
         elif ext == '.srf':
             f = surf.File(fname, self.streampath)
             f.parse() # TODO: parsing progress dialog
@@ -3442,12 +3434,14 @@ class SpykeWindow(QtGui.QMainWindow):
         self.plot()
 
     def EnableStreamWidgets(self, enable):
-        """Enable/disable all widgets that require an open stream, regardless of type"""
+        """Enable/disable all widgets that require an open stream"""
         try:
             self.sort
         except AttributeError:
-            self.EnableCARMenu(enable) # change state only if sort doesn't already exist
-            self.EnableSamplingMenu(enable) # change state only if sort doesn't already exist
+            # change these menu states only if sort doesn't already exist:
+            self.EnableFilteringMenu(enable)
+            self.EnableCARMenu(enable)
+            self.EnableSamplingMenu(enable)
         self.EnableConvertMenu(enable)
         self.ui.filePosStartButton.setEnabled(enable)
         self.ui.filePosLineEdit.setEnabled(enable)
