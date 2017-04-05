@@ -2248,7 +2248,11 @@ class SpykeWindow(QtGui.QMainWindow):
         self.updateRecentFiles(join(self.streampath, fname))
 
         self.ui.__dict__['actionFiltmeth%s' % self.hpstream.filtmeth ].setChecked(True)
-        self.ui.__dict__['action%dkHz' % (self.hpstream.sampfreq / 1000)].setChecked(True)
+        try:
+            sampfreqkHz = self.hpstream.sampfreq / 1000
+            self.ui.__dict__['action%dkHz' % sampfreqkHz].setChecked(True)
+        except KeyError:
+            print('WARNING: %d kHz is not a sampling menu option' % sampfreqkHz)
         self.ui.actionSampleAndHoldCorrect.setChecked(self.hpstream.shcorrect)
 
         self.spiketw = SPIKETW[ext] # spike window temporal window (us)
