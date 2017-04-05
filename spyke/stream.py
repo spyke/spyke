@@ -298,9 +298,9 @@ class DATStream(Stream):
         if not set(chans).issubset(self.chans):
             raise ValueError("requested chans %r are not a subset of available enabled "
                              "chans %r in %s stream" % (chans, self.chans, kind))
-        nchans = len(chans)
-        chanis = self.f.fileheader.chans.searchsorted(chans)
-
+        # NOTE: because CAR needs to average across as many channels as possible, work on
+        # the full self.chans (which are the chans enabled in the stream) until the very end,
+        # and only then slice out what is potentially a subset of self.chans using `chans`
         rawtres = self.rawtres
         if kind == 'highpass':
             resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
@@ -334,7 +334,7 @@ class DATStream(Stream):
 
         # init dataxs; unlike for .srf files, int32 dataxs array isn't necessary for
         # int16 .dat or .nsx files, since there's no need to zero or rescale
-        dataxs = np.zeros((nchans, ntxs), dtype=np.int16) # any gaps will have zeros
+        dataxs = np.zeros((self.nchans, ntxs), dtype=np.int16) # any gaps will have zeros
 
         '''
         Load up data+excess. The same raw data is used for high and low pass streams,
@@ -350,7 +350,7 @@ class DATStream(Stream):
         # destination indices:
         dt0i = max(t0i - t0xsi, 0)
         dt1i = min(t1i - t0xsi, ntxs)
-        dataxs[:, dt0i:dt1i] = self.f.data[chanis, st0i:st1i]
+        dataxs[:, dt0i:dt1i] = self.f.data[:, st0i:st1i]
         #print('data load took %.3f sec' % (time.time()-tload))
 
         #print('filtmeth: %s' % self.filtmeth)
@@ -386,8 +386,6 @@ class DATStream(Stream):
 
         # do common average reference (CAR): remove correlated noise by subtracting the
         # average across all channels (Ludwig et al, 2009, Pachitariu et al, 2016):
-        ## TODO: don't slice out desired chans until the very end. We need all the enabled
-        ## self.chans to calculate CAR, not just the requested subset chans
         assert (chans == self.chans).all()
 
         if self.car and kind == 'highpass': # for now, only apply CAR to highpass stream
@@ -416,11 +414,13 @@ class DATStream(Stream):
         #print('ntxs, nresampletxs: %d, %d' % (ntxs, nresampletxs))
         #assert ntxs == len(tsxs)
 
-        # now trim down to just the requested time range, work on us integer values to prevent
-        # floating point round-off error (when tres is non-integer us) that can occasionally
+        # now trim down to just the requested time range and chans:
+        # for trimming time range, work on us integer values to prevent floating point
+        # round-off error (when tres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
         lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
-        data = dataxs[:, lo:hi]
+        chanis = self.f.fileheader.chans.searchsorted(chans)
+        data = dataxs[chanis, lo:hi]
         ts = tsxs[lo:hi]
         #print('slice:', start, stop, self.tres, data.shape)
 
@@ -699,7 +699,8 @@ class SurfStream(Stream):
             #print('resample took %.3f sec' % (time.time()-tresample))
 
         ## TODO: add CAR here, after S+H correction (in self.resample) rather than before it,
-        ## because CAR assumes simultaneous timepoints across chans
+        ## because CAR assumes simultaneous timepoints across chans. Also need to slice out
+        ## chans only at the very end, as in DATStream
         if self.car:
             raise NotImplementedError("SurfStream doesn't support CAR yet")
 
@@ -839,7 +840,7 @@ class SimpleStream(Stream):
 
         ## TODO: add highpass filtering
         if self.filtmeth:
-            raise NotImplementedError("SurfStream doesn't support filtering yet")
+            raise NotImplementedError("SimpleStream doesn't support filtering yet")
 
         # do any resampling if necessary:
         if resample:
@@ -848,9 +849,10 @@ class SimpleStream(Stream):
             #print('resample took %.3f sec' % (time.time()-tresample))
 
         ## TODO: add CAR here, after S+H correction (in self.resample) rather than before it,
-        ## because CAR assumes simultaneous timepoints across chans
+        ## because CAR assumes simultaneous timepoints across chans. Also need to slice out
+        ## chans only at the very end, as in DATStream
         if self.car:
-            raise NotImplementedError("SurfStream doesn't support CAR yet")
+            raise NotImplementedError("SimpleStream doesn't support CAR yet")
 
         # now trim down to just the requested time range, work on us integer values to prevent
         # floating point round-off error (when tres is non-integer us) that can occasionally
