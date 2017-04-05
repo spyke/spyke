@@ -4,7 +4,7 @@ waveform data. Some of its functionality is inherited from Tim Blanche's Delphi 
 """
 
 __authors__ = 'Martin Spacek, Reza Lotun'
-__version__ = '1.0'
+__version__ = '1.1'
 
 
 import core
