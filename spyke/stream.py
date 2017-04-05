@@ -688,6 +688,7 @@ class SurfStream(Stream):
         ## TODO: add highpass filtering, although it probably won't make much difference
         if self.filtmeth:
             raise NotImplementedError("SurfStream doesn't support filtering yet")
+
         # do any resampling if necessary:
         if resample:
             #tresample = time.time()

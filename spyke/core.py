@@ -1369,7 +1369,7 @@ def concatenate_destroy(arrs):
         a = np.empty(shape, dtype=dtype) # empty only allocates virtual memory
     except MemoryError:
         raise MemoryError("concatenate_destroy: not enough virtual memory to allocate "
-                          "destination array. Create/grow swap file?")
+                          "destination array. Create/grow your swap file?")
         
     rowi = 0
     for i in range(len(arrs)):
