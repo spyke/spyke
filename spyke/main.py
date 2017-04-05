@@ -2256,7 +2256,9 @@ class SpykeWindow(QtGui.QMainWindow):
                         continue # skip it
                     fn = line.rstrip('\n')
                     fext = os.path.splitext(fn)[1]
-                    if fext == '.ns6':
+                    if fext == '.dat':
+                        f = dat.File(fn, self.streampath)
+                    elif fext == '.ns6':
                         f = nsx.File(fn, self.streampath)
                     elif fext == '.srf':
                         f = surf.File(fn, self.streampath)
