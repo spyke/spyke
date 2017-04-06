@@ -80,6 +80,7 @@ MAXLONGLONG = 2**63-1
 MAXNBYTESTOFILE = 2**31 # max array size safe to call .tofile() on in Numpy 1.5.0 on Windows
 
 MAXNSPIKEPLOTS = 200
+MAXNROWSLISTSELECTION = 10000
 
 CHANFIELDLEN = 256 # channel string field length at start of .resample file
 
@@ -386,7 +387,14 @@ class SpykeListView(QtGui.QListView):
 
     def selectionChanged(self, selected, deselected, prefix=None):
         """Plot neurons or spikes on list item selection"""
-        QtGui.QListView.selectionChanged(self, selected, deselected)
+        # For short lists, display the actual selection in the list, otherwise, if there are
+        # too many entries in the list, selection gets unbearably slow, especially as you
+        # select items further down the list. So for very long lists, don't actually show the
+        # selection. The selection events all still seem to work though, and for some reason
+        # sometimes the selections themselves are displayed, even when selected
+        # programmatically:
+        if self.nrows < MAXNROWSLISTSELECTION:
+            QtGui.QListView.selectionChanged(self, selected, deselected)
         panel = self.sortwin.panel
         addis = [ i.data().toInt()[0] for i in selected.indexes() ]
         remis = [ i.data().toInt()[0] for i in deselected.indexes() ]
