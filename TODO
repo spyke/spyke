@@ -1,3 +1,9 @@
+- on delete key press in cluster and sort windows, if any spikes are explicitly selected, remove only them, otherwise remove selected neuron(s)
+
+- try memmaping the .wave file to save RAM
+    - open in copy-on-write mode in np.load(mmap_mode='c')?
+    - worry about how shifted waveforms are resaved to disk on demand. Does the memmap need to be closed first, save with np.save, then reopen memmap with np.load()?
+
 - also add CAR to SurfStream and SimpleStreams, and also to lowpass streams
 
 - do proper low pass filtering (not just decimation) to get LFP data from wideband data
