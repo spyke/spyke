@@ -1,5 +1,3 @@
-- on delete key press in cluster and sort windows, if any spikes are explicitly selected, remove only them, otherwise remove selected neuron(s)
-
 - try memmaping the .wave file to save RAM
     - open in copy-on-write mode in np.load(mmap_mode='c')?
     - worry about how shifted waveforms are resaved to disk on demand. Does the memmap need to be closed first, save with np.save, then reopen memmap with np.load()?
@@ -1379,6 +1377,8 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - to help clean out noise events, make one of the cluster dimension rms error wrt to the template, and leave the other two as PCs or ICs
 - add direct support for .dat files + some kind of meta data file (.json)
 - add "common average referencing" cited in Kilosort paper, ref: Ludwig...Kipke, 2009, J Neurophysiol
+- on delete key press in cluster and sort windows, if any spikes are explicitly selected, remove only them, otherwise remove selected neuron(s)
+
 
 
 

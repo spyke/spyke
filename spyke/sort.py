@@ -2273,8 +2273,11 @@ class SortWindow(SpykeToolWindow):
         gw.updateGL()
 
     def on_actionDelete_triggered(self):
-        """Delete selected spikes or clusters"""
-        if QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
+        """Delete explicity selected spikes, or clusters"""
+        selsids = self.spykewindow.GetSpikes() # IDs of explicitly selected spikes
+        nselsids = len(sids)
+        if (QApplication.instance().keyboardModifiers() & Qt.ControlModifier
+            or nselsids > 0):
             self.delete_spikes()
         else:
             self.delete_clusters()
