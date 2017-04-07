@@ -1941,8 +1941,8 @@ class SortWindow(SpykeToolWindow):
         toolbar.setIconSize(QtCore.QSize(16, 16)) # like in main spyke window
 
         actionDelete = QAction(QIcon('res/edit-delete.svg'), 'Del', self)
-        tt = ('<nobr><b>Del</b> &nbsp; Delete clusters</nobr>\n'
-              '<nobr><b>CTRL+Del</b> &nbsp; Delete spikes</nobr>')
+        tt = ('<nobr><b>Del</b> &nbsp; Delete selected spikes or clusters</nobr>\n'
+              '<nobr><b>CTRL+Del</b> &nbsp; Delete selected spikes</nobr>')
         actionDelete.setToolTip(tt)
         self.connect(actionDelete, QtCore.SIGNAL('triggered()'),
                      self.on_actionDelete_triggered)
