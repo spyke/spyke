@@ -2255,7 +2255,7 @@ class SortWindow(SpykeToolWindow):
 
     def clear(self):
         """Clear selections in this order: unsorted spikes, sorted spikes,
-        secondary selected neuron, neurons"""
+        cluster automatically selected for comparison, cluster 0, clusters"""
         spw = self.spykewindow
         clusters = spw.GetClusters()
         if len(self.uslist.selectedIndexes()) > 0:
@@ -2265,6 +2265,11 @@ class SortWindow(SpykeToolWindow):
         elif len(clusters) == 2 and self._source in clusters:
             clusters.remove(self._source)
             spw.SelectClusters(clusters, on=False)
+        elif 0 in spw.GetClusterIDs():
+            for cluster in spw.GetClusters():
+                if cluster.id == 0:
+                    spw.SelectClusters([cluster], on=False)
+                break
         else:
             self.nlist.clearSelection()
         # reset colours in cluster plot:

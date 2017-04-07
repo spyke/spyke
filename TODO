@@ -1378,6 +1378,7 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - add direct support for .dat files + some kind of meta data file (.json)
 - add "common average referencing" cited in Kilosort paper, ref: Ludwig...Kipke, 2009, J Neurophysiol
 - on delete key press in cluster and sort windows, if any spikes are explicitly selected, remove only them, otherwise remove selected neuron(s)
+- on ESC, if one of the selected clusters is cluster 0, deselect that one first
 
 
 
