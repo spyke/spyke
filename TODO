@@ -1,3 +1,7 @@
+- subtract about 100 us from all spike times imported from kilosort (during import of the .events.zip file, not during its creation) to make up for essentially all spikes being centered too far to the left initially, until manually shifted. This would save on waveform reload time after manual shift
+
+- add CTRL+R shortcut for spike waveform reload
+
 - try memmaping the .wave file to save RAM
     - open in copy-on-write mode in np.load(mmap_mode='c')?
     - worry about how shifted waveforms are resaved to disk on demand. Does the memmap need to be closed first, save with np.save, then reopen memmap with np.load()?
