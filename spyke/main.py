@@ -74,6 +74,9 @@ CHARTTW = {'.dat': (-25000, 25000),
 # LFP window temporal window (us)
 LFPTW = -500000, 500000
 
+# shift kilosort spike times by this much for better positioning in sort window:
+KILOSORTSHIFTCORRECT = -100 # us
+
 # spatial channel layout:
 # UVPERUM affects vertical channel spacing and voltage gain (which is further multiplied by
 # each plot window's gain):
@@ -2692,7 +2695,7 @@ class SpykeWindow(QtGui.QMainWindow):
             d = dict(np.load(f)) # convert to an actual dict to use d.get() method
             print('done opening .events.zip file')
             print('.events.zip file was %d bytes long' % f.tell())
-            spikets = d.get('spikets') # spike times
+            spikets = d.get('spikets') # spike times, us
             maxchans = d.get('maxchans') # maxchans
             nids = d.get('nids') # neuron IDs
 
@@ -2705,6 +2708,10 @@ class SpykeWindow(QtGui.QMainWindow):
             raise ValueError('missing nids')
         assert len(spikets) == len(maxchans) == len(nids)
         nspikes = len(spikets)
+
+        # shift kilosort spike times for better positioning in sort window:
+        print('shifting kilosort spike times by %d us' % KILOSORTSHIFTCORRECT)
+        spikets = spikets + KILOSORTSHIFTCORRECT
 
         # create sort:
         sort = self.CreateNewSort() # create a new sort, with bound stream
@@ -2854,6 +2861,8 @@ class SpykeWindow(QtGui.QMainWindow):
         # update mean cluster positions, so they can be sorted by y0:
         for cluster in sort.clusters.values():
             cluster.update_pos()
+
+        print('done importing events from %r' % fullfname)
 
     def convert_kilosortnpy2eventszip(self, path):
         """Read relevant KiloSort .npy results files in path, process them slightly,
