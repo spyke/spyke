@@ -33,8 +33,8 @@ spyke requires recent versions of the following to be installed:
 spyke is developed in Xubuntu 16.04. It should work in other Linux distributions. In
 principle, it should also work in Windows and OSX.
 
-A much older version is described in the paper [Python for large-scale electrophysiology]
-(http://www.frontiersin.org/Neuroinformatics/10.3389/neuro.11.009.2008/abstract).
+A much older version is described in the paper
+[Python for large-scale electrophysiology](http://www.frontiersin.org/Neuroinformatics/10.3389/neuro.11.009.2008/abstract).
 
 To run:
 ```
