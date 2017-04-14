@@ -45,10 +45,6 @@ To install for use as a library (TODO: doesn't currently work):
 $ python setup.py install
 ```
 
-For the NVIDIA 340 driver in Linux, it seems the "Allow Flipping" option must be disabled in
-the OpenGL settings in the `nvidia-settings` app, otherwise the 3D cluster plot will not
-update properly.
-
 Plotting of spike waveforms in the Sort window can be slow and generate flicker. This seems to
 be a problem with matplotlib, and can be fixed by applying the following diff to matplotlib:
 

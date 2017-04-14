@@ -235,9 +235,10 @@ class GLWidget(QtOpenGL.QGLWidget):
             #if self.axes in ['both', 'focal']:
                 #self.paint_focal_axes()
 
-        # doesn't seem to be necessary, even though I'm in double-buffered mode with the
-        # back buffer for RGB sid encoding, but do it anyway for completeness
-        self.swapBuffers()
+        # doesn't seem to be necessary, even though double-buffered mode is set with the
+        # back buffer for RGB sid encoding. In fact, swapBuffers() call seems to cause
+        # flickering, so leave disabled:
+        #self.swapBuffers()
 
     def resizeGL(self, width, height):
         GL.glViewport(0, 0, width, height)
