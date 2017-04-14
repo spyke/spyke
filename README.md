@@ -3,7 +3,7 @@ sorting high-density multichannel extracellular neuronal waveform data.
 
 spyke currently works with `.dat` files, Blackrock `.nsx` files, [Swindale
 Lab](http://swindale.ecc.ubc.ca) `.srf` and `.tsf` files, and Rodrigo Quian Quiroga's
-[simulated data](http://www.vis.caltech.edu/~rodri/Wave_clus/Simulator.zip) .mat files.
+[simulated data](http://www.vis.caltech.edu/~rodri/Wave_clus/Simulator.zip) `.mat` files.
 spyke can be extended to work with other electrophysiology file formats. Some [sample
 data](http://swindale.ecc.ubc.ca/spyke) is available. [Spike sorting for polytrodes: a divide
 and conquer approach](http://dx.doi.org/10.3389/fnsys.2014.00006) is a paper describing the
@@ -17,21 +17,21 @@ Dependencies:
 
 spyke requires recent versions of the following to be installed:
 
-* [Python](http://python.org) (2.7.x, 3.x hasn't been tested)
+* [Python](http://python.org) (2.7.x, not yet compatible with 3.x)
 * [IPython](http://ipython.org)
 * [numpy](http://numpy.org)
 * [scipy](http://scipy.org)
 * [matplotlib](http://matplotlib.org)
 * [PyQt4](http://www.riverbankcomputing.co.uk/software/pyqt)
   ([PySide](http://pyside.org) will probably work too, but is untested)
-* [PyOpenGL](http://pyopengl.sourceforge.net/)
+* [PyOpenGL](http://pyopengl.sourceforge.net)
 * [Cython](http://cython.org)
-* [MDP](http://mdp-toolkit.sourceforge.net/)
+* [MDP](http://mdp-toolkit.sourceforge.net)
 * [scikit-learn](http://scikit-learn.org)
-* [PyWavelets](http://www.pybytes.com/pywavelets/)
+* [PyWavelets](http://www.pybytes.com/pywavelets)
 
-spyke is developed in Xubuntu 16.04. It should work in other Linux distributions. In
-principle, it should also work in Windows and OSX.
+spyke is developed in [Xubuntu](http://xubuntu.org) 16.04. It should work in other Linux
+distributions, and is known to work in OSX. In principle, it should also work in Windows.
 
 A much older version is described in the paper
 [Python for large-scale electrophysiology](http://www.frontiersin.org/Neuroinformatics/10.3389/neuro.11.009.2008/abstract).
