@@ -244,8 +244,9 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glViewport(0, 0, width, height)
         GL.glMatrixMode(GL.GL_PROJECTION)
         GL.glLoadIdentity()
-        # fov (deg) controls amount of perspective, and as a side effect initial apparent size
-        GLU.gluPerspective(45, width/height, 0.0001, 1000) # fov, aspect, nearz & farz clip planes
+        # fov (deg) controls amount of perspective, and as a side effect initial apparent size.
+        # fov, aspect, nearz & farz clip planes:
+        GLU.gluPerspective(45, width/height, 0.0001, 1000)
         GL.glMatrixMode(GL.GL_MODELVIEW)
 
     def paint_mini_axes(self):

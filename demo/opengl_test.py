@@ -103,7 +103,8 @@ class GLWidget(QtOpenGL.QGLWidget):
     def initializeGL(self):
         GL.glClearColor(0.0, 0.0, 0.0, 1.0) # same as default
         GL.glClearDepth(1.0) # same as default
-        GL.glEnable(GL.GL_DEPTH_TEST) # display points according to occlusion, not order of plotting
+        # display points according to occlusion, not order of plotting:
+        GL.glEnable(GL.GL_DEPTH_TEST)
         #GL.glEnable(GL.GL_POINT_SMOOTH) # doesn't seem to work right, proper way to antialiase?
         #GL.glEnable(GL.GL_LINE_SMOOTH) # works better
         #GL.glPointSize(1.5) # truncs to the nearest pixel if antialiasing is off

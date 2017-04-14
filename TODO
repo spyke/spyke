@@ -1,3 +1,5 @@
+- add export of .clu, .spk and .res files
+
 - subtract about 100 us from all spike times imported from kilosort (during import of the .events.zip file, not during its creation) to make up for essentially all spikes being centered too far to the left initially, until manually shifted. This would save on waveform reload time after manual shift
 
 - add CTRL+R shortcut for spike waveform reload
