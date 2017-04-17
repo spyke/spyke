@@ -1,6 +1,9 @@
-- add export of .clu, .spk and .res files
+- do proper low pass filtering (not just decimation) to get LFP data from wideband data
+    - when exporting to lfp.zip, do slicing and filtering and decimation in the same 10 sec chunks of wideband data as spike detection, to avoid memory errors
 
-- subtract about 100 us from all spike times imported from kilosort (during import of the .events.zip file, not during its creation) to make up for essentially all spikes being centered too far to the left initially, until manually shifted. This would save on waveform reload time after manual shift
+- do whitening of raw data? done by Kilosort and spyking-circus
+
+- add export of .clu, .spk and .res files
 
 - add CTRL+R shortcut for spike waveform reload
 
@@ -9,11 +12,6 @@
     - worry about how shifted waveforms are resaved to disk on demand. Does the memmap need to be closed first, save with np.save, then reopen memmap with np.load()?
 
 - also add CAR to SurfStream and SimpleStreams, and also to lowpass streams
-
-- do proper low pass filtering (not just decimation) to get LFP data from wideband data
-    - when exporting to lfp.zip, do slicing and filtering and decimation in the same 10 sec chunks of wideband data as spike detection, to avoid memory errors
-
-- do whitening of raw data? done by Kilosort and spyking-circus
 
 - add t-SNE as a dimension reduction method
 
@@ -1385,6 +1383,7 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - add "common average referencing" cited in Kilosort paper, ref: Ludwig...Kipke, 2009, J Neurophysiol
 - on delete key press in cluster and sort windows, if any spikes are explicitly selected, remove only them, otherwise remove selected neuron(s)
 - on ESC, if one of the selected clusters is cluster 0, deselect that one first
+- subtract about 100 us from all spike times imported from kilosort (during import of the .events.zip file, not during its creation) to make up for essentially all spikes being centered too far to the left initially, until manually shifted. This would save on waveform reload time after manual shift
 
 
 
