@@ -1910,6 +1910,12 @@ or remove all duplicate spikes from selected neurons
       <addaction name="actionExportLFPZipFiles"/>
       <addaction name="actionExportLFPCSVFiles"/>
      </widget>
+     <widget class="QMenu" name="menuExportHighPass">
+      <property name="title">
+       <string>High-pass data</string>
+      </property>
+      <addaction name="actionExportHighPassDatFiles"/>
+     </widget>
      <widget class="QMenu" name="menuExportRawData">
       <property name="title">
        <string>Raw data</string>
@@ -1921,6 +1927,7 @@ or remove all duplicate spikes from selected neurons
      <addaction name="actionExportTextheader"/>
      <addaction name="actionExportAll"/>
      <addaction name="separator"/>
+     <addaction name="menuExportHighPass"/>
      <addaction name="menuExportLowPass"/>
      <addaction name="menuExportRawData"/>
     </widget>
@@ -2620,6 +2627,14 @@ or remove all duplicate spikes from selected neurons
    </property>
    <property name="text">
     <string>Mean</string>
+   </property>
+  </action>
+  <action name="actionExportHighPassDatFiles">
+   <property name="text">
+    <string>.dat Files</string>
+   </property>
+   <property name="toolTip">
+    <string>Export high-pass ephys data to .dat file(s) in same folder</string>
    </property>
   </action>
   <action name="actionExportRawDataDatFiles">

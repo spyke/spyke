@@ -44,6 +44,7 @@ import cPickle
 import random
 from copy import copy
 from struct import unpack
+from collections import OrderedDict as odict
 
 # seems unnecessary: automatically add spyke to path
 #spykepath = os.path.split(os.getcwd())[0] # parent dir of cwd
@@ -405,6 +406,43 @@ class SpykeWindow(QtGui.QMainWindow):
             self.sort.exportspikewaves(sids, selchans, tis, fname, format)
 
     @QtCore.pyqtSlot()
+    def on_actionExportHighPassDatFiles_triggered(self):
+        self.export_hpstream()
+
+    def export_hpstream(self):
+        """Export high-pass stream, using current preprocessing settings (filtering, CAR,
+        and resampling), to .filt.dat file(s) with associated .filt.dat.json file describing
+        the preprocessing that was done"""
+        caption = "Export high-pass, preprocessed data to .filt.dat files"
+        basepath = getExistingDirectory(self, caption=caption, directory=self.sortpath)
+        basepath = str(basepath)
+        if not basepath:
+            return
+        try: # self.lpstream is a MultiStream?
+            hpstreams = self.hpstream.streams
+        except AttributeError: # self.lpstream is a normal Stream
+            hpstreams = [self.hpstream]
+        print('exporting high-pass data to:')
+        for hps in hpstreams:
+            path = os.path.join(basepath, hps.srcfnameroot)
+            try: os.mkdir(path)
+            except OSError: pass # path already exists?
+            fullfname = os.path.join(path, hps.srcfnameroot + '.filt.dat')
+            fulljsonfname = fullfname + '.json'
+            print(fullfname)
+            with open(fullfname, 'wb') as datf:
+                blocksize = int(float(self.ui.blockSizeLineEdit.text())) # allow exp notation
+                t0s = np.arange(hps.t0, hps.t1, blocksize)
+                for t0 in t0s:
+                    t1 = t0 + blocksize
+                    wave = hps[t0:t1]
+                    wave.data.T.tofile(datf) # write in column-major (Fortran) order
+                extras = odict()
+                extras['filtering'] = hps.filtmeth
+                extras['common_avg_ref'] = hps.car
+                core.write_dat_json(hps, fulljsonfname, raw=False, extras=extras)
+        print('done exporting high-pass data')
+
     @QtCore.pyqtSlot()
     def on_actionExportLFPZipFiles_triggered(self):
         self.export_lpstream(format='binary')
