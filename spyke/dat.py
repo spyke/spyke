@@ -112,9 +112,9 @@ class File(object):
         except KeyError: pass
         return d
 
-    def export_dat(self, dt=None):
+    def export_raw_dat(self, dt=None):
         """Redundant feature"""
-        raise RuntimeError("export_dat() is redundant for a .dat file")
+        raise RuntimeError("export_raw_dat() is redundant for a .dat file")
 
 
 class FileHeader(object):

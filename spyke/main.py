@@ -447,14 +447,10 @@ class SpykeWindow(QtGui.QMainWindow):
         print('done exporting low-pass data')
 
     @QtCore.pyqtSlot()
-    def on_actionExportDatFiles_triggered(self):
-        ## optionally bring up folder selection dialog box here
-        self.exportDat()
-
-    def exportDat(self):
-        """Export raw ephys data to .dat file, in (ti, chani) order"""
+    def on_actionExportRawDataDatFiles_triggered(self):
+        """Export raw ephys data to .dat file(s), in (ti, chani) order"""
         try:
-            self.hpstream.f.export_dat()
+            self.hpstream.f.export_raw_dat()
         except AttributeError:
             raise NotImplementedError("Can't (yet) export raw ephys data from %s to .dat")
 

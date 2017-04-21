@@ -69,8 +69,8 @@ class File(dat.File):
         self.datapacket = datapacket
         self.contiguous = True
 
-    def export_dat(self, dt=None):
-        """Export contiguous data packet to .dat file, in the original (ti, chani) order
+    def export_raw_dat(self, dt=None):
+        """Export raw contiguous data packet to .dat file, in the original (ti, chani) order
         using same base file name in the same folder. Also export companion .json metadata
         file. dt is duration to export from start of recording, in sec"""
         if dt == None:
