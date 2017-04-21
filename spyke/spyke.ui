@@ -1917,6 +1917,9 @@ or remove all duplicate spikes from selected neurons
       <addaction name="actionExportHighPassDatFiles"/>
      </widget>
      <widget class="QMenu" name="menuExportRawData">
+      <property name="toolTip">
+       <string>Export raw ephys data to .dat file(s) in same folder</string>
+      </property>
       <property name="title">
        <string>Raw data</string>
       </property>
@@ -2180,7 +2183,7 @@ or remove all duplicate spikes from selected neurons
   </action>
   <action name="actionExportTsChIDFiles">
    <property name="text">
-    <string>tschid Files</string>
+    <string>.tschid Files</string>
    </property>
    <property name="toolTip">
     <string>Export tschid Files</string>
@@ -2480,7 +2483,7 @@ or remove all duplicate spikes from selected neurons
   </action>
   <action name="actionExportPtcsFiles">
    <property name="text">
-    <string>ptcs Files</string>
+    <string>.ptcs Files</string>
    </property>
    <property name="toolTip">
     <string>Export ptcs Files</string>
@@ -2488,7 +2491,7 @@ or remove all duplicate spikes from selected neurons
   </action>
   <action name="actionExportCSVFile">
    <property name="text">
-    <string>csv Files</string>
+    <string>.csv Files</string>
    </property>
    <property name="toolTip">
     <string>Export csv Files</string>
@@ -2496,7 +2499,7 @@ or remove all duplicate spikes from selected neurons
   </action>
   <action name="actionExportGdfFiles">
    <property name="text">
-    <string>gdf Files</string>
+    <string>.gdf Files</string>
    </property>
    <property name="toolTip">
     <string>Export gdf Files</string>
@@ -2504,7 +2507,7 @@ or remove all duplicate spikes from selected neurons
   </action>
   <action name="actionExportSpkFiles">
    <property name="text">
-    <string>spk Files</string>
+    <string>.spk Files</string>
    </property>
    <property name="toolTip">
     <string>Export spk Files</string>
@@ -2549,22 +2552,28 @@ or remove all duplicate spikes from selected neurons
   </action>
   <action name="actionExportSpikesZipFile">
    <property name="text">
-    <string>spikes.zip File</string>
+    <string>.spikes.zip File</string>
    </property>
   </action>
   <action name="actionExportSpikesCSVFile">
    <property name="text">
-    <string>spikes.csv File</string>
+    <string>.spikes.csv File</string>
    </property>
   </action>
   <action name="actionExportLFPZipFiles">
    <property name="text">
-    <string>lfp.zip Files</string>
+    <string>.lfp.zip Files</string>
+   </property>
+   <property name="toolTip">
+    <string>Export low-pass ephys data to .lfp.zip file(s) in same folder</string>
    </property>
   </action>
   <action name="actionExportLFPCSVFiles">
    <property name="text">
-    <string>lfp.csv Files</string>
+    <string>.lfp.csv Files</string>
+   </property>
+   <property name="toolTip">
+    <string>Export low-pass ephys data to .lfp.csv file(s) in same folder</string>
    </property>
   </action>
   <action name="actionFiltmethNone">
@@ -2641,6 +2650,10 @@ or remove all duplicate spikes from selected neurons
    <property name="text">
     <string>.dat Files</string>
    </property>
+   <property name="toolTip">
+    <string>Export raw ephys data to .dat file(s) in same folder</string>
+   </property>
+  </action>
   </action>
  </widget>
  <customwidgets>
