@@ -10,10 +10,12 @@ import hashlib
 import time
 import datetime
 import os
+from collections import OrderedDict as odict
 
 import random
 import string
 from copy import copy
+import json
 
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
@@ -1817,3 +1819,34 @@ def unpickler_find_global_0_7_to_0_8(oldmod, oldcls):
     print('Rename on unpickle: %s.%s -> %s.%s' % (oldmod, oldcls, newmod, newcls))
     exec('import %s' % newmod)
     return eval('%s.%s' % (newmod, newcls))
+
+def write_dat_json(stream, fulljsonfname, raw=False, extras={}):
+    """Write .json metadata file as a companion to stream's file. For now, stream should be
+    either a DATStream or an NSXStream. If raw is True, export values of raw stream data,
+    otherwise, export values of processed stream data. extras is a dict with extra
+    key:value pairs to be added to the end of the .json file"""
+
+    #assert type(stream) in [DATStream, NSXStream]
+
+    od = odict()
+    f = stream.f
+    fh = f.fileheader
+    od['nchans'] = fh.nchanstotal if raw else fh.nchans
+    od['sample_rate'] = stream.rawsampfreq if raw else stream.sampfreq
+    od['dtype'] = 'int16' # hard-coded, only dtype supported for now
+    od['uV_per_AD'] = fh.AD2uVx
+    od['chan_layout_name'] = stream.probe.name
+    od['chans'] = list(fh.chans) if raw else list(stream.chans)
+    od['aux_chans'] = list(fh.auxchans) if raw else []
+    resamplex = intround(stream.sampfreq / stream.rawsampfreq)
+    od['nsamples_offset'] = f.t0i if raw else f.t0i*resamplex
+    od['datetime'] = fh.datetime.isoformat()
+    od['author'] = ''
+    od['version'] = '' # no way to extract Blackrock NSP version from .nsx?
+    od['notes'] = fh.comment
+    od.update(extras)
+    with open(fulljsonfname, 'w') as jsonf:
+        ## TODO: make list fields not have a newline for each entry
+        json.dump(od, jsonf, indent=0) # write contents of odict to file
+        jsonf.write('\n') # end with a blank line
+    print('wrote metadata file %r' % fulljsonfname)

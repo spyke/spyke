@@ -15,10 +15,8 @@ import numpy as np
 import os
 from struct import unpack
 import datetime
-from collections import OrderedDict as odict
-import json
 
-from core import NULL, rstripnonascii, intround
+from core import NULL, rstripnonascii, intround, write_dat_json
 import dat # for inheritance
 from stream import NSXStream
 
@@ -105,25 +103,7 @@ class File(dat.File):
               % (nt, nbyteswritten / fh.nchanstotal / 2))
 
         # export companion .json metadata file:
-        od = odict()
-        fh = self.fileheader
-        od['nchans'] = fh.nchanstotal
-        od['sample_rate'] = fh.sampfreq
-        od['dtype'] = 'int16' # hard-coded, only dtype supported for now
-        od['uV_per_AD'] = fh.AD2uVx
-        od['chan_layout_name'] = self.hpstream.probe.name
-        od['chans'] = list(fh.chans)
-        od['aux_chans'] = list(fh.auxchans)
-        od['nsamples_offset'] = self.t0i
-        od['datetime'] = fh.datetime.isoformat()
-        od['author'] = ''
-        od['version'] = '' # no way to extract Blackrock NSP version from .nsx?
-        od['notes'] = fh.comment
-        with open(fulljsonfname, 'w') as jsonf:
-            ## TODO: make list fields not have a newline for each entry
-            json.dump(od, jsonf, indent=0) # write contents of odict to file
-            jsonf.write('\n') # end with a blank line
-        print('wrote metadata file %r' % fulljsonfname)
+        write_dat_json(self.hpstream, fulljsonfname, raw=True)
 
         # print the important metadata:
         print('total chans: %d' % fh.nchanstotal)
