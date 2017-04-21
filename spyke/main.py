@@ -405,51 +405,46 @@ class SpykeWindow(QtGui.QMainWindow):
             self.sort.exportspikewaves(sids, selchans, tis, fname, format)
 
     @QtCore.pyqtSlot()
+    @QtCore.pyqtSlot()
     def on_actionExportLFPZipFiles_triggered(self):
-        self.exportLFPWaveforms(format='binary')
+        self.export_lpstream(format='binary')
 
     @QtCore.pyqtSlot()
     def on_actionExportLFPCSVFiles_triggered(self):
-        self.exportLFPWaveforms(format='text')
+        self.export_lpstream(format='text')
 
-    def exportLFPWaveforms(self, format='binary'):
-        """Export LFP waveform data to binary .lfp.zip file(s) or text .lfp.csv file(s)
-        to user-designated basepath"""
-        caption = "Export LFP waveforms to binary .lfp.zip files"
+    def export_lpstream(self, format='binary'):
+        """Export low-pass stream (LFP) data as binary .lfp.zip file(s) or text .lfp.csv
+        file(s) in user-designated basepath"""
+        format2ext = {'binary': '.lfp.zip', 'text': '.lfp.csv'}
+        ext = format2ext[format]
+        caption = "Export low-pass data to %s %s files" % (format, ext)
         basepath = getExistingDirectory(self, caption=caption, directory=self.sortpath)
         basepath = str(basepath)
         if not basepath:
             return
         try: # self.lpstream is a MultiStream?
-            streams = self.lpstream.streams
+            lpstreams = self.lpstream.streams
         except AttributeError: # self.lpstream is a normal Stream
-            streams = [self.lpstream]
-        if format == 'binary':
-            ext = '.lfp.zip'
-        elif format == 'text':
-            ext = '.lfp.csv'
-        else:
-            raise ValueError("invalid format: %r" % format)
-        print('exporting LFP waveform data to:')
-        for stream in streams:
-            path = os.path.join(basepath, stream.srcfnameroot)
+            lpstreams = [self.lpstream]
+        print('exporting low-pass data to:')
+        for lps in lpstreams:
+            path = os.path.join(basepath, lps.srcfnameroot)
             try: os.mkdir(path)
             except OSError: pass # path already exists?
-            fullfname = os.path.join(path, stream.srcfnameroot+ext)
-            s = stream
-            wave = s[s.t0:s.t1]
-            if format == 'binary':
-                chanpos = s.probe.siteloc_arr()
-                uVperAD = s.converter.AD2uV(1)
-                with open(fullfname, 'wb') as f:
-                    np.savez_compressed(f, data=wave.data, chans=wave.chans, t0=s.t0,
-                                        t1=s.t1, tres=s.tres, chanpos=chanpos,
-                                        uVperAD=uVperAD)
-            elif format == 'text':
-                np.savetxt(fullfname, wave.data, fmt='%d', delimiter=',') # data should be int
-            else:
-                raise ValueError('unknown format: %r' % format)
+            fullfname = os.path.join(path, lps.srcfnameroot+ext)
             print(fullfname)
+            wave = lps[lps.t0:lps.t1]
+            if format == 'binary':
+                chanpos = lps.probe.siteloc_arr()
+                uVperAD = lps.converter.AD2uV(1)
+                with open(fullfname, 'wb') as f:
+                    np.savez_compressed(f, data=wave.data, chans=wave.chans, t0=lps.t0,
+                                        t1=lps.t1, tres=lps.tres, chanpos=chanpos,
+                                        uVperAD=uVperAD)
+            else: # format == 'text'
+                np.savetxt(fullfname, wave.data, fmt='%d', delimiter=',') # data should be int
+        print('done exporting low-pass data')
 
     @QtCore.pyqtSlot()
     def on_actionExportDatFiles_triggered(self):

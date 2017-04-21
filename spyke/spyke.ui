@@ -1903,9 +1903,9 @@ or remove all duplicate spikes from selected neurons
       <addaction name="actionExportSpikesZipFile"/>
       <addaction name="actionExportSpikesCSVFile"/>
      </widget>
-     <widget class="QMenu" name="menuLFP">
+     <widget class="QMenu" name="menuExportLowPass">
       <property name="title">
-       <string>LFP</string>
+       <string>Low-pass data</string>
       </property>
       <addaction name="actionExportLFPZipFiles"/>
       <addaction name="actionExportLFPCSVFiles"/>
@@ -1915,8 +1915,8 @@ or remove all duplicate spikes from selected neurons
      <addaction name="actionExportTextheader"/>
      <addaction name="actionExportAll"/>
      <addaction name="separator"/>
-     <addaction name="menuLFP"/>
      <addaction name="actionExportDatFiles"/>
+     <addaction name="menuExportLowPass"/>
     </widget>
     <widget class="QMenu" name="menuConvert">
      <property name="title">
