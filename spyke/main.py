@@ -915,6 +915,11 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SetSampfreq(100000)
 
     @QtCore.pyqtSlot()
+    def on_action120kHz_triggered(self):
+        """120kHz menu choice event"""
+        self.SetSampfreq(120000)
+
+    @QtCore.pyqtSlot()
     def on_actionSampleAndHoldCorrect_triggered(self):
         """Sample & hold menu event"""
         enable = self.ui.actionSampleAndHoldCorrect.isChecked()

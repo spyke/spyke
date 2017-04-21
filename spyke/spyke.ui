@@ -1994,6 +1994,7 @@ or remove all duplicate spikes from selected neurons
     <addaction name="action60kHz"/>
     <addaction name="action80kHz"/>
     <addaction name="action100kHz"/>
+    <addaction name="action120kHz"/>
     <addaction name="separator"/>
     <addaction name="actionSampleAndHoldCorrect"/>
    </widget>
@@ -2654,6 +2655,13 @@ or remove all duplicate spikes from selected neurons
     <string>Export raw ephys data to .dat file(s) in same folder</string>
    </property>
   </action>
+  <action name="action120kHz">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>120 kHz</string>
+   </property>
   </action>
  </widget>
  <customwidgets>
