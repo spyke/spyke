@@ -1843,7 +1843,11 @@ def write_dat_json(stream, fulljsonfname, raw=False, extras={}):
     od['datetime'] = fh.datetime.isoformat()
     od['author'] = ''
     od['version'] = '' # no way to extract Blackrock NSP version from .nsx?
-    od['notes'] = fh.comment
+    try:
+        notes = fh.notes
+    except AttributeError:
+        notes = fh.comment
+    od['notes'] = notes
     od.update(extras)
     with open(fulljsonfname, 'w') as jsonf:
         ## TODO: make list fields not have a newline for each entry
