@@ -308,6 +308,8 @@ class DATStream(Stream):
         else: # kind == 'lowpass'
             resample = False # which also means no s+h correction allowed
             decimate = True
+            assert self.rawsampfreq % self.sampfreq == 0
+            decimatex = intround(self.rawsampfreq / self.sampfreq)
 
         # excess data to get at either end, to eliminate filtering and interpolation
         # edge effects:
@@ -404,23 +406,22 @@ class DATStream(Stream):
             #tresample = time.time()
             dataxs, tsxs = self.resample(dataxs, tsxs, self.chans)
             #print('resample took %.3f sec' % (time.time()-tresample))
-        if decimate:
-            decimatex = intround(self.rawsampfreq / self.sampfreq)
-            dataxs, tsxs = dataxs[:, ::decimatex], tsxs[::decimatex]
 
         #nresampletxs = len(tsxs)
         #print('ntxs, nresampletxs: %d, %d' % (ntxs, nresampletxs))
         #assert ntxs == len(tsxs)
 
-        # now trim down to just the requested time range and chans:
-        # for trimming time range, work on us integer values to prevent floating point
+        # Trim down to just the requested time range and chans, and optionally decimate.
+        # For trimming time range, work on us integer values to prevent floating point
         # round-off error (when tres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
         lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
         chanis = self.f.fileheader.chans.searchsorted(chans)
-        data = dataxs[chanis, lo:hi]
-        ts = tsxs[lo:hi]
         #print('slice:', start, stop, self.tres, data.shape)
+        if decimate:
+            data, ts = dataxs[chanis, lo:hi:decimatex], tsxs[lo:hi:decimatex]
+        else:
+            data, ts = dataxs[chanis, lo:hi], tsxs[lo:hi]
 
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
