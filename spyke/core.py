@@ -1820,26 +1820,46 @@ def unpickler_find_global_0_7_to_0_8(oldmod, oldcls):
     exec('import %s' % newmod)
     return eval('%s.%s' % (newmod, newcls))
 
-def write_dat_json(stream, fulljsonfname, raw=False, extras={}):
+def write_dat_json(stream, fulljsonfname, sampfreq=None, raw=False, **kwargs):
     """Write .json metadata file as a companion to stream's file. For now, stream should be
-    either a DATStream or an NSXStream. If raw is True, export values of raw stream data,
-    otherwise, export values of processed stream data. extras is a dict with extra
-    key:value pairs to be added to the end of the .json file"""
+    either a DATStream or an NSXStream. If sampfreq is not None, sampfreq overrides
+    'sample_rate' field and automatically calculates 'nsamples_offset' field. If raw is True,
+    export values of raw stream data, otherwise, export values of processed stream data.
+    kwargs are any extra key:value pairs to overwrite existing fields, or new ones to be added
+    to the end of the .json file"""
 
     #assert type(stream) in [DATStream, NSXStream]
 
-    od = odict()
     f = stream.f
     fh = f.fileheader
-    od['nchans'] = fh.nchanstotal if raw else fh.nchans
-    od['sample_rate'] = stream.rawsampfreq if raw else stream.sampfreq
+
+    # choose values:
+    if sampfreq is None:
+        sampfreq = stream.sampfreq
+    if raw:
+        nchans = fh.nchanstotal
+        sample_rate = stream.rawsampfreq
+        chans = list(fh.chans)
+        auxchans = list(fh.auxchans)
+        nsamples_offset = f.t0i
+    else:
+        nchans = fh.nchans
+        sample_rate = sampfreq
+        chans = list(stream.chans)
+        auxchans = []
+        resamplex = sampfreq / stream.rawsampfreq
+        nsamples_offset = intround(f.t0i*resamplex)
+
+    # write to odict:
+    od = odict()
+    od['nchans'] = nchans
+    od['sample_rate'] = sample_rate
     od['dtype'] = 'int16' # hard-coded, only dtype supported for now
     od['uV_per_AD'] = fh.AD2uVx
     od['chan_layout_name'] = stream.probe.name
-    od['chans'] = list(fh.chans) if raw else list(stream.chans)
-    od['aux_chans'] = list(fh.auxchans) if raw else []
-    resamplex = intround(stream.sampfreq / stream.rawsampfreq)
-    od['nsamples_offset'] = f.t0i if raw else f.t0i*resamplex
+    od['chans'] = chans
+    od['aux_chans'] = auxchans
+    od['nsamples_offset'] = nsamples_offset
     od['datetime'] = fh.datetime.isoformat()
     od['author'] = ''
     od['version'] = '' # no way to extract Blackrock NSP version from .nsx?
@@ -1848,7 +1868,9 @@ def write_dat_json(stream, fulljsonfname, raw=False, extras={}):
     except AttributeError:
         notes = fh.comment
     od['notes'] = notes
-    od.update(extras)
+    # iterate through kwargs, potentially overwriting any existing fields:
+    for key, val in kwargs.items():
+        od[key] = val
     with open(fulljsonfname, 'w') as jsonf:
         ## TODO: make list fields not have a newline for each entry
         json.dump(od, jsonf, indent=0) # write contents of odict to file

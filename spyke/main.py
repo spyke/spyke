@@ -437,10 +437,8 @@ class SpykeWindow(QtGui.QMainWindow):
                     t1 = t0 + blocksize
                     wave = hps[t0:t1]
                     wave.data.T.tofile(datf) # write in column-major (Fortran) order
-                extras = odict()
-                extras['filtering'] = hps.filtmeth
-                extras['common_avg_ref'] = hps.car
-                core.write_dat_json(hps, fulljsonfname, raw=False, extras=extras)
+                core.write_dat_json(hps, fulljsonfname,
+                                    filtering=hps.filtmeth, common_avg_ref=hps.car)
         print('done exporting high-pass data')
 
     @QtCore.pyqtSlot()
