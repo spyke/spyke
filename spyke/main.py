@@ -483,6 +483,54 @@ class SpykeWindow(QtGui.QMainWindow):
         print('done exporting low-pass data')
 
     @QtCore.pyqtSlot()
+    def on_actionExportHighPassEnvelopeDatFiles_triggered(self):
+        self.export_hp_envelope()
+
+    def export_hp_envelope(self, sampfreq=2000, f1=500):
+        """Export evenlope of high-pass stream, using current preprocessing settings
+        (filtering, CAR, and resampling), to .envl.dat file(s) with associated .envl.dat.json
+        file describing the preprocessing that was done. Decimate output to get sampfreq"""
+        ## TODO: round-trip results in loss of one uninterpolated datapoint
+        caption = "Export envelope of high-pass, preprocessed data to .envl.dat files"
+        basepath = getExistingDirectory(self, caption=caption, directory=self.sortpath)
+        basepath = str(basepath)
+        if not basepath:
+            return
+        try: # self.lpstream is a MultiStream?
+            hpstreams = self.hpstream.streams
+        except AttributeError: # self.lpstream is a normal Stream
+            hpstreams = [self.hpstream]
+        print('exporting high-pass envelope data to:')
+        for hps in hpstreams:
+            assert hps.sampfreq % sampfreq == 0
+            decimatex = intround(hps.sampfreq / sampfreq)
+            path = os.path.join(basepath, hps.srcfnameroot)
+            try: os.mkdir(path)
+            except OSError: pass # path already exists?
+            fullfname = os.path.join(path, hps.srcfnameroot + '.envl.dat')
+            fulljsonfname = fullfname + '.json'
+            print(fullfname)
+            with open(fullfname, 'wb') as datf:
+                blocksize = int(float(self.ui.blockSizeLineEdit.text())) # allow exp notation
+                t0s = np.arange(hps.t0, hps.t1, blocksize)
+                for t0 in t0s:
+                    t1 = t0 + blocksize
+                    wave = hps[t0:t1]
+                    data = core.envelope_filt(wave.data,
+                                              sampfreq=hps.sampfreq, f1=f1) # float64
+                    iint16 = np.iinfo(np.int16)
+                    # ensure data limits fall within int16:
+                    assert data.max() <= iint16.max
+                    assert data.min() >= iint16.min
+                    data = np.int16(data) # convert float64 to int16
+                    data = data[:, ::decimatex] # decimate low-pass envelope
+                    data.T.tofile(datf) # write in column-major (Fortran) order
+                core.write_dat_json(hps, fulljsonfname, sampfreq=sampfreq,
+                                    filtering=hps.filtmeth, common_avg_ref=hps.car,
+                                    envelope='abs, BW, %d Hz' % f1)
+        print('done exporting high-pass envelope data')
+
+    @QtCore.pyqtSlot()
     def on_actionExportRawDataDatFiles_triggered(self):
         """Export raw ephys data to .dat file(s), in (ti, chani) order"""
         try:

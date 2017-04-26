@@ -1915,6 +1915,7 @@ or remove all duplicate spikes from selected neurons
        <string>High-pass data</string>
       </property>
       <addaction name="actionExportHighPassDatFiles"/>
+      <addaction name="actionExportHighPassEnvelopeDatFiles"/>
      </widget>
      <widget class="QMenu" name="menuExportRawData">
       <property name="toolTip">
@@ -2661,6 +2662,14 @@ or remove all duplicate spikes from selected neurons
    </property>
    <property name="text">
     <string>120 kHz</string>
+   </property>
+  </action>
+  <action name="actionExportHighPassEnvelopeDatFiles">
+   <property name="text">
+    <string>.envl.dat Files</string>
+   </property>
+   <property name="toolTip">
+    <string>Export high-pass envelope of ephys data to .dat file(s)</string>
    </property>
   </action>
  </widget>
