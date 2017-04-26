@@ -309,10 +309,10 @@ class DATStream(Stream):
             resample = False # which also means no s+h correction allowed
             decimate = True
 
-        # excess data in us at either end, to eliminate filtering and interpolation
+        # excess data to get at either end, to eliminate filtering and interpolation
         # edge effects:
         #print('XSWIDEBANDPOINTS: %d' % XSWIDEBANDPOINTS)
-        xs = XSWIDEBANDPOINTS * rawtres
+        xs = XSWIDEBANDPOINTS * rawtres # us
         #print('xs: %d, rawtres: %g' % (xs, rawtres))
 
         # stream limits, in us and in sample indices, wrt t=0 and sample=0:
