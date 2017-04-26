@@ -478,7 +478,6 @@ class SpykeWindow(QtGui.QMainWindow):
             for t0 in t0s:
                 t1 = t0 + blocksize
                 wave = lps[t0:t1]
-                print(wave.ts[0], wave.ts[-1])
                 data.append(wave.data)
             # concatenate data blocks horizontally in time:
             data = np.hstack(data)
