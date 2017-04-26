@@ -510,20 +510,25 @@ class SpykeWindow(QtGui.QMainWindow):
             fullfname = os.path.join(path, hps.srcfnameroot + '.envl.dat')
             fulljsonfname = fullfname + '.json'
             print(fullfname)
+            # excess data to get at either end of each block, to eliminate
+            # filtering edge effects:
+            xs = core.XSWIDEBANDPOINTS * hps.rawtres # us
             with open(fullfname, 'wb') as datf:
                 blocksize = int(float(self.ui.blockSizeLineEdit.text())) # allow exp notation
                 t0s = np.arange(hps.t0, hps.t1, blocksize)
                 for t0 in t0s:
                     t1 = t0 + blocksize
-                    wave = hps[t0:t1]
-                    data = core.envelope_filt(wave.data,
-                                              sampfreq=hps.sampfreq, f1=f1) # float64
-                    iint16 = np.iinfo(np.int16)
+                    t0xs, t1xs = t0-xs, t1+xs
+                    wave = hps[t0xs:t1xs] # get excess range of data
+                    # get envelope of data using filtering, float64:
+                    data = core.envelope_filt(wave.data, sampfreq=hps.sampfreq, f1=f1)
                     # ensure data limits fall within int16:
+                    iint16 = np.iinfo(np.int16)
                     assert data.max() <= iint16.max
                     assert data.min() >= iint16.min
                     data = np.int16(data) # convert float64 to int16
-                    data = data[:, ::decimatex] # decimate low-pass envelope
+                    t0i, t1i = wave.ts.searchsorted([t0, t1]) # get indices to remove excess
+                    data = data[:, t0i:t1i:decimatex] # remove excess and decimate
                     data.T.tofile(datf) # write in column-major (Fortran) order
                 core.write_dat_json(hps, fulljsonfname, sampfreq=sampfreq,
                                     filtering=hps.filtmeth, common_avg_ref=hps.car,
