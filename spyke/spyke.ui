@@ -2567,7 +2567,7 @@ or remove all duplicate spikes from selected neurons
     <string>.lfp.zip Files</string>
    </property>
    <property name="toolTip">
-    <string>Export low-pass ephys data to .lfp.zip file(s) in same folder</string>
+    <string>Export low-pass ephys data to .lfp.zip file(s)</string>
    </property>
   </action>
   <action name="actionExportLFPCSVFiles">
@@ -2575,7 +2575,7 @@ or remove all duplicate spikes from selected neurons
     <string>.lfp.csv Files</string>
    </property>
    <property name="toolTip">
-    <string>Export low-pass ephys data to .lfp.csv file(s) in same folder</string>
+    <string>Export low-pass ephys data to .lfp.csv file(s)</string>
    </property>
   </action>
   <action name="actionFiltmethNone">
@@ -2645,7 +2645,7 @@ or remove all duplicate spikes from selected neurons
     <string>.dat Files</string>
    </property>
    <property name="toolTip">
-    <string>Export high-pass ephys data to .dat file(s) in same folder</string>
+    <string>Export high-pass ephys data to .dat file(s)</string>
    </property>
   </action>
   <action name="actionExportRawDataDatFiles">
