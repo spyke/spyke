@@ -1777,6 +1777,26 @@ def WMLDR(data, wname="db4", maxlevel=6, mode='sym'):
     
     return data
 
+def envelope_hilbert(x):
+    """Return envelope of signal x by taking abs of hilbert transform of x. Note this
+    only really works for narrow-band signals. Otherwise, the output envelope is almost
+    as noisy as the input.
+    See:
+    https://dsp.stackexchange.com/a/3464
+    https://docs.scipy.org/doc/scipy-0.19.0/reference/generated/scipy.signal.hilbert.html
+    """
+    return np.abs(scipy.signal.hilbert(x))
+
+def envelope_filt(x, sampfreq=None, f0=None, f1=BWLPF1, order=BWLPORDER, ftype='butter'):
+    """Calculate envelope by rectifying the signal and then low-pass filtering it.
+    Returns float64"""
+    assert sampfreq is not None
+    x = np.abs(x)
+    x, b, a = filterord(x, sampfreq=sampfreq, f0=f0, f1=f1,
+                        order=order, rp=None, rs=None,
+                        btype='lowpass', ftype='butter') # float64
+    return x
+
 def updatenpyfilerows(fname, rows, arr):
     """Given a numpy formatted binary file (usually with .npy extension,
     but not necessarily), update 0-based rows (first dimension) of the
