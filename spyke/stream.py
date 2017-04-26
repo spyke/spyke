@@ -16,7 +16,7 @@ from core import (WaveForm, EmptyClass, intround, intfloor, intceil, lrstrip, MU
                   hamming, filterord, WMLDR, td2fusec)
 from core import (DEFHPRESAMPLEX, DEFLPSAMPLFREQ, DEFHPSRFSHCORRECT,
                   DEFHPDATSHCORRECT, DEFDATFILTMETH, DEFHPNSXSHCORRECT, DEFNSXFILTMETH, DEFCAR,
-                  BWHPF0, BWLPF1, BWHPORDER, BWLPORDER, LOWPASSFILTER,
+                  BWHPF0, BWLPF1, BWHPORDER, BWLPORDER, LOWPASSFILTERLPSTREAM,
                   SRFNCHANSPERBOARD, KERNELSIZE, XSWIDEBANDPOINTS)
 import probes
 
@@ -366,7 +366,7 @@ class DATStream(Stream):
                                          order=order, rp=None, rs=None,
                                          btype=btype, ftype='butter') # float64
             else: # kind == 'lowpass'
-                if LOWPASSFILTER:
+                if LOWPASSFILTERLPSTREAM:
                     btype, order, f0, f1 = kind, BWLPORDER, None, BWLPF1
                     dataxs, b, a = filterord(dataxs, sampfreq=self.rawsampfreq, f0=f0, f1=f1,
                                              order=order, rp=None, rs=None,

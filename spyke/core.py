@@ -50,8 +50,9 @@ BWHPF0 = 300 # butterworth high-pass filter low-frequency cutoff, Hz
 BWLPF1 = 300 # butterworth low-pass filter high-frequency cutoff, Hz
 BWHPORDER = 4 # butterworth high-pass filter order
 BWLPORDER = 4 # butterworth low-pass filter order
-# don't filter raw data, only decimate to get low pass? simple, but aliases
-LOWPASSFILTER = False
+# low-pass filter raw data to get low-pass stream?
+# otherwise just decimate, which is simpler and faster, but aliases:
+LOWPASSFILTERLPSTREAM = True
 
 DEFCAR = 'Median' # default common average reference method: None, 'Median', 'Mean';
                   # 'Median' works best because it's least affected by spikes

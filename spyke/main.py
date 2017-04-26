@@ -470,16 +470,27 @@ class SpykeWindow(QtGui.QMainWindow):
             except OSError: pass # path already exists?
             fullfname = os.path.join(path, lps.srcfnameroot+ext)
             print(fullfname)
-            wave = lps[lps.t0:lps.t1]
+            # collect low-pass data in blocks, to prevent MemoryErrors when trying to
+            # low-pass filter an entire raw ephys data file:
+            blocksize = int(float(self.ui.blockSizeLineEdit.text())) # allow exp notation
+            t0s = np.arange(lps.t0, lps.t1, blocksize)
+            data = []
+            for t0 in t0s:
+                t1 = t0 + blocksize
+                wave = lps[t0:t1]
+                print(wave.ts[0], wave.ts[-1])
+                data.append(wave.data)
+            # concatenate data blocks horizontally in time:
+            data = np.hstack(data)
             if format == 'binary':
                 chanpos = lps.probe.siteloc_arr()
                 uVperAD = lps.converter.AD2uV(1)
                 with open(fullfname, 'wb') as f:
-                    np.savez_compressed(f, data=wave.data, chans=wave.chans, t0=lps.t0,
+                    np.savez_compressed(f, data=data, chans=wave.chans, t0=lps.t0,
                                         t1=lps.t1, tres=lps.tres, chanpos=chanpos,
                                         uVperAD=uVperAD)
             else: # format == 'text'
-                np.savetxt(fullfname, wave.data, fmt='%d', delimiter=',') # data should be int
+                np.savetxt(fullfname, data, fmt='%d', delimiter=',') # data should be int
         print('done exporting low-pass data')
 
     @QtCore.pyqtSlot()
