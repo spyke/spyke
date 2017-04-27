@@ -1711,7 +1711,7 @@ def filterord(data, sampfreq=1000, f0=300, f1=None, order=4, rp=None, rs=None,
     wn = fn / (sampfreq / 2) # wn can be either a scalar or a length 2 vector
     b, a = scipy.signal.iirfilter(order, wn, rp=rp, rs=rs, btype=btype, analog=0,
                                   ftype=ftype, output='ba')
-    data = scipy.signal.lfilter(b, a, data)
+    data = scipy.signal.filtfilt(b, a, data) # non-causal, 0 phase lag
     return data, b, a
 
 def WMLDR(data, wname="db4", maxlevel=6, mode='sym'):
