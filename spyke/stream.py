@@ -359,29 +359,37 @@ class DATStream(Stream):
         if self.filtmeth == None:
             pass
         elif self.filtmeth == 'BW':
-            # high or low pass filter using Butterworth filter:
+            # High- or low-pass filter the raw data using a Butterworth filter.
+            # Use causal filtering to get high-pass data with added phase lag,
+            # in order to preserve expected spike shape for spike detection. Use noncausal
+            # (forward-backward) filtering to get low-pass LFP data without phase lag:
             if kind == 'highpass':
                 btype, order, f0, f1 = kind, BWHPORDER, BWHPF0, None
                 dataxs, b, a = filterord(dataxs, sampfreq=self.rawsampfreq, f0=f0, f1=f1,
-                                         order=order, rp=None, rs=None,
-                                         btype=btype, ftype='butter') # float64
+                                         order=order, rp=None, rs=None, btype=btype,
+                                         ftype='butter', causal=True) # float64
             else: # kind == 'lowpass'
                 if LOWPASSFILTERLPSTREAM:
                     btype, order, f0, f1 = kind, BWLPORDER, None, BWLPF1
                     dataxs, b, a = filterord(dataxs, sampfreq=self.rawsampfreq, f0=f0, f1=f1,
-                                             order=order, rp=None, rs=None,
-                                             btype=btype, ftype='butter') # float64
+                                             order=order, rp=None, rs=None, btype=btype,
+                                             ftype='butter', causal=False) # float64
         elif self.filtmeth == 'WMLDR':
             # high pass filter using wavelet multi-level decomposition and reconstruction,
             # can't directly use this for low pass filtering, but it might be possible to
             # approximate low pass filtering with WMLDR by subtracting the high pass data
             # from the raw data...:
             assert kind == 'highpass' # for now
-            ## TODO: fix weird slow wobbling of amplitude as a function of exactly what
+            ## NOTE: WMLDR seems to leave behind some very low frequencies, resulting
+            ## in weird slow wobbling of amplitude as a function of exactly what
             ## the WMLDR filtering time range happens to be. Setting a much bigger xs
             ## helps, but only until you move xs amount of time away from the start of
-            ## the recording. Perhaps WMLDR doesn't quite remove all the low freqs the way
-            ## Butterworth filtering does
+            ## the recording. I think WMLDR doesn't quite remove all the low freqs the way
+            ## Butterworth filtering does. Applying a Butterworth filter non-causally
+            ## results in exactly the same very low level of spike shape distortion as does
+            ## WMLDR, but without leaving behind the very low frequency component, so there's
+            ## really no reason to use WMLDR, unless you need online filtering with very
+            ## low spike distortion
             dataxs = WMLDR(dataxs)
         else:
             raise ValueError('unknown filter method %s' % self.filtmeth)
