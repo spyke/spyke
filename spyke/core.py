@@ -1689,7 +1689,7 @@ def filter(data, sampfreq=1000, f0=0, f1=7, fr=0.5, gpass=0.01, gstop=30, ftype=
     return data, b, a
 
 def filterord(data, sampfreq=1000, f0=300, f1=None, order=4, rp=None, rs=None,
-              btype='highpass', ftype='butter'):
+              btype='highpass', ftype='butter', causal=True):
     """Bandpass filter data by specifying filter order and btype, instead of gpass and gstop.
 
     btype: 'lowpass', 'highpass', 'bandpass', 'bandstop'
@@ -1711,7 +1711,10 @@ def filterord(data, sampfreq=1000, f0=300, f1=None, order=4, rp=None, rs=None,
     wn = fn / (sampfreq / 2) # wn can be either a scalar or a length 2 vector
     b, a = scipy.signal.iirfilter(order, wn, rp=rp, rs=rs, btype=btype, analog=0,
                                   ftype=ftype, output='ba')
-    data = scipy.signal.filtfilt(b, a, data) # non-causal, 0 phase lag
+    if causal:
+        data = scipy.signal.lfilter(b, a, data) # causal, adds freq-dependent phase lag
+    else:
+        data = scipy.signal.filtfilt(b, a, data) # non-causal, 0 phase lag
     return data, b, a
 
 def WMLDR(data, wname="db4", maxlevel=6, mode='sym'):
