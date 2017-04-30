@@ -2012,6 +2012,7 @@ or remove all duplicate spikes from selected neurons
     </property>
     <addaction name="actionFiltmethNone"/>
     <addaction name="actionFiltmethBW"/>
+    <addaction name="actionFiltmethBWNC"/>
     <addaction name="actionFiltmethWMLDR"/>
    </widget>
    <widget class="QMenu" name="menuCAR">
@@ -2670,6 +2671,14 @@ or remove all duplicate spikes from selected neurons
    </property>
    <property name="toolTip">
     <string>Export high-pass envelope of ephys data to .dat file(s)</string>
+   </property>
+  </action>
+  <action name="actionFiltmethBWNC">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Noncausal Butterworth</string>
    </property>
   </action>
  </widget>

@@ -358,16 +358,20 @@ class DATStream(Stream):
         #print('filtmeth: %s' % self.filtmeth)
         if self.filtmeth == None:
             pass
-        elif self.filtmeth == 'BW':
+        elif self.filtmeth in ['BW', 'BWNC']:
             # High- or low-pass filter the raw data using a Butterworth filter.
-            # Use causal filtering to get high-pass data with added phase lag,
+            # Default to causal filtering to get high-pass data with added phase lag,
             # in order to preserve expected spike shape for spike detection. Use noncausal
             # (forward-backward) filtering to get low-pass LFP data without phase lag:
+            if self.filtmeth == 'BW':
+                hpcausal = True
+            else: # self.filtmeth == 'BWNC'
+                hpcausal = False
             if kind == 'highpass':
                 btype, order, f0, f1 = kind, BWHPORDER, BWHPF0, None
                 dataxs, b, a = filterord(dataxs, sampfreq=self.rawsampfreq, f0=f0, f1=f1,
                                          order=order, rp=None, rs=None, btype=btype,
-                                         ftype='butter', causal=True) # float64
+                                         ftype='butter', causal=hpcausal) # float64
             else: # kind == 'lowpass'
                 if LOWPASSFILTERLPSTREAM:
                     btype, order, f0, f1 = kind, BWLPORDER, None, BWLPF1

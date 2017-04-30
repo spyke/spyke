@@ -174,6 +174,7 @@ class SpykeWindow(QtGui.QMainWindow):
         filteringGroup = QtGui.QActionGroup(self)
         filteringGroup.addAction(ui.actionFiltmethNone)
         filteringGroup.addAction(ui.actionFiltmethBW)
+        filteringGroup.addAction(ui.actionFiltmethBWNC)
         filteringGroup.addAction(ui.actionFiltmethWMLDR)
 
     def groupMenuCAR(self):
@@ -914,6 +915,11 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionFiltmethBW_triggered(self):
         """Butterworth filtering menu choice event"""
         self.SetFiltmeth('BW')
+
+    @QtCore.pyqtSlot()
+    def on_actionFiltmethBWNC_triggered(self):
+        """Non-causal Butterworth filtering menu choice event"""
+        self.SetFiltmeth('BWNC')
 
     @QtCore.pyqtSlot()
     def on_actionFiltmethWMLDR_triggered(self):
