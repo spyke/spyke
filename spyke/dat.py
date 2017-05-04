@@ -154,8 +154,8 @@ class FileHeader(object):
             self.nchans = len(self.chans) # number of ephys chans
         else: # chans == [] or None
             assert not auxchans # make sure auxchans aren't specified
-            self.chans = np.arange(chan0, chan0+self.nchans)
             self.nchans = self.nchanstotal
+            self.chans = np.arange(chan0, chan0+self.nchans)
         # for simplicity, require that all ephys chans are included, and are always sorted:
         assert (self.chans == np.arange(chan0, chan0+self.nchans)).all()
         if self.auxchans:
