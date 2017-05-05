@@ -1054,6 +1054,22 @@ def argcut(ts, trange):
     '''
     return lo, hi
 
+def argmatch(a, v):
+    """Find indices into input array `a` where values in array `v` match those in `a`.
+       a : input array
+       v : array of values to find in a
+
+       This should return exactly the same as:
+
+       `np.array([ int(np.where(a == val)[0]) for val in v ])`
+
+       but faster. Adapted from http://stackoverflow.com/a/8251668"""
+    a, v = np.asarray(a), np.asarray(v)
+    if not set(v).issubset(a):
+        raise ValueError("values array %r is not a subset of input array %r" % (v, a ))
+    asortis = a.argsort()
+    return asortis[a[asortis].searchsorted(v)]
+
 def dist(a, b):
     """Return the Euclidean distance between two N-dimensional coordinates"""
     a = np.asarray(a)
