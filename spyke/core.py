@@ -188,34 +188,20 @@ class WaveForm(object):
                 else:
                     std = self.std[:, lo:hi]
                 ts = self.ts[lo:hi]
-                '''
-                if np.asarray(data == self.data).all() and np.asarray(ts == self.ts).all():
-                    # no need for a new WaveForm, though new WaveForms aren't expensive,
-                    # only new data are
-                    return self
-                '''
                 # return a new WaveForm:
                 return WaveForm(data=data, std=std, ts=ts, chans=self.chans)
         else: # index into self by channel id(s)
             keys = toiter(key)
-            #try: assert (self.chans == np.sort(self.chans)).all() # testing code
-            #except AssertionError: import pdb; pdb.set_trace() # testing code
+            # don't assume self.chans are sorted:
             try:
-                assert set(keys).issubset(self.chans), ("requested channels outside of "
-                                                        "channels in waveform")
-                # this is fine:
-                #assert len(set(keys)) == len(keys), "same channel specified more than once"
-            except AssertionError:
+                chanis = core.argmatch(self.chans, keys)
+            except ValueError:
                 raise IndexError('invalid index %r' % key)
-            #i = self.chans.searchsorted(keys) # indices into rows of data
-            # best not to assume that chans are sorted, often the case in LFP data;
-            # i are indices into rows of data:
-            i = [ int(np.where(chan == self.chans)[0]) for chan in keys ]
-            data = self.data[i] # grab the appropriate rows of data
+            data = self.data[chanis] # grab the appropriate rows of data
             if self.std is None:
                 std = None
             else:
-                std = self.std[i]
+                std = self.std[chanis]
             return WaveForm(data=data, std=std, ts=self.ts, chans=keys) # return a new WaveForm
 
     def __len__(self):
