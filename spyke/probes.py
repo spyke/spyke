@@ -25,8 +25,7 @@ MAXNCHANS = 2**8
 class Probe(object):
     """self.SiteLoc maps probe chan id to spatial position, usually (x, y) in um"""
     def siteloc_arr(self):
-        #return np.asarray(self.SiteLoc.values()) # doesn't ensure sorted channel order
-        # ensure sorted channel order:
+        """Return site locations in an array, sorted by channel ID"""
         chans = self.SiteLoc.keys()
         chans.sort()
         return np.asarray([ self.SiteLoc[chan] for chan in chans ])
