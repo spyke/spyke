@@ -3303,10 +3303,9 @@ class SpykeWindow(QtGui.QMainWindow):
         gc.collect()
 
     def get_chans_enabled(self):
-        """Return sorted array of enabled chans"""
-        chans = sorted(self._chans_enabled) # get the keys
-        enables = [ self._chans_enabled[chan] for chan in chans ] # get the boolean values
-        return np.asarray([ chan for (chan, enable) in zip(chans, enables) if enable ])
+        """Return array of enabled chans, in order originally specified in stream file"""
+        # self._chans_enabled is an odict, so we can rely on the order of its keys:
+        return np.asarray([ chan for (chan, enable) in self._chans_enabled.items() if enable ])
 
     def set_chans_enabled(self, chans, enable=None):
         """Updates which chans are enabled in ._chans_enabled dict and in the
@@ -3328,7 +3327,7 @@ class SpykeWindow(QtGui.QMainWindow):
         try:
             self._chans_enabled
         except AttributeError:
-            self._chans_enabled = {} #dict(zip(allchans, [ True for chan in allchans ]))
+            self._chans_enabled = odict([ (chan, True) for chan in allchans ])
 
         # overwrite enable flag of chans...
         if enable != None:
@@ -3336,9 +3335,9 @@ class SpykeWindow(QtGui.QMainWindow):
                 self._chans_enabled[chan] = enable
         # ...or, leave only chans enabled
         else:
-            enabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems()
+            enabledchans = [ chan for (chan, enabled) in self._chans_enabled.items()
                              if enabled==True ]
-            disabledchans = [ chan for (chan, enabled) in self._chans_enabled.iteritems()
+            disabledchans = [ chan for (chan, enabled) in self._chans_enabled.items()
                               if enabled==False ]
             notchans = set(allchans).difference(chans) # chans we don't want enabled
             # find difference between currently enabled chans and the chans to enable:

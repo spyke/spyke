@@ -295,8 +295,10 @@ class DATStream(Stream):
         if chans is None:
             chans = self.chans
         kind = self.kind
-        if not set(chans).issubset(self.chans):
-            raise ValueError("requested chans %r are not a subset of available enabled "
+        try:
+            chanis = core.argmatch(self.chans, chans) # where to find chans in self.chans
+        except ValueError:
+            raise IndexError("requested chans %r are not a subset of available enabled "
                              "chans %r in %s stream" % (chans, self.chans, kind))
         # NOTE: because CAR needs to average across as many channels as possible, work on
         # the full self.chans (which are the chans enabled in the stream) until the very end,
@@ -352,7 +354,8 @@ class DATStream(Stream):
         # destination indices:
         dt0i = max(t0i - t0xsi, 0)
         dt1i = min(t1i - t0xsi, ntxs)
-        dataxs[:, dt0i:dt1i] = self.f.data[:, st0i:st1i]
+        allchanis = core.argmatch(self.f.fileheader.chans, self.chans)
+        dataxs[:, dt0i:dt1i] = self.f.data[allchanis, st0i:st1i]
         #print('data load took %.3f sec' % (time.time()-tload))
 
         #print('filtmeth: %s' % self.filtmeth)
@@ -428,7 +431,6 @@ class DATStream(Stream):
         # round-off error (when tres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
         lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
-        chanis = self.f.fileheader.chans.searchsorted(chans)
         #print('slice:', start, stop, self.tres, data.shape)
         if decimate:
             data, ts = dataxs[chanis, lo:hi:decimatex], tsxs[lo:hi:decimatex]
