@@ -1042,17 +1042,17 @@ def argcut(ts, trange):
 
 def argmatch(a, v):
     """Find indices into input array `a` where values in array `v` match those in `a`.
-       a : input array
-       v : array of values to find in a
+    a : input array
+    v : array of values to find in a
 
-       This should return exactly the same as:
+    Both arrays are first flattened to 1D. This should return the same result as:
 
-       `np.array([ int(np.where(a == val)[0]) for val in v ])`
+    `np.array([ int(np.where(a == val)[0]) for val in v ])`
 
-       but faster. Adapted from http://stackoverflow.com/a/8251668"""
-    a, v = np.asarray(a), np.asarray(v)
-    if not set(v).issubset(a):
-        raise ValueError("values array %r is not a subset of input array %r" % (v, a ))
+    but faster. Adapted from http://stackoverflow.com/a/8251668"""
+    a, v = np.asarray(a).ravel(), np.asarray(v).ravel()
+    if not np.in1d(v, a).all():
+        raise ValueError("values array %s is not a subset of input array %s" % (v, a))
     asortis = a.argsort()
     return asortis[a[asortis].searchsorted(v)]
 
