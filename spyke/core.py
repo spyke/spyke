@@ -1041,20 +1041,38 @@ def argcut(ts, trange):
     return lo, hi
 
 def argmatch(a, v):
-    """Find indices into input array `a` where values in array `v` match those in `a`.
-    a : input array
-    v : array of values to find in a
+    """
+    Find indices into `a` where elements in `v` match those in `a`.
 
-    Both arrays are first flattened to 1D. This should return the same result as:
+    Find the indices into an array `a` whose values match those queried in `v`.
+    Both arrays are first flattened to 1D, and the values in `a` must be unique.
+    This is an accelerated equivalent of:
 
     `np.array([ int(np.where(a == val)[0]) for val in v ])`
 
-    but faster. Adapted from http://stackoverflow.com/a/8251668"""
-    a, v = np.asarray(a).ravel(), np.asarray(v).ravel()
+    Parameters
+    ----------
+    a : 1-D array_like
+        Input array.
+    v : array_like
+        Values to match against `a`.
+
+    Returns
+    -------
+    indices : array of ints
+        Array of indices into `a` with the same shape as `v`.
+
+    Adapted from http://stackoverflow.com/a/8251668
+    """
+    a, v = np.ravel(a), np.ravel(v)
+    if len(a) != len(np.unique(a)):
+        raise ValueError("values in `a` must be unique for unambiguous results")
     if not np.in1d(v, a).all():
         raise ValueError("values array %s is not a subset of input array %s" % (v, a))
     asortis = a.argsort()
+    ## TODO: which is preferable?:
     return asortis[a[asortis].searchsorted(v)]
+    #return asortis[a.searchsorted(v, sorter=asortis)]
 
 def dist(a, b):
     """Return the Euclidean distance between two N-dimensional coordinates"""
