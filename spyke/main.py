@@ -497,12 +497,17 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionExportHighPassEnvelopeDatFiles_triggered(self):
         self.export_hp_envelope()
 
-    def export_hp_envelope(self, sampfreq=2000, f1=500):
-        """Export evenlope of high-pass stream, using current preprocessing settings
+    @QtCore.pyqtSlot()
+    def on_actionExportHighPassBipolarRefEnvelopeDatFiles_triggered(self):
+        self.export_hp_envelope(bipolarref=True)
+
+    def export_hp_envelope(self, sampfreq=2000, f1=500, bipolarref=False):
+        """Export envelope of high-pass stream, using current preprocessing settings
         (filtering, CAR, and resampling), to .envl.dat file(s) with associated .envl.dat.json
         file describing the preprocessing that was done. Decimate output to get sampfreq.
-        Export chans in order of depth, superficial to deep"""
-        ## TODO: round-trip results in loss of one uninterpolated datapoint
+        Export chans in order of depth, superficial to deep. bipolarref: optionally take each
+        channel's raw data to be the difference of the two immediately spatially adjacent
+        channels, before calculating the envelope"""
         caption = "Export envelope of high-pass, preprocessed data to .envl.dat files"
         basepath = getExistingDirectory(self, caption=caption, directory=self.sortpath)
         basepath = str(basepath)
@@ -539,8 +544,13 @@ class SpykeWindow(QtGui.QMainWindow):
                     data = wave.data[ysortis] # sort chans by depth
                     chans = wave.chans[ysortis]
                     assert list(chans) == ychans
-                    # get envelope of data using filtering, float64:
-                    data = core.envelope_filt(data, sampfreq=hps.sampfreq, f1=f1)
+                    if bipolarref:
+                        # set each channel to be the difference of the two immediately
+                        # spatially adjacent channels:
+                        data[1:-1] = data[:-2] - data[2:]
+                        data[[0, -1]] = 0 # null out the first and last channel
+                    # get envelope of data by rectifying and low-pass filtering:
+                    data = core.envelope_filt(data, sampfreq=hps.sampfreq, f1=f1) # float64
                     # ensure data limits fall within int16:
                     iint16 = np.iinfo(np.int16)
                     assert data.max() <= iint16.max
@@ -549,9 +559,14 @@ class SpykeWindow(QtGui.QMainWindow):
                     t0i, t1i = wave.ts.searchsorted([t0, t1]) # get indices to remove excess
                     data = data[:, t0i:t1i:decimatex] # remove excess and decimate
                     data.T.tofile(datf) # write in column-major (Fortran) order
+                envlvals = []
+                if bipolarref:
+                    envlvals.append('bipolar reference')
+                envlvals += ['abs', 'BW', '%d Hz' % f1]
+                envelope = ', '.join(envlvals)
                 core.write_dat_json(hps, fulljsonfname, chans=ychans, sampfreq=sampfreq,
                                     filtering=hps.filtmeth, common_avg_ref=hps.car,
-                                    envelope='abs, BW, %d Hz' % f1)
+                                    envelope=envelope)
         print('done exporting high-pass envelope data')
 
     @QtCore.pyqtSlot()
