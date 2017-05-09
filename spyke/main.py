@@ -2379,9 +2379,10 @@ class SpykeWindow(QtGui.QMainWindow):
             fs = []
             with open(join(self.streampath, fname), 'r') as trackfile:
                 for line in trackfile: # one filename per line
-                    if line.startswith('#'): # it's a comment line
-                        continue # skip it
-                    fn = line.rstrip('\n')
+                    fn = line.strip() # remove leading and trailing whitespace
+                    if not fn or fn.startswith('#'): # it's blank, or a comment line
+                        continue
+                    print('%r' % fn)
                     fext = os.path.splitext(fn)[1]
                     if fext == '.dat':
                         f = dat.File(fn, self.streampath)
@@ -2390,6 +2391,8 @@ class SpykeWindow(QtGui.QMainWindow):
                     elif fext == '.srf':
                         f = surf.File(fn, self.streampath)
                         f.parse()
+                    else:
+                        raise ValueError('unknown extension %r' % fext)
                     fs.append(f) # build up list of open and parsed data file objects
             self.hpstream = MultiStream(fs, fname, kind='highpass')
             self.lpstream = MultiStream(fs, fname, kind='lowpass')
