@@ -3346,6 +3346,8 @@ class SpykeWindow(QtGui.QMainWindow):
         try:
             allchans = self.hpstream.chans # not sure if this needs to be copy()'d or not
         except AttributeError: # no hpstream yet
+            print("TODO: is this still necessary? wouldn't it be better to just return in this case?")
+            #import pdb; pdb.set_trace()
             allchans = []
         if chans is None: # None means all chans
             chans = allchans
