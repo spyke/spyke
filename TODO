@@ -1,3 +1,6 @@
+BUGS:
+    - shouldn't chans be coloured top to bottom starting with red?
+
 - add CAR to lowpass streams, SurfStream and SimpleStreams
 
 - do proper low pass filtering (not just decimation) to get LFP data from wideband data

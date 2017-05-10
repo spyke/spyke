@@ -508,6 +508,7 @@ class SpykeWindow(QtGui.QMainWindow):
         Export chans in order of depth, superficial to deep. bipolarref: optionally take each
         channel's raw data to be the difference of the two immediately spatially adjacent
         channels, before calculating the envelope"""
+        ## TODO: round-trip results in loss of one uninterpolated datapoint
         caption = "Export envelope of high-pass, preprocessed data to .envl.dat files"
         basepath = getExistingDirectory(self, caption=caption, directory=self.sortpath)
         basepath = str(basepath)
