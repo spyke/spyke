@@ -576,7 +576,8 @@ class SpykeWindow(QtGui.QMainWindow):
         try:
             self.hpstream.f.export_raw_dat()
         except AttributeError:
-            raise NotImplementedError("Can't (yet) export raw ephys data from %s to .dat")
+            raise NotImplementedError("Can't (yet) export raw ephys data from %s to .dat"
+                                      % self.hpstream.ext)
 
     @QtCore.pyqtSlot()
     def on_actionConvertKiloSortNpy2EventsZip_triggered(self):
