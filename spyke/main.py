@@ -488,6 +488,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 with open(fullfname, 'wb') as f:
                     np.savez_compressed(f, data=data, chans=wave.chans, t0=lps.t0,
                                         t1=lps.t1, tres=lps.tres, chanpos=chanpos,
+                                        chan0=lps.probe.chan0, probename=lps.probe.name,
                                         uVperAD=uVperAD)
             else: # format == 'text'
                 np.savetxt(fullfname, data, fmt='%d', delimiter=',') # data should be int
