@@ -1,10 +1,8 @@
 BUGS:
-    - shouldn't chans be coloured top to bottom starting with red?
+
+- shouldn't chans be coloured top to bottom starting with red? Seems they're coloured bottom to top starting with red
 
 - add CAR to lowpass streams, SurfStream and SimpleStreams
-
-- do proper low pass filtering (not just decimation) to get LFP data from wideband data
-    - when exporting to lfp.zip, do slicing and filtering and decimation in the same 10 sec chunks of wideband data as spike detection, to avoid memory errors
 
 - do whitening of raw data? done by Kilosort and spyking-circus
 
@@ -1387,7 +1385,9 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - on delete key press in cluster and sort windows, if any spikes are explicitly selected, remove only them, otherwise remove selected neuron(s)
 - on ESC, if one of the selected clusters is cluster 0, deselect that one first
 - subtract about 100 us from all spike times imported from kilosort (during import of the .events.zip file, not during its creation) to make up for essentially all spikes being centered too far to the left initially, until manually shifted. This would save on waveform reload time after manual shift
-
+- do proper low pass filtering (not just decimation) to get LFP data from wideband data
+    - when exporting to lfp.zip, do slicing and filtering and decimation in the same 10 sec chunks of wideband data as spike detection, to avoid memory errors
+- exporting from .track file to .dat file results in unsupported error
 
 
 
