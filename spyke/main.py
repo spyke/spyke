@@ -574,11 +574,16 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionExportRawDataDatFiles_triggered(self):
         """Export raw ephys data to .dat file(s), in (ti, chani) order"""
-        try:
-            self.hpstream.f.export_raw_dat()
-        except AttributeError:
-            raise NotImplementedError("Can't (yet) export raw ephys data from %s to .dat"
-                                      % self.hpstream.ext)
+        try: # self.hpstream is a MultiStream?
+            hpstreams = self.hpstream.streams
+        except AttributeError: # self.hpstream is a normal Stream
+            hpstreams = [self.hpstream]
+        for stream in hpstreams:
+            try:
+                stream.f.export_raw_dat()
+            except AttributeError:
+                raise NotImplementedError("Can't (yet) export raw ephys data from %s to .dat"
+                                          % stream.ext)
 
     @QtCore.pyqtSlot()
     def on_actionConvertKiloSortNpy2EventsZip_triggered(self):
