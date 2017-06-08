@@ -419,9 +419,9 @@ class SpykeWindow(QtGui.QMainWindow):
         basepath = str(basepath)
         if not basepath:
             return
-        try: # self.lpstream is a MultiStream?
+        try: # self.hpstream is a MultiStream?
             hpstreams = self.hpstream.streams
-        except AttributeError: # self.lpstream is a normal Stream
+        except AttributeError: # self.hpstream is a normal Stream
             hpstreams = [self.hpstream]
         print('exporting high-pass data to:')
         for hps in hpstreams:
