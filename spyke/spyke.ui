@@ -2644,10 +2644,10 @@ or remove all duplicate spikes from selected neurons
   </action>
   <action name="actionExportHighPassDatFiles">
    <property name="text">
-    <string>.dat Files</string>
+    <string>.filt.dat Files</string>
    </property>
    <property name="toolTip">
-    <string>Export high-pass ephys data to .dat file(s)</string>
+    <string>Export high-pass ephys data to .filt.dat file(s)</string>
    </property>
   </action>
   <action name="actionExportRawDataDatFiles">

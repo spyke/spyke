@@ -411,13 +411,17 @@ class SpykeWindow(QtGui.QMainWindow):
         self.export_hpstream()
 
     def export_hpstream(self):
-        """Export high-pass stream, using current preprocessing settings (filtering, CAR,
-        and resampling), to .filt.dat file(s) with associated .filt.dat.json file describing
-        the preprocessing that was done"""
+        """Export high-pass stream to user-designated path, using current preprocessing
+        settings (filtering, CAR, and resampling), to .filt.dat file(s) with associated
+        .filt.dat.json file describing the preprocessing that was done"""
+        try: # self.hpstream is a MultiStream?
+            hpstreams = self.hpstream.streams
+        except AttributeError: # self.hpstream is a normal Stream
+            hpstreams = [self.hpstream]
+        defaultpath = hpstreams[0].f.path
         caption = "Export high-pass, preprocessed data to .filt.dat files"
-        basepath = getExistingDirectory(self, caption=caption, directory=self.sortpath)
-        basepath = str(basepath)
-        if not basepath:
+        path = str(getExistingDirectory(self, caption=caption, directory=defaultpath))
+        if not path:
             return
         try: # self.hpstream is a MultiStream?
             hpstreams = self.hpstream.streams
@@ -425,9 +429,6 @@ class SpykeWindow(QtGui.QMainWindow):
             hpstreams = [self.hpstream]
         print('exporting high-pass data to:')
         for hps in hpstreams:
-            path = os.path.join(basepath, hps.srcfnameroot)
-            try: os.mkdir(path)
-            except OSError: pass # path already exists?
             fullfname = os.path.join(path, hps.srcfnameroot + '.filt.dat')
             fulljsonfname = fullfname + '.json'
             print(fullfname)
@@ -503,29 +504,26 @@ class SpykeWindow(QtGui.QMainWindow):
         self.export_hp_envelope(bipolarref=True)
 
     def export_hp_envelope(self, sampfreq=2000, f1=500, bipolarref=False):
-        """Export envelope of high-pass stream, using current preprocessing settings
-        (filtering, CAR, and resampling), to .envl.dat file(s) with associated .envl.dat.json
-        file describing the preprocessing that was done. Decimate output to get sampfreq.
-        Export chans in order of depth, superficial to deep. bipolarref: optionally take each
-        channel's raw data to be the difference of the two immediately spatially adjacent
-        channels, before calculating the envelope"""
         ## TODO: round-trip results in loss of one uninterpolated datapoint
-        caption = "Export envelope of high-pass, preprocessed data to .envl.dat files"
-        basepath = getExistingDirectory(self, caption=caption, directory=self.sortpath)
-        basepath = str(basepath)
-        if not basepath:
-            return
-        try: # self.lpstream is a MultiStream?
+        """Export envelope of high-pass stream to user-designated path, using current
+        preprocessing settings (filtering, CAR, and resampling), to .envl.dat file(s) with
+        associated .envl.dat.json file describing the preprocessing that was done. Decimate
+        output to get sampfreq. Export chans in order of depth, superficial to deep.
+        bipolarref: optionally take each channel's raw data to be the difference of the two
+        immediately spatially adjacent channels, before calculating the envelope"""
+        try: # self.hpstream is a MultiStream?
             hpstreams = self.hpstream.streams
-        except AttributeError: # self.lpstream is a normal Stream
+        except AttributeError: # self.hpstream is a normal Stream
             hpstreams = [self.hpstream]
+        defaultpath = hpstreams[0].f.path
+        caption = "Export envelope of high-pass, preprocessed data to .envl.dat files"
+        path = str(getExistingDirectory(self, caption=caption, directory=defaultpath))
+        if not path:
+            return
         print('exporting high-pass envelope data to:')
         for hps in hpstreams:
             assert hps.sampfreq % sampfreq == 0
             decimatex = intround(hps.sampfreq / sampfreq)
-            path = os.path.join(basepath, hps.srcfnameroot)
-            try: os.mkdir(path)
-            except OSError: pass # path already exists?
             fullfname = os.path.join(path, hps.srcfnameroot + '.envl.dat')
             fulljsonfname = fullfname + '.json'
             print(fullfname)
