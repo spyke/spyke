@@ -503,8 +503,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionExportHighPassBipolarRefEnvelopeDatFiles_triggered(self):
         self.export_hp_envelope(bipolarref=True)
 
-    def export_hp_envelope(self, sampfreq=2000, f1=500, bipolarref=False):
-        ## TODO: round-trip results in loss of one uninterpolated datapoint
+    def export_hp_envelope(self, sampfreq=2000, f0=None, f1=500, bipolarref=False):
         """Export envelope of high-pass stream to user-designated path, using current
         preprocessing settings (filtering, CAR, and resampling), to .envl.dat file(s) with
         associated .envl.dat.json file describing the preprocessing that was done. Decimate
@@ -550,7 +549,8 @@ class SpykeWindow(QtGui.QMainWindow):
                         data[1:-1] = data[:-2] - data[2:]
                         data[[0, -1]] = 0 # null out the first and last channel
                     # get envelope of data by rectifying and low-pass filtering:
-                    data = core.envelope_filt(data, sampfreq=hps.sampfreq, f1=f1) # float64
+                    data = core.envelope_filt(data, sampfreq=hps.sampfreq,
+                                              f0=f0, f1=f1) # float64
                     # ensure data limits fall within int16:
                     iint16 = np.iinfo(np.int16)
                     assert data.max() <= iint16.max
@@ -559,11 +559,12 @@ class SpykeWindow(QtGui.QMainWindow):
                     t0i, t1i = wave.ts.searchsorted([t0, t1]) # get indices to remove excess
                     data = data[:, t0i:t1i:decimatex] # remove excess and decimate
                     data.T.tofile(datf) # write in column-major (Fortran) order
-                envlvals = []
-                if bipolarref:
-                    envlvals.append('bipolar reference')
-                envlvals += ['abs', 'BW', '%d Hz' % f1]
-                envelope = ', '.join(envlvals)
+                envelope = odict()
+                envelope['meth'] = 'abs'
+                envelope['bipolar_ref'] = bipolarref
+                envelope['filter_meth'] = 'BW'
+                envelope['f0'] = f0
+                envelope['f1'] = f1
                 core.write_dat_json(hps, fulljsonfname, chans=ychans, sampfreq=sampfreq,
                                     filtering=hps.filtering, common_avg_ref=hps.car,
                                     envelope=envelope)
