@@ -9,6 +9,8 @@ __authors__ = ['Martin Spacek']
 import os
 import time
 from datetime import timedelta
+from collections import OrderedDict as odict
+
 import numpy as np
 
 import core
@@ -288,6 +290,26 @@ class DATStream(Stream):
         self.t0, self.t1 = f.t0, f.t1
         self.tranges = np.asarray([[self.t0, self.t1]])
 
+    def get_filtering(self):
+        """Get filtering settings in an odict, based on self.kind and self.filtmeth"""
+        d = odict()
+        d['meth'] = self.filtmeth
+        if self.kind == 'highpass':
+            if self.filtmeth.startswith('BW'):
+                d.update({'order': BWHPORDER,
+                          'f0': BWHPF0,
+                          'f1': None})
+        elif self.kind == 'lowpass':
+            if self.filtmeth.startswith('BW'):
+                d.update({'order': BWLPORDER,
+                          'f0': None,
+                          'f1': BWLPF1})
+        else:
+            raise ValueError
+        return d
+
+    filtering = property(get_filtering)
+
     def __call__(self, start, stop, chans=None):
         """Called when Stream object is called using (). start and stop indicate start and end
         timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
@@ -370,14 +392,15 @@ class DATStream(Stream):
                 hpcausal = True
             else: # self.filtmeth == 'BWNC'
                 hpcausal = False
+            f = self.filtering
             if kind == 'highpass':
-                btype, order, f0, f1 = kind, BWHPORDER, BWHPF0, None
+                btype, order, f0, f1 = kind, f['order'], f['f0'], f['f1']
                 dataxs, b, a = filterord(dataxs, sampfreq=self.rawsampfreq, f0=f0, f1=f1,
                                          order=order, rp=None, rs=None, btype=btype,
                                          ftype='butter', causal=hpcausal) # float64
             else: # kind == 'lowpass'
                 if LOWPASSFILTERLPSTREAM:
-                    btype, order, f0, f1 = kind, BWLPORDER, None, BWLPF1
+                    btype, order, f0, f1 = kind, f['order'], f['f0'], f['f1']
                     dataxs, b, a = filterord(dataxs, sampfreq=self.rawsampfreq, f0=f0, f1=f1,
                                              order=order, rp=None, rs=None, btype=btype,
                                              ftype='butter', causal=False) # float64
