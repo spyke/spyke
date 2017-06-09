@@ -156,10 +156,6 @@ class FileHeader(object):
             assert not auxchans # make sure auxchans aren't specified
             self.nchans = self.nchanstotal
             self.chans = np.arange(chan0, chan0+self.nchans)
-        # for simplicity, require that all ephys chans are included, but not necessarily
-        # sorted by ID (e.g., they might be sorted by depth instead):
-        allephyschans = np.arange(chan0, chan0+self.nchans)
-        assert (np.sort(self.chans) == allephyschans).all()
         if self.auxchans:
             self.auxchans = np.asarray(self.auxchans) # convert list to array
             self.nauxchans = len(self.auxchans) # number of aux chans
