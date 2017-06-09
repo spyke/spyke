@@ -1914,6 +1914,8 @@ def write_dat_json(stream, fulljsonfname, sampfreq=None, raw=False, **kwargs):
     # iterate through kwargs, potentially overwriting any existing fields:
     for key, val in kwargs.items():
         od[key] = val
+    # update nchans in case chans or auxchans were passed as kwargs:
+    od['nchans'] = len(od['chans']) + len(od['aux_chans'])
     with open(fulljsonfname, 'w') as jsonf:
         ## TODO: make list fields not have a newline for each entry
         json.dump(od, jsonf, indent=0) # write contents of odict to file

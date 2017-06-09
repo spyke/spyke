@@ -530,9 +530,11 @@ class SpykeWindow(QtGui.QMainWindow):
             # filtering edge effects:
             xs = core.XSWIDEBANDPOINTS * hps.rawtres # us
             # sort channels for export by depth instead of by ID:
-            ypos = self.hpstream.probe.siteloc_arr()[:, 1] # depth of each site
-            ysortis = ypos.argsort()
-            ychans = list(self.hpstream.chans[ysortis])
+            # get ypos of each enabled site:
+            enabledchans = self.hpstream.chans
+            ypos = [ self.hpstream.probe.SiteLoc[chan][1] for chan in enabledchans ]
+            ysortis = np.argsort(ypos)
+            ychans = list(enabledchans[ysortis])
             with open(fullfname, 'wb') as datf:
                 blocksize = int(float(self.ui.blockSizeLineEdit.text())) # allow exp notation
                 t0s = np.arange(hps.t0, hps.t1, blocksize)
