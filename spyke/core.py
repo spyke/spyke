@@ -1063,6 +1063,7 @@ def argmatch(a, v):
         Array of indices into `a` with the same shape as `v`.
 
     Adapted from http://stackoverflow.com/a/8251668
+    See numpy GH PR: https://github.com/numpy/numpy/pull/9055
     """
     a, v = np.ravel(a), np.ravel(v)
     if len(a) != len(np.unique(a)):
@@ -1070,9 +1071,7 @@ def argmatch(a, v):
     if not np.in1d(v, a).all():
         raise ValueError("values array %s is not a subset of input array %s" % (v, a))
     asortis = a.argsort()
-    ## TODO: which is preferable?:
-    return asortis[a[asortis].searchsorted(v)]
-    #return asortis[a.searchsorted(v, sorter=asortis)]
+    return asortis[a.searchsorted(v, sorter=asortis)]
 
 def dist(a, b):
     """Return the Euclidean distance between two N-dimensional coordinates"""
