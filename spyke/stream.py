@@ -479,12 +479,7 @@ class NSXStream(DATStream):
 
         self.converter = core.NSXConverter(f.fileheader.AD2uVx)
 
-        # maybe the comment specifies the probe type?
-        probename = f.fileheader.comment.replace(' ', '_')
-        if probename == '':
-            probename = probes.DEFNSXPROBETYPE # A1x32
-            print('WARNING: assuming probe %r was used in this recording' % probename)
-        self.probe = probes.getprobe(probename)
+        self.probe = f.fileheader.probe
 
         self.rawsampfreq = f.fileheader.sampfreq # Hz
         self.rawtres = 1 / self.rawsampfreq * 1e6 # float us

@@ -1388,6 +1388,8 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - do proper low pass filtering (not just decimation) to get LFP data from wideband data
     - when exporting to lfp.zip, do slicing and filtering and decimation in the same 10 sec chunks of wideband data as spike detection, to avoid memory errors
 - exporting from .track file to .dat file results in unsupported error
+- fix folder generation on export of .dat or envl.dat files, each .dat file shouldn't have its own folder, only one folder per track/series
+- add a .json file to go with each .ns6 file, or a special one for a whole .ns6 series, to just describe chan layout
 
 
 

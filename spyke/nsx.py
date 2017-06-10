@@ -15,10 +15,12 @@ import numpy as np
 import os
 from struct import unpack
 import datetime
+import json
 
 from core import NULL, rstripnonascii, intround, write_dat_json
 import dat # for inheritance
 from stream import NSXStream
+import probes
 
 
 class File(dat.File):
@@ -56,6 +58,7 @@ class File(dat.File):
         """Parse the file header"""
         self.fileheader = FileHeader()
         self.fileheader.parse(self.f)
+        self.fileheader.parse_json(self.f)
         #print('Parsed fileheader')
 
     def load(self):
@@ -178,6 +181,49 @@ class FileHeader(object):
                 raise ValueError('not all chans have the same AD2uV params')
         # calculate AD2uV conversion factor:
         self.AD2uVx = (c0.maxaval-c0.minaval) / float(c0.maxdval-c0.mindval)
+
+    def parse_json(self, f):
+        """Parse potential .nsx.json file for probe name"""
+        fname = os.path.realpath(f.name) # make sure we have the full fname with path
+        path = os.path.dirname(fname)
+        ext = os.path.splitext(fname)[1] # e.g., '.ns6'
+        # check if there is a file named exactly fname.json:
+        jsonfname = fname + '.json'
+        print('Checking for metadata file %r' % jsonfname)
+        if os.path.exists(jsonfname):
+            print('Found metadata file %r' % jsonfname)
+        else:
+            print('No file named %s, checking for a single .nsx.json file of any name'
+                  % jsonfname)
+            jsonext = '%s.json' % ext # e.g. '.ns6.json'
+            fnames = [ fname for fname in os.listdir(path) if fname.endswith(jsonext) ]
+            njsonfiles = len(fnames)
+            if njsonfiles == 1:
+                jsonfname = os.path.join(path, fnames[0]) # full fname with path
+                print('Using metadata file %s' % jsonfname)
+            else:
+                jsonfname = None
+                print('Found %d %s files, ignoring them' % (njsonfiles, jsonext))
+
+        # now get the probe name and set self.probe:
+        if jsonfname:
+            with open(jsonfname, 'r') as jf:
+                j = json.load(jf) # should return a dict of key:val pairs
+            assert type(j) == dict
+            # exactly one required, allowed field:
+            if not list(j.keys()) == ['chan_layout_name']:
+                raise ValueError("Only 'chan_layout_name' field currently allowed in "
+                                 ".nsx.json metadata files")
+            self.probename = j.pop('chan_layout_name')
+            print('Setting probe name %s from metadata file' % self.probename)
+        else: # no .json file, maybe the .nsx comment specifies the probe type?
+            self.probename = self.comment.replace(' ', '_')
+            if self.probename != '':
+                print('Using %s in .nsx comment as probe name' % self.probename)
+            else:
+                self.probename = probes.DEFNSXPROBETYPE # A1x32
+                print('WARNING: assuming probe %s was used in this recording' % self.probename)
+        self.probe = probes.getprobe(self.probename) # raises an error if probename is invalid
 
 
 class ChanHeader(object):
