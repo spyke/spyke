@@ -1900,6 +1900,7 @@ def write_dat_json(stream, fulljsonfname, sampfreq=None, raw=False, **kwargs):
     od['uV_per_AD'] = fh.AD2uVx
     od['chan_layout_name'] = stream.probe.name
     od['chans'] = chans
+    od['chan_order'] = None # for human reference, 'depth' is the other obvious possible value
     od['aux_chans'] = auxchans
     od['nsamples_offset'] = nsamples_offset
     od['datetime'] = fh.datetime.isoformat()

@@ -567,7 +567,8 @@ class SpykeWindow(QtGui.QMainWindow):
                 envelope['filter_meth'] = 'BW'
                 envelope['f0'] = f0
                 envelope['f1'] = f1
-                core.write_dat_json(hps, fulljsonfname, chans=ychans, sampfreq=sampfreq,
+                core.write_dat_json(hps, fulljsonfname, sampfreq=sampfreq,
+                                    chans=ychans, chan_order='depth',
                                     filtering=hps.filtering, common_avg_ref=hps.car,
                                     envelope=envelope)
         print('done exporting high-pass envelope data')
