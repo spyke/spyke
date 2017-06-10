@@ -344,16 +344,17 @@ class DATStream(Stream):
         # stream limits, in us and in sample indices, wrt t=0 and sample=0:
         t0, t1, nt = self.t0, self.t1, self.f.nt
         t0i, t1i = self.f.t0i, self.f.t1i
-        # get a slightly greater range of raw data (with xs) than might be needed:
+        # calculate *slice* indices t0xsi and t1xsi, for a greater range of
+        # raw data (with xs) than requested:
         t0xsi = intfloor((start - xs) / rawtres) # round down to nearest mult of rawtres
         t1xsi = intceil((stop + xs) / rawtres) # round up to nearest mult of rawtres
-        # stay within stream limits, thereby avoiding interpolation edge effects:
+        # stay within stream slice limits, thereby avoiding interpolation edge effects:
         t0xsi = max(t0xsi, t0i)
-        t1xsi = min(t1xsi, t1i)
-        # convert back to nearest float us:
+        t1xsi = min(t1xsi, t1i+1)
+        # convert slice indices back to nearest float us:
         t0xs = t0xsi * rawtres
         t1xs = t1xsi * rawtres
-        # these are slice indices, so don't add 1:
+        # these are slice indices, so don't add 1 when calculating ntxs:
         ntxs = t1xsi - t0xsi # int
         tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*rawtres, ntxs)
         #print('ntxs: %d' % ntxs)
@@ -369,13 +370,13 @@ class DATStream(Stream):
         only subsample after filtering.
         '''
         #tload = time.time()
-        # source indices:
+        # source slice indices:
         st0i = max(t0xsi - t0i, 0)
         st1i = min(t1xsi - t0i, nt)
         assert st1i-st0i == ntxs
-        # destination indices:
+        # destination slice indices:
         dt0i = max(t0i - t0xsi, 0)
-        dt1i = min(t1i - t0xsi, ntxs)
+        dt1i = min(t1i + 1 - t0xsi, ntxs)
         allchanis = core.argmatch(self.f.fileheader.chans, self.chans)
         dataxs[:, dt0i:dt1i] = self.f.data[allchanis, st0i:st1i]
         #print('data load took %.3f sec' % (time.time()-tload))
