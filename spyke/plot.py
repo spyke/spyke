@@ -1180,10 +1180,13 @@ class LFPPanel(ChartPanel):
     def set_chans(self, chans):
         """Reset chans for this LFPPanel, triggering colour update. Take intersection of
         stream file's channels and chans, conserving order in stream file's channels"""
-        try:
-            streamfilechans = self.stream.layout.chans # .srf file
-        except AttributeError:
-            streamfilechans = self.stream.f.fileheader.chans # .dat or .nsx file
+        stream = self.stream
+        if hasattr(stream, 'layout'): # single or MultiStream .srf
+            streamfilechans = stream.layout.chans
+        elif hasattr(stream, 'f'): # single .dat or .nsx file
+            streamfilechans = stream.f.fileheader.chans
+        else: # .dat or .nsx MultiStream
+            streamfilechans = stream.streams[0].f.fileheader.chans
         chans = [ chan for chan in streamfilechans if chan in chans ]
         ChartPanel.set_chans(self, chans)
     '''
