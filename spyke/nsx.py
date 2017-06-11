@@ -72,10 +72,11 @@ class File(dat.File):
         self.datapacket = datapacket
         self.contiguous = True
 
-    def export_raw_dat(self, dt=None):
+    def export_raw_dat(self, path, dt=None):
         """Export raw contiguous data packet to .dat file, in the original (ti, chani) order
         using same base file name in the same folder. Also export companion .json metadata
         file. dt is duration to export from start of recording, in sec"""
+        assert path != ''
         if dt == None:
             nt = self.nt
             dtstr = ''
@@ -92,8 +93,8 @@ class File(dat.File):
             basefname = '%s_%ss' % (basefname, dtstr)
         datfname = basefname + '.dat'
         jsonfname = datfname + '.json'
-        fulldatfname = self.join(datfname)
-        fulljsonfname = self.join(jsonfname)
+        fulldatfname = os.path.join(path, datfname)
+        fulljsonfname = os.path.join(path, jsonfname)
 
         # export .dat file:
         print('writing raw ephys data to %r' % fulldatfname)

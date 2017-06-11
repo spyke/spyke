@@ -576,13 +576,18 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionExportRawDataDatFiles_triggered(self):
         """Export raw ephys data to .dat file(s), in (ti, chani) order"""
+        caption = "Export raw data .dat files"
+        path = getExistingDirectory(self, caption=caption, directory=self.streampath)
+        path = str(path)
+        if not path:
+            return
         try: # self.hpstream is a MultiStream?
             hpstreams = self.hpstream.streams
         except AttributeError: # self.hpstream is a normal Stream
             hpstreams = [self.hpstream]
         for stream in hpstreams:
             try:
-                stream.f.export_raw_dat()
+                stream.f.export_raw_dat(path)
             except AttributeError:
                 raise NotImplementedError("Can't (yet) export raw ephys data from %s to .dat"
                                           % stream.ext)
