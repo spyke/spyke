@@ -528,7 +528,7 @@ class SurfStream(Stream):
         else: raise ValueError('Unknown stream kind %r' % kind)
 
         self.filtmeth = filtmeth
-        self.car = car or DEFCAR
+        self.car = car
 
         # assume same layout for all records of type "kind"
         self.layout = self.f.layoutrecords[self.records['Probe'][0]]
@@ -757,7 +757,7 @@ class SimpleStream(Stream):
         self._fname = fname
         self.wavedata = wavedata
         self.filtmeth = filtmeth
-        self.car = car or DEFCAR
+        self.car = car
         nchans, nt = wavedata.shape
         self.chans = np.arange(nchans) # this sets self.nchans
         self.nt = nt
@@ -993,7 +993,7 @@ class MultiStream(object):
         elif streamtype == SurfStream:
             if kind == 'highpass':
                 self.filtmeth = filtmeth
-                self.car = car or DEFCAR
+                self.car = car
                 self.sampfreq = sampfreq or self.rawsampfreq * DEFHPRESAMPLEX
                 self.shcorrect = shcorrect or DEFHPSRFSHCORRECT
             else: # kind == 'lowpass'
