@@ -827,8 +827,9 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionCloseStream_triggered(self):
-        self.CloseStream()
-        print('closed stream')
+        if self.hpstream is not None:
+            self.CloseStream()
+            print('closed stream')
 
     @QtCore.pyqtSlot()
     def on_actionQuit_triggered(self):
@@ -2369,7 +2370,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def OpenStreamFile(self, fname):
         """Open a stream (.dat, .ns6, .srf, .track, or .tsf file) and update display
         accordingly. fname is assumed to be relative to self.streampath"""
-        if self.hpstream != None:
+        if self.hpstream is not None:
             self.CloseStream() # in case a stream is already open
         ext = os.path.splitext(fname)[1]
         if ext == '.dat':
@@ -3353,12 +3354,9 @@ class SpykeWindow(QtGui.QMainWindow):
         which slows things down and causes flicker, I think"""
 
         # inits and checks
-        try:
-            allchans = self.hpstream.chans # not sure if this needs to be copy()'d or not
-        except AttributeError: # no hpstream yet
-            print("TODO: is this still necessary? wouldn't it be better to just return in this case?")
-            #import pdb; pdb.set_trace()
-            allchans = []
+        if self.hpstream is None: # nothing to do
+            return
+        allchans = self.hpstream.chans # not sure if this needs to be copy()'d or not
         if chans is None: # None means all chans
             chans = allchans
         chans = toiter(chans) # need not be contiguous
@@ -3411,7 +3409,8 @@ class SpykeWindow(QtGui.QMainWindow):
     chans_enabled = property(get_chans_enabled, set_chans_enabled)
 
     def CloseStream(self):
-        """Close data windows and stream (both hpstream and lpstream)"""
+        """Close data windows and stream (both hpstream and lpstream).
+        Caller should first check if there are any streams to close"""
         # need to specifically get a list of keys, not an iterator,
         # since self.windows dict changes size during iteration
         for wintype in self.windows.keys():
@@ -3421,7 +3420,7 @@ class SpykeWindow(QtGui.QMainWindow):
             if stream: stream.close()
         self.hpstream = None
         self.lpstream = None
-        self.chans_enabled = []
+        del self._chans_enabled
         self.t = None
         self.ShowRasters(False) # reset
         self.updateTitle()
