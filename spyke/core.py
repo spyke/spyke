@@ -194,7 +194,7 @@ class WaveForm(object):
             keys = toiter(key)
             # don't assume self.chans are sorted:
             try:
-                chanis = core.argmatch(self.chans, keys)
+                chanis = argmatch(self.chans, keys)
             except ValueError:
                 raise IndexError('invalid index %r' % key)
             data = self.data[chanis] # grab the appropriate rows of data
