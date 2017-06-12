@@ -717,7 +717,13 @@ class Extractor(object):
         # convert to float before normalization, take abs of all weights
         # taking abs doesn't seem to affect clusterability
         w = np.abs(w)
-        w /= w.sum() # normalized
+        wsum = w.sum()
+        if wsum == 0.0: # weights are all 0, maybe due to zero'd data gaps between recordings
+            print("WARNING: all the weights for this spike are 0, returning the straight "
+                  "spatial mean (%g, %g) of its channels instead of a weighted mean"
+                  % (x.mean(), y.mean()))
+            return x.mean(), y.mean()
+        w /= wsum # normalized
         # alternative approach: replace -ve weights with 0
         #w = np.float32(np.where(w >= 0, w, 0))
         #try: w /= w.sum() # normalized
