@@ -23,7 +23,9 @@ MAXNCHANS = 2**8
 
 
 class Probe(object):
-    """self.SiteLoc maps probe chan id to spatial position, usually (x, y) in um"""
+    """self.SiteLoc maps probe chan id to spatial position (x, y) in um.
+    Note that y coordinates designate depth from the top site, i.e. increasing y coords
+    correspond to positions further down the probe"""
     def siteloc_arr(self):
         """Return site locations in an array, sorted by channel ID"""
         chans = self.SiteLoc.keys()
@@ -571,38 +573,38 @@ class A1x32_edge(Probe):
         self.nchans = 32
         self.ncols = 1
         sl = {}
-        sl[1] = 0, 0
-        sl[2] = 0, 20
-        sl[3] = 0, 40
-        sl[4] = 0, 60
-        sl[5] = 0, 80
-        sl[6] = 0, 100
-        sl[7] = 0, 120
-        sl[8] = 0, 140
-        sl[9] = 0, 160
-        sl[10] = 0, 180
-        sl[11] = 0, 200
-        sl[12] = 0, 220
-        sl[13] = 0, 240
-        sl[14] = 0, 260
-        sl[15] = 0, 280
-        sl[16] = 0, 300
-        sl[17] = 0, 320
-        sl[18] = 0, 340
-        sl[19] = 0, 360
-        sl[20] = 0, 380
-        sl[21] = 0, 400
-        sl[22] = 0, 420
-        sl[23] = 0, 440
-        sl[24] = 0, 460
-        sl[25] = 0, 480
-        sl[26] = 0, 500
-        sl[27] = 0, 520
-        sl[28] = 0, 540
-        sl[29] = 0, 560
-        sl[30] = 0, 580
-        sl[31] = 0, 600
-        sl[32] = 0, 620
+        sl[1] = 0, 620
+        sl[2] = 0, 600
+        sl[3] = 0, 580
+        sl[4] = 0, 560
+        sl[5] = 0, 540
+        sl[6] = 0, 520
+        sl[7] = 0, 500
+        sl[8] = 0, 480
+        sl[9] = 0, 460
+        sl[10] = 0, 440
+        sl[11] = 0, 420
+        sl[12] = 0, 400
+        sl[13] = 0, 380
+        sl[14] = 0, 360
+        sl[15] = 0, 340
+        sl[16] = 0, 320
+        sl[17] = 0, 300
+        sl[18] = 0, 280
+        sl[19] = 0, 260
+        sl[20] = 0, 240
+        sl[21] = 0, 220
+        sl[22] = 0, 200
+        sl[23] = 0, 180
+        sl[24] = 0, 160
+        sl[25] = 0, 140
+        sl[26] = 0, 120
+        sl[27] = 0, 100
+        sl[28] = 0, 80
+        sl[29] = 0, 60
+        sl[30] = 0, 40
+        sl[31] = 0, 20
+        sl[32] = 0, 0
         self.SiteLoc = sl
         self.check()
 
