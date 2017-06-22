@@ -292,21 +292,23 @@ class DATStream(Stream):
 
     def get_filtering(self):
         """Get filtering settings in an odict, based on self.kind and self.filtmeth"""
-        d = odict()
-        d['meth'] = self.filtmeth
+        od = odict()
+        od['meth'] = self.filtmeth
+        if not self.filtmeth:
+            return od # nothing more to add to the odict
         if self.kind == 'highpass':
             if self.filtmeth.startswith('BW'):
-                d.update({'order': BWHPORDER,
-                          'f0': BWHPF0,
-                          'f1': None})
+                od.update({'order': BWHPORDER,
+                           'f0': BWHPF0,
+                           'f1': None})
         elif self.kind == 'lowpass':
             if self.filtmeth.startswith('BW'):
-                d.update({'order': BWLPORDER,
-                          'f0': None,
-                          'f1': BWLPF1})
+                od.update({'order': BWLPORDER,
+                           'f0': None,
+                           'f1': BWLPF1})
         else:
             raise ValueError
-        return d
+        return od
 
     filtering = property(get_filtering)
 
