@@ -60,6 +60,7 @@ from sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES, NPCSPERCHAN
 from plot import SpikePanel, ChartPanel, LFPPanel
 from detect import Detector, calc_SPIKEDTYPE, DEBUG
 from extract import Extractor
+from cluster import Cluster, ClusterWindow
 import probes
 
 # spike window temporal window (us)
@@ -2121,7 +2122,6 @@ class SpykeWindow(QtGui.QMainWindow):
         sw = self.windows['Sort']
         if update:
             sw.nlist.updateAll()
-        from cluster import Cluster # can't delay this any longer
         cluster = Cluster(neuron)
         s.clusters[cluster.id] = cluster
         neuron.cluster = cluster
@@ -3474,7 +3474,6 @@ class SpykeWindow(QtGui.QMainWindow):
             elif wintype == 'Cluster':
                 x = self.pos().x() + self.size().width() + self.windows['Sort'].size().width() + 4*BORDER
                 y = self.pos().y()
-                from cluster import ClusterWindow # can't delay this any longer
                 size = (SCREENWIDTH - x - 2*BORDER, CLUSTERWINDOWHEIGHT)
                 #print('cluster x: %d' % x)
                 #print('cluster size: %r' % (size,))
