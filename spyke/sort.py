@@ -502,7 +502,7 @@ class Sort(object):
 
     def exportdin(self, basepath):
         """Export stimulus din(s) to binary .din file(s) in basepath"""
-        self.stream.is_multi(): # self.stream is a MultiStream
+        if self.stream.is_multi(): # self.stream is a MultiStream
             streams = self.stream.streams
         else: # self.stream is a single Stream
             streams = [self.stream]
