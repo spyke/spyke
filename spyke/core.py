@@ -1872,7 +1872,10 @@ def write_dat_json(stream, fulljsonfname, sampfreq=None, raw=False, **kwargs):
 
     #assert type(stream) in [DATStream, NSXStream]
 
-    f = stream.f
+    try:
+        f = stream.f # it's a single Stream
+    except AttributeError:
+        f = stream.streams[0].f # it's a MultiStream, use file of its first stream
     fh = f.fileheader
 
     # choose values:
