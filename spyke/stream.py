@@ -331,11 +331,13 @@ class DATStream(Stream):
         if kind == 'highpass':
             resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
             decimate = False
-        else: # kind == 'lowpass'
+        elif kind == 'lowpass':
             resample = False # which also means no s+h correction allowed
             decimate = True
             assert self.rawsampfreq % self.sampfreq == 0
             decimatex = intround(self.rawsampfreq / self.sampfreq)
+        else:
+            raise ValueError('unknown stream kind %r' % kind)
 
         # excess data to get at either end, to eliminate filtering and interpolation
         # edge effects:
