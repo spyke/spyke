@@ -32,7 +32,11 @@ class FakeStream(object):
 
 
 class Stream(object):
-    """Base class for all streams"""
+    """Base class for all (single) streams"""
+
+    def is_multi(self):
+        """Convenience method to specify if self is a MultiStream"""
+        return False
 
     def is_open(self):
         return self.f.is_open()
@@ -1004,6 +1008,10 @@ class MultiStream(object):
                 self.filtmeth = filtmeth
                 self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
                 self.shcorrect = shcorrect or False # don't s+h correct by default
+
+    def is_multi(self):
+        """Convenience method to specify if self is a MultiStream"""
+        return True
 
     def is_open(self):
         return np.all([stream.is_open() for stream in self.streams])
