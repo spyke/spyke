@@ -1049,6 +1049,13 @@ class MultiStream(object):
 
     ext = property(get_ext)
 
+    def get_srcfnameroot(self):
+        """Get root of filename of source data"""
+        srcfnameroot = lrstrip(self.fname, '../', '.track')
+        return srcfnameroot
+
+    srcfnameroot = property(get_srcfnameroot)
+
     def get_nchans(self):
         return len(self.chans)
 
@@ -1101,6 +1108,13 @@ class MultiStream(object):
 
     datetime = property(get_datetime)
     '''
+
+    def get_filtering(self):
+        """Get filtering settings of first stream in self"""
+        return self.streams[0].filtering
+
+    filtering = property(get_filtering)
+
     def pickle(self):
         """Just a way to pickle all the files associated with self"""
         for stream in self.streams:
