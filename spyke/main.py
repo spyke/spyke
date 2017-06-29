@@ -584,22 +584,45 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionExportRawDataDatFiles_triggered(self):
-        """Export raw ephys data to .dat file(s), in (ti, chani) order"""
-        caption = "Export raw data .dat files"
-        path = getExistingDirectory(self, caption=caption, directory=self.streampath)
-        path = str(path)
-        if not path:
-            return
-        try: # self.hpstream is a MultiStream?
-            hpstreams = self.hpstream.streams
-        except AttributeError: # self.hpstream is a normal Stream
-            hpstreams = [self.hpstream]
-        for stream in hpstreams:
-            try:
-                stream.f.export_raw_dat(path)
-            except AttributeError:
-                raise NotImplementedError("Can't (yet) export raw ephys data from %s to .dat"
-                                          % stream.ext)
+        self.export_raw_dat()
+
+    def export_raw_dat(self):
+        """Export raw ephys data of enabled chans concatenated across all files in current
+        track, to .dat file in user-designated path. This works by first turning off all
+        filtering, CAR, and resampling, then calling self.export_hpstream(), then restoring
+        filtering, CAR, and resampling settings. Also export channel map file in .mat format
+        for kilosort"""
+
+        # save current hpstream filtering CAR and sampling settings:
+        stream = self.hpstream
+        filtmeth = stream.filtmeth
+        car = stream.car
+        sampfreq = stream.sampfreq
+        shcorrect = stream.shcorrect
+
+        # set hpstream to show raw data:
+        print('temporarily disabling filtering, CAR, and resampling for raw export')
+        self.SetFiltmeth(None)
+        self.SetCAR(None)
+        self.SetSampfreq(stream.rawsampfreq)
+        self.SetSHCorrect(False)
+
+        # do the export:
+        if stream.is_multi(): # it's a MultiStream
+            cat = True
+        else: # it's a single Stream
+            cat = False
+        self.export_hpstream(cat=cat, export_msg='raw', export_ext='.dat')
+
+        # restore hpstream settings:
+        print('restoring filtering, CAR, and resampling settings')
+        self.SetFiltmeth(filtmeth)
+        self.SetCAR(car)
+        self.SetSampfreq(sampfreq)
+        self.SetSHCorrect(shcorrect)
+
+        ## export kilosort channel map .mat file with just the enabled channels
+        print("TODO: export kilosort chan map!!!!")
 
     @QtCore.pyqtSlot()
     def on_actionConvertKiloSortNpy2EventsZip_triggered(self):
