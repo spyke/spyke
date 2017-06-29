@@ -1117,8 +1117,8 @@ class MultiStream(object):
                              "chans %r in %s stream" % (chans, self.chans, self.kind))
         nchans = len(chans)
         tres = self.tres
-        start = intfloor(start / tres) * tres # round down to nearest mult of tres
-        stop = intceil(stop / tres) * tres # round up to nearest mult of tres
+        start = intround(start / tres) * tres # round to nearest mult of tres
+        stop = intround(stop / tres) * tres # round to nearest mult of tres
         start, stop = max(start, self.t0), min(stop, self.t1) # stay within stream limits
         streamis = []
         ## TODO: this could probably be more efficient by not iterating over all streams:
@@ -1141,7 +1141,7 @@ class MultiStream(object):
             st0 = relt0 + stream.t0
             st1 = relt1 + stream.t0
             sdata = stream(st0, st1, chans).data # source data
-            # destination time indices:
+            # destination slice indices:
             dt0i = int((abst0 + relt0 - start) // tres) # absolute index, trunc to int
             dt1i = dt0i + sdata.shape[1]
             data[:, dt0i:dt1i] = sdata
