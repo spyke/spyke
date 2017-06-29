@@ -411,38 +411,46 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionExportHighPassDatFiles_triggered(self):
         self.export_hpstream()
 
-    def export_hpstream(self):
+    def export_hpstream(self, cat=False, export_msg='high-pass', export_ext='.filt.dat'):
         """Export high-pass stream to user-designated path, using current preprocessing
-        settings (filtering, CAR, and resampling), to .filt.dat file(s) with associated
-        .filt.dat.json file describing the preprocessing that was done"""
-        try: # self.hpstream is a MultiStream?
+        settings (filtering, CAR, and resampling) and channel selection, to export_ext file(s)
+        with associated export_ext.json file describing the preprocessing that was done. This
+        can also be used to export raw data if the hpstream settings for filtering, CAR and
+        resampling are set appropriately. Use export_msg and export_ext to communicate this.
+        cat controls whether to concatenate all the exported data into a single
+        .dat file"""
+        if self.hpstream.is_multi(): # self.hpstream is a MultiStream
             hpstreams = self.hpstream.streams
-        except AttributeError: # self.hpstream is a normal Stream
+            defaultpath = hpstreams[0].f.path # get path of first stream
+            if cat: # export entire MultiStream to one file:
+                hpstreams = [self.hpstream]
+        else: # self.hpstream is a single Stream
             hpstreams = [self.hpstream]
-        defaultpath = hpstreams[0].f.path
-        caption = "Export high-pass, preprocessed data to .filt.dat files"
+            defaultpath = hpstreams[0].f.path
+            assert cat == False # nonsensical for a single Stream
+        caption = "Export %s data to %s files" % (export_msg, export_ext)
         path = str(getExistingDirectory(self, caption=caption, directory=defaultpath))
         if not path:
             return
-        try: # self.hpstream is a MultiStream?
-            hpstreams = self.hpstream.streams
-        except AttributeError: # self.hpstream is a normal Stream
-            hpstreams = [self.hpstream]
-        print('exporting high-pass data to:')
+
+        print('exporting %d channels:' % self.hpstream.nchans)
+        print('chans = %s' % self.hpstream.chans)
+        blocksize = int(float(self.ui.blockSizeLineEdit.text()))
+        print('exporting in blocks of %d us' % blocksize)
         for hps in hpstreams:
-            fullfname = os.path.join(path, hps.srcfnameroot + '.filt.dat')
+            fullfname = os.path.join(path, hps.srcfnameroot + export_ext)
             fulljsonfname = fullfname + '.json'
-            print(fullfname)
+            print('exporting %s data to %s' % (export_msg, fullfname))
             with open(fullfname, 'wb') as datf:
-                blocksize = int(float(self.ui.blockSizeLineEdit.text())) # allow exp notation
                 t0s = np.arange(hps.t0, hps.t1, blocksize)
                 for t0 in t0s:
                     t1 = t0 + blocksize
+                    print('%d to %d us' % (t0, t1))
                     wave = hps[t0:t1]
                     wave.data.T.tofile(datf) # write in column-major (Fortran) order
                 core.write_dat_json(hps, fulljsonfname,
                                     filtering=hps.filtering, common_avg_ref=hps.car)
-        print('done exporting high-pass data')
+        print('done exporting %s data' % export_msg)
 
     @QtCore.pyqtSlot()
     def on_actionExportLFPZipFiles_triggered(self):
