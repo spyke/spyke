@@ -2969,6 +2969,7 @@ class SpykeWindow(QtGui.QMainWindow):
         for s, wd in zip(sort.spikes, sort.wavedata):
             # Get Vpp at each inclchan's tis, use as spatial weights:
             # see core.rowtake() or util.rowtake_cy() for indexing explanation:
+            spiket = intround(s['t']) # nearest us
             nid = s['nid']
             chan = s['chan']
             nchans = s['nchans']
@@ -2976,14 +2977,15 @@ class SpykeWindow(QtGui.QMainWindow):
             neuronchans = sort.neurons[nid].wave.chans
             assert (chans == neuronchans).all()
             s['tis'][:nchans] = ntis[nid] # wrt t0i=0
-            ## Note that aligni is a bit nonsensical, because KiloSort often doesn't actually
-            ## align to either peak:
+            # note that aligni is a bit nonsensical, because KiloSort often doesn't actually
+            # align to either peak:
             s['aligni'] = nalignis[nid]
             maxchani = s['chani']
             t0i, t1i = int(s['tis'][maxchani, 0]), int(s['tis'][maxchani, 1])
             s['dt'] = abs(t1i - t0i) / sort.sampfreq * 1e6 # us
+            # note that V0 and V1 might not be of opposite sign, because tis are derived
+            # from mean neuron waveform, not from each individual spike:
             s['V0'], s['V1'] = AD2uV(wd[maxchani, t0i]), wd[maxchani, t1i] # uV
-            ## TODO: should probably assert here that V0 and V1 are of opposite sign:
             s['Vpp'] = abs(s['V1'] - s['V0']) # uV
             chanis = det.chans.searchsorted(chans)
             w = np.float32(wd[np.arange(s['nchans'])[:, None], s['tis'][:nchans]])
@@ -2994,11 +2996,10 @@ class SpykeWindow(QtGui.QMainWindow):
             if params == None: # presumably a non-localizable many-channel noise event
                 neuron = sort.neurons[nid]
                 sid = s['id']
-                sw.MoveSpikes2List(neuron, [sid], update=False)
+                sw.MoveSpikes2List(neuron, [sid], update=False) # remove from its neuron
                 # leave s['nlockchans'] = 0, don't display raster ticks for rejected spikes
-                treject = intround(s['t']) # nearest us
                 if DEBUG: det.log("reject spike %d at t=%d based on fit params"
-                                  % (sid, treject))
+                                  % (sid, spiket))
                 # to find out afterwards exactly which spikes were rejected, run:
                 # import numpy as np; np.where(self.sort.spikes['nlockchans'] == 0)[0]
                 # in the IPython shell. You can also inspect the initial contents of the
@@ -3503,7 +3504,8 @@ class SpykeWindow(QtGui.QMainWindow):
                 #print('sort x: %d' % x)
                 window = SortWindow(parent=self, pos=(x, y))
             elif wintype == 'Cluster':
-                x = self.pos().x() + self.size().width() + self.windows['Sort'].size().width() + 4*BORDER
+                x = (self.pos().x() + self.size().width()
+                     + self.windows['Sort'].size().width() + 4*BORDER)
                 y = self.pos().y()
                 size = (SCREENWIDTH - x - 2*BORDER, CLUSTERWINDOWHEIGHT)
                 #print('cluster x: %d' % x)
