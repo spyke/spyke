@@ -71,7 +71,7 @@ class File(dat.File):
             raise NotImplementedError("Can't handle pauses in recording yet")
         self.datapacket = datapacket
         self.contiguous = True
-
+    '''
     def export_raw_dat(self, path, dt=None):
         """Export raw contiguous data packet to .dat file, in the original (ti, chani) order
         using same base file name in the same folder. Also export companion .json metadata
@@ -115,7 +115,7 @@ class File(dat.File):
         print('sample rate: %d Hz' % fh.sampfreq)
         print('voltage gain: %g uV/AD' % fh.AD2uVx)
         print('chan layout: %s' % self.hpstream.probe.name)
-
+    '''
 
 class FileHeader(object):
     """.nsx file header. Takes an open file, parses in from current file

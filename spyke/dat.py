@@ -111,11 +111,11 @@ class File(object):
         try: del d['datapacket'] # avoid pickling datapacket._data mmap
         except KeyError: pass
         return d
-
+    '''
     def export_raw_dat(self, path, dt=None):
         """Redundant feature"""
         raise RuntimeError("export_raw_dat() is redundant for a .dat file")
-
+    '''
 
 class FileHeader(object):
     """.dat 'file header', derived from metadata file with same basename"""
