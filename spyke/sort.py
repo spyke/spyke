@@ -295,9 +295,9 @@ class Sort(object):
         spikes = self.spikes
         exportdt = str(datetime.datetime.now()) # get an export datetime stamp
         exportdt = exportdt.split('.')[0] # ditch the us
-        try: # self.stream is a MultiStream?
+        if self.stream.is_multi(): # self.stream is a MultiStream
             streams = self.stream.streams
-        except AttributeError: # self.stream is a normal Stream
+        else: # self.stream is a single Stream
             streams = [self.stream]
         print('exporting "good" clusters to:')
         # do a separate export for each recording
@@ -376,9 +376,9 @@ class Sort(object):
         spikes = self.spikes
         exportdt = str(datetime.datetime.now()) # get an export datetime stamp
         exportdt = exportdt.split('.')[0] # ditch the us
-        try: # self.stream is a MultiStream?
+        if self.stream.is_multi(): # self.stream is a MultiStream
             streams = self.stream.streams
-        except AttributeError: # self.stream is a normal Stream
+        else: # self.stream is a single Stream
             streams = [self.stream]
         # only export spikes from neurons marked as "good", could be single or multi unit:
         good = np.zeros(len(spikes), dtype=bool) # init False array
@@ -502,9 +502,9 @@ class Sort(object):
 
     def exportdin(self, basepath):
         """Export stimulus din(s) to binary .din file(s) in basepath"""
-        try: # self.stream is a MultiStream?
+        self.stream.is_multi(): # self.stream is a MultiStream
             streams = self.stream.streams
-        except AttributeError: # self.stream is a normal Stream
+        else: # self.stream is a single Stream
             streams = [self.stream]
         dinfiledtype=[('TimeStamp', '<i8'), ('SVal', '<i8')] # pairs of int64s
         print('exporting DIN(s) to:')
@@ -550,9 +550,9 @@ class Sort(object):
 
     def exporttextheader(self, basepath):
         """Export stimulus text header(s) to .textheader file(s) in basepath"""
-        try: # self.stream is a MultiStream?
+        if self.stream.is_multi(): # self.stream is a MultiStream
             streams = self.stream.streams
-        except AttributeError: # self.stream is a normal Stream
+        else: # self.stream is a single Stream
             streams = [self.stream]
         print('exporting text header(s) to:')
         for stream in streams:

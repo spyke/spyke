@@ -470,9 +470,9 @@ class SpykeWindow(QtGui.QMainWindow):
         basepath = str(basepath)
         if not basepath:
             return
-        try: # self.lpstream is a MultiStream?
+        if self.lpstream.is_multi(): # self.lpstream is a MultiStream
             lpstreams = self.lpstream.streams
-        except AttributeError: # self.lpstream is a normal Stream
+        else: # self.lpstream is a single Stream
             lpstreams = [self.lpstream]
         print('exporting low-pass data to:')
         for lps in lpstreams:
@@ -519,9 +519,9 @@ class SpykeWindow(QtGui.QMainWindow):
         output to get sampfreq. Export chans in order of depth, superficial to deep.
         bipolarref: optionally take each channel's raw data to be the difference of the two
         immediately spatially adjacent channels, before calculating the envelope"""
-        try: # self.hpstream is a MultiStream?
+        if self.hpstream.is_multi(): # self.hpstream is a MultiStream
             hpstreams = self.hpstream.streams
-        except AttributeError: # self.hpstream is a normal Stream
+        else: # self.hpstream is a single Stream
             hpstreams = [self.hpstream]
         defaultpath = hpstreams[0].f.path
         caption = "Export envelope of high-pass, preprocessed data to .envl.dat files"
