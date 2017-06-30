@@ -14,7 +14,7 @@ from collections import OrderedDict as odict
 import numpy as np
 
 import core
-from core import (WaveForm, EmptyClass, intround, intfloor, intceil, lrstrip, MU,
+from core import (WaveForm, EmptyClass, intround, lrstrip, MU,
                   hamming, filterord, WMLDR, td2fusec)
 from core import (DEFHPRESAMPLEX, DEFLPSAMPLFREQ, DEFHPSRFSHCORRECT,
                   DEFHPDATSHCORRECT, DEFDATFILTMETH, DEFHPNSXSHCORRECT, DEFNSXFILTMETH, DEFCAR,
@@ -354,9 +354,9 @@ class DATStream(Stream):
         t0i, t1i = self.f.t0i, self.f.t1i
         # calculate *slice* indices t0xsi and t1xsi, for a greater range of
         # raw data (with xs) than requested:
-        t0xsi = intfloor((start - xs) / rawtres) # round down to nearest mult of rawtres
-        t1xsi = intceil((stop + xs) / rawtres) # round up to nearest mult of rawtres
         # stay within stream slice limits, thereby avoiding interpolation edge effects:
+        t0xsi = intround((start - xs) / rawtres) # round to nearest mult of rawtres
+        t1xsi = intround((stop + xs) / rawtres) # round to nearest mult of rawtres
         t0xsi = max(t0xsi, t0i)
         t1xsi = min(t1xsi, t1i+1)
         # convert slice indices back to nearest float us:
@@ -658,9 +658,9 @@ class SurfStream(Stream):
         t0i = intround(self.t0 / rawtres)
         t1i = intround(self.t1 / rawtres)
         # get a slightly greater range of raw data (with xs) than might be needed:
-        t0xsi = intfloor((start - xs) / rawtres) # round down to nearest mult of rawtres
-        t1xsi = intceil((stop + xs) / rawtres) # round up to nearest mult of rawtres
         # stay within stream limits, thereby avoiding interpolation edge effects:
+        t0xsi = intround((start - xs) / rawtres) # round to nearest mult of rawtres
+        t1xsi = intround((stop + xs) / rawtres) # round to nearest mult of rawtres
         t0xsi = max(t0xsi, t0i)
         t1xsi = min(t1xsi, t1i)
         # convert back to nearest float us:
@@ -870,9 +870,9 @@ class SimpleStream(Stream):
         t0i = intround(self.t0 / rawtres)
         t1i = intround(self.t1 / rawtres)
         # get a slightly greater range of raw data (with xs) than might be needed:
-        t0xsi = intfloor((start - xs) / rawtres) # round down to nearest mult of rawtres
-        t1xsi = intceil((stop + xs) / rawtres) # round up to nearest mult of rawtres
         # stay within stream limits, thereby avoiding interpolation edge effects:
+        t0xsi = intround((start - xs) / rawtres) # round to nearest mult of rawtres
+        t1xsi = intround((stop + xs) / rawtres) # round to nearest mult of rawtres
         t0xsi = max(t0xsi, t0i)
         t1xsi = min(t1xsi, t1i)
         # convert back to nearest float us:
