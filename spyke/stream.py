@@ -618,6 +618,21 @@ class SurfStream(Stream):
         
     masterclockfreq = property(get_masterclockfreq)
 
+    def get_filtering(self):
+        """Get filtering settings. For .srf files, these are fixed hardware settings"""
+        od = odict()
+        if self.kind == 'highpass':
+            od['meth'] = 'high-pass hardware analog filter'
+            od['f0'], od['f1'] = 500, 6000 # Hz
+        elif self.kind == 'lowpass':
+            od['meth'] = 'low-pass hardware analog filter'
+            od['f0'], od['f1'] = 0.1, 150 # Hz
+        else:
+            raise ValueError
+        return od
+
+    filtering = property(get_filtering)
+
     def pickle(self):
         self.f.pickle()
 
