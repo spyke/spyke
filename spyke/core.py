@@ -1892,15 +1892,15 @@ def write_dat_json(stream, fulljsonfname,
     if ext == '.dat':
         author = fh.author
         version = fh.version
-        notes = fh.notes or fnames
+        notes = fh.notes
     elif ext == '.ns6':
         author = 'Blackrock NSP'
         version = ''
-        notes = fh.comment or fnames
+        notes = fh.comment
     elif ext == '.srf':
         author = fh.user_name
         version = fh.app_info
-        notes = fnames
+        notes = ''
     else:
         raise ValueError
     filtering = stream.filtering
@@ -1924,6 +1924,7 @@ def write_dat_json(stream, fulljsonfname,
     od['version'] = version
     od['notes'] = notes
 
+    od['source'] = fnames
     od['filtering'] = filtering
     od['common_avg_ref'] = common_avg_ref
     if envelope:
