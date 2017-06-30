@@ -1869,10 +1869,10 @@ def write_dat_json(stream, fulljsonfname,
     ext = stream.ext
     assert ext in ['.dat', '.ns6', '.srf']
     if stream.is_multi(): # it's a MultiStream
-        fnames = stream.fnames
+        source_fnames = stream.fnames
         stream = stream.streams[0] # use its first stream to get field values
     else: # it's a single Stream
-        fnames = [stream.fname]
+        source_fnames = [stream.fname]
     fh = stream.f.fileheader
 
     # choose values:
@@ -1924,7 +1924,7 @@ def write_dat_json(stream, fulljsonfname,
     od['version'] = version
     od['notes'] = notes
 
-    od['source'] = fnames
+    od['source_fnames'] = source_fnames
     od['filtering'] = filtering
     od['common_avg_ref'] = common_avg_ref
     if envelope:
