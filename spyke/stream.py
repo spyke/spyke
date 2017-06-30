@@ -615,7 +615,7 @@ class SurfStream(Stream):
 
     def get_masterclockfreq(self):
         return self.f.layoutrecords[0].MasterClockFreq
-        
+
     masterclockfreq = property(get_masterclockfreq)
 
     def get_filtering(self):

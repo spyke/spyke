@@ -470,11 +470,13 @@ class File(object):
         pf = open(self.join(self.parsefname), 'wb') # can also compress pickle with gzip
         self._pickle_all_records = True # signal to __getstate__ to pickle all records
         wasopen = self.is_open()
-        if wasopen: self.close()
+        if wasopen:
+            self.close()
         # pickle self to .parse file, use most efficient (least human readable) protocol:
         cPickle.dump(self, pf, protocol=-1)
         pf.close()
-        if wasopen: self.open() # reopen it
+        if wasopen:
+            self.open() # reopen it
         self._pickle_all_records = False # reset to not pickle all records by default
         print('Saved parse info to %r' % self.parsefname)
 
