@@ -602,13 +602,14 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SetFiltmeth(None)
         self.SetCAR(None)
         self.SetSampfreq(stream.rawsampfreq)
-        self.SetSHCorrect(False)
+        if stream.ext != '.srf':
+            self.SetSHCorrect(False) # leave it enabled for .srf, data is wrong w/o it
 
         # do the export:
         if stream.is_multi(): # it's a MultiStream
-            cat = True
+            cat = True # concatenate
         else: # it's a single Stream
-            cat = False
+            cat = False # nothing to concatenate
         self.export_hpstream(cat=cat, export_msg='raw', export_ext='.dat')
 
         # restore hpstream settings:
