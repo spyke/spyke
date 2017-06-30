@@ -1862,65 +1862,77 @@ def unpickler_find_global_0_7_to_0_8(oldmod, oldcls):
     exec('import %s' % newmod)
     return eval('%s.%s' % (newmod, newcls))
 
-def write_dat_json(stream, fulljsonfname, sampfreq=None, raw=False, **kwargs):
+def write_dat_json(stream, fulljsonfname,
+                   sampfreq=None, chans=None, auxchans=None, chan_order=None, envelope=None):
     """Write .json metadata file as a companion to stream's file. For now, stream should be
-    either a DATStream or an NSXStream. If sampfreq is not None, sampfreq overrides
-    'sample_rate' field and automatically calculates 'nsamples_offset' field. If raw is True,
-    export values of raw stream data, otherwise, export values of processed stream data.
-    kwargs are any extra key:value pairs to overwrite existing fields, or new ones to be added
-    to the end of the .json file"""
-
-    #assert type(stream) in [DATStream, NSXStream]
-
-    try:
-        f = stream.f # it's a single Stream
-    except AttributeError:
-        f = stream.streams[0].f # it's a MultiStream, use file of its first stream
-    fh = f.fileheader
+    either a DATStream, NSXStream, or SurfStream"""
+    ext = stream.ext
+    assert ext in ['.dat', '.ns6', '.srf']
+    if stream.is_multi(): # it's a MultiStream
+        fnames = stream.fnames
+        stream = stream.streams[0] # use its first stream to get field values
+    else: # it's a single Stream
+        fnames = [stream.fname]
+    fh = stream.f.fileheader
 
     # choose values:
     if sampfreq is None:
         sampfreq = stream.sampfreq
-    if raw:
-        nchans = fh.nchanstotal
-        sample_rate = stream.rawsampfreq
-        chans = list(fh.chans)
-        auxchans = list(fh.auxchans)
-        nsamples_offset = f.t0i
-    else:
-        nchans = fh.nchans
-        sample_rate = sampfreq
+    sample_rate = sampfreq
+    if chans is None:
         chans = list(stream.chans)
+    if auxchans is None:
         auxchans = []
-        resamplex = sampfreq / stream.rawsampfreq
-        nsamples_offset = intround(f.t0i*resamplex)
+    nchans = len(chans) + len(auxchans)
+    uV_per_AD = stream.converter.AD2uV(1)
+    # multiply by sampfreq instead of dividing by stream.tres, because passed sampfreq
+    # might differ from that of stream:
+    nsamples_offset = intround(stream.t0 / 1e6 * sampfreq)
+    datetime = stream.datetime.isoformat()
+    if ext == '.dat':
+        author = fh.author
+        version = fh.version
+        notes = fh.notes or fnames
+    elif ext == '.ns6':
+        author = 'Blackrock NSP'
+        version = ''
+        notes = fh.comment or fnames
+    elif ext == '.srf':
+        author = fh.user_name
+        version = fh.app_info
+        notes = fnames
+    else:
+        raise ValueError
+    filtering = stream.filtering
+    common_avg_ref = stream.car
 
     # write to odict:
     od = odict()
     od['nchans'] = nchans
     od['sample_rate'] = sample_rate
+    if ext == '.srf':
+        od['shcorrect'] = stream.shcorrect
     od['dtype'] = 'int16' # hard-coded, only dtype supported for now
-    od['uV_per_AD'] = fh.AD2uVx
+    od['uV_per_AD'] = uV_per_AD
     od['chan_layout_name'] = stream.probe.name
     od['chans'] = chans
-    od['chan_order'] = None # for human reference, 'depth' is the other obvious possible value
+    od['chan_order'] = chan_order # for human reference, 'depth' is other obvious value
     od['aux_chans'] = auxchans
     od['nsamples_offset'] = nsamples_offset
-    od['datetime'] = fh.datetime.isoformat()
-    od['author'] = ''
-    od['version'] = '' # no way to extract Blackrock NSP version from .nsx?
-    try:
-        notes = fh.notes
-    except AttributeError:
-        notes = fh.comment
+    od['datetime'] = datetime
+    od['author'] = author
+    od['version'] = version
     od['notes'] = notes
-    # iterate through kwargs, potentially overwriting any existing fields:
-    for key, val in kwargs.items():
-        od[key] = val
-    # update nchans in case chans or auxchans were passed as kwargs:
-    od['nchans'] = len(od['chans']) + len(od['aux_chans'])
+
+    od['filtering'] = filtering
+    od['common_avg_ref'] = common_avg_ref
+    if envelope:
+        od['envelope'] = envelope
+
     with open(fulljsonfname, 'w') as jsonf:
-        ## TODO: make list fields not have a newline for each entry
-        json.dump(od, jsonf, indent=0) # write contents of odict to file
+        ## TODO: make list fields not have a newline for each entry. Not at all easy to do.
+        ## See https://stackoverflow.com/questions/16405969/how-to-change-json-encoding-behaviour-for-serializable-python-object
+        # write contents of odict to file:
+        json.dump(od, jsonf, indent=0, separators=(',', ': '))
         jsonf.write('\n') # end with a blank line
     print('wrote metadata file %r' % fulljsonfname)

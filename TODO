@@ -1418,7 +1418,7 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - exporting from .track file to .dat file results in unsupported error
 - fix folder generation on export of .dat or envl.dat files, each .dat file shouldn't have its own folder, only one folder per track/series
 - add a .json file to go with each .ns6 file, or a special one for a whole .ns6 series, to just describe chan layout
-
+- add source filename(s) to notes field when exporting to .dat. This should be not just for raw export, all kinds of export to .dat (high-pass, low-pass, and envelope).
 
 
 end of DONE

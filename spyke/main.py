@@ -448,8 +448,7 @@ class SpykeWindow(QtGui.QMainWindow):
                     print('%d to %d us' % (t0, t1))
                     wave = hps[t0:t1]
                     wave.data.T.tofile(datf) # write in column-major (Fortran) order
-                core.write_dat_json(hps, fulljsonfname,
-                                    filtering=hps.filtering, common_avg_ref=hps.car)
+                core.write_dat_json(hps, fulljsonfname)
         print('done exporting %s data' % export_msg)
 
     @QtCore.pyqtSlot()
@@ -577,9 +576,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 envelope['f0'] = f0
                 envelope['f1'] = f1
                 core.write_dat_json(hps, fulljsonfname, sampfreq=sampfreq,
-                                    chans=ychans, chan_order='depth',
-                                    filtering=hps.filtering, common_avg_ref=hps.car,
-                                    envelope=envelope)
+                                    chans=ychans, chan_order='depth', envelope=envelope)
         print('done exporting high-pass envelope data')
 
     @QtCore.pyqtSlot()
