@@ -11,18 +11,22 @@ BLAB requests:
 
 6. add support for .series file? would be identical to .track file
 
-7. sorting entire tracks with ks: add option to export single concatenated raw .dat file from either .ns6 or individual .dat files in a .track file, probably with zeros to fill in recording gaps. Then hopefully importing the spike times would work seamlessly, i.e. the spike would be relative to t=0 of first recording, just like when detection and sorting are done entirely in spyke
-    - bug: spike times and locations are completely wrong. I think ks is having a problem when trying to sort .dat files with just ephys data in them (32 chans) vs. what I've always done previously, which was just copy the entire .dat field from the .ns6 with all 34 chans.
-
 8. add zeros to start of all exported .dat files and set offset field to 0 in .json
     - disable export for .srf files
 
 9. BUG: round-trip results in loss of one uninterpolated datapoint, but only when exporting preprocessed data? It seems there's no missing datapoint when exporting .ns6 to raw .dat (no filtering, no CAR, no interpolation).
-    - exporting two files to concatenated output gives a missing datapoint at end of first file, and therefore an extra datapoint of 0s at the end of the concatenated file, so the multistream is correctly calculating the size of the final file, but when getting data from the individual streams, it gets one datapoint less
+    - exporting two files to concatenated output gives a missing datapoint at end of first both files, and therefore an extra datapoint of 0s at the end of the concatenated file, so the multistream is correctly calculating the size of the final file, but when getting data from the individual streams, it gets one datapoint less
+    - concatenating to .srf doesn't seem to have this problem, probably because tres is in multiples of 1 us
 
 10. test export and concatenated export with different sized blocks, like 30 or 60 seconds instead of 10. Make sure there aren't any indexing errors or missing/extra data in the exported files.
 
+11. Maybe spikes rejected on import should get a raster line anyway (they currently do not), so we can fairly evaluate which spikes kilosort missed.
+
+- for data exported to .dat, should files be named e.g. .ns6.dat, to help indicate that they came from an .ns6 file instead of being directly recorded to .dat? This would be in addition to the note in the .json file. This would also mean the json file would be named .ns6.dat.json
+
 - add progress indication to spatial fit step during import of spike times
+
+- make kilosort always export to datfilename.ks or datfilename.kilosort or datfilename.ks_results folder in same folder as the source data, so that kilosort results from different source files in the same folder don't conflict with each other
 
 - make kilosort check if .dat file size is an integer multiple of ntot chans declared in ks_run.m file, or is that ignored? Shouldn't be, because only ephys chans are defined in the chanmap file!
 
@@ -1419,6 +1423,7 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - fix folder generation on export of .dat or envl.dat files, each .dat file shouldn't have its own folder, only one folder per track/series
 - add a .json file to go with each .ns6 file, or a special one for a whole .ns6 series, to just describe chan layout
 - add source filename(s) to notes field when exporting to .dat. This should be not just for raw export, all kinds of export to .dat (high-pass, low-pass, and envelope).
+- sort entire tracks with ks: add option to export single concatenated raw .dat file from either .ns6 or individual .dat files in a .track file, probably with zeros to fill in recording gaps. Then importing the spike times should work seamlessly, i.e. the spike would be relative to t=0 of the first recording, just like when detection and sorting are done entirely within spyke
 
 
 end of DONE

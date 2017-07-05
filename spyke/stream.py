@@ -365,7 +365,7 @@ class DATStream(Stream):
         # these are slice indices, so don't add 1 when calculating ntxs:
         ntxs = t1xsi - t0xsi # int
         tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*rawtres, ntxs)
-        #print('ntxs: %d' % ntxs)
+        #print('t0xs, t1xs, ntxs: %f, %f, %d' % (t0xs, t1xs, ntxs))
 
         # init dataxs; unlike for .srf files, int32 dataxs array isn't necessary for
         # int16 .dat or .nsx files, since there's no need to zero or rescale
@@ -669,7 +669,7 @@ class SurfStream(Stream):
         # these are slice indices, so don't add 1:
         ntxs = t1xsi - t0xsi # int
         tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*rawtres, ntxs)
-        #print('ntxs: %d' % ntxs)
+        #print('t0xs, t1xs, ntxs: %f, %f, %d' % (t0xs, t1xs, ntxs))
 
         # init data as int32 so we have bitwidth to rescale and zero, convert to int16 later
         dataxs = np.zeros((nchans, ntxs), dtype=np.int32) # any gaps will have zeros
@@ -881,7 +881,7 @@ class SimpleStream(Stream):
         # these are slice indices, so don't add 1:
         ntxs = t1xsi - t0xsi # int
         tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*rawtres, ntxs)
-        #print('ntxs: %d' % ntxs)
+        #print('t0xs, t1xs, ntxs: %f, %f, %d' % (t0xs, t1xs, ntxs))
 
         # slice out excess data on requested channels, init as int32 so we have bitwidth
         # to rescale and zero, convert to int16 later:
@@ -1157,6 +1157,13 @@ class MultiStream(object):
         start = intround(start / tres) * tres # round to nearest mult of tres
         stop = intround(stop / tres) * tres # round to nearest mult of tres
         start, stop = max(start, self.t0), min(stop, self.t1) # stay within stream limits
+        #print('*** new MultiStream.__call__()')
+        #print('multi start, stop: %f, %f' % (start, stop))
+        ## BUG: The last datapoint of each stream within self is missing, replaced by zeros.
+        ## This is especially apparent when exporting self to .dat. Something to do with
+        ## floating point roundoff
+        ##     - might be from using tres instead rawtres, like in single streams,
+        ##     - most likely it's from working on times instead of indices!
         streamis = []
         ## TODO: this could probably be more efficient by not iterating over all streams:
         for streami, trange in enumerate(self.streamtranges):

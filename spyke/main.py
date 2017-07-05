@@ -419,6 +419,7 @@ class SpykeWindow(QtGui.QMainWindow):
         resampling are set appropriately. Use export_msg and export_ext to communicate this.
         cat controls whether to concatenate all the exported data into a single
         .dat file"""
+        ## TODO: round-trip results in loss of one uninterpolated datapoint?
         if self.hpstream.is_multi(): # self.hpstream is a MultiStream
             hpstreams = self.hpstream.streams
             defaultpath = hpstreams[0].f.path # get path of first stream
@@ -447,6 +448,9 @@ class SpykeWindow(QtGui.QMainWindow):
                     t1 = t0 + blocksize
                     print('%d to %d us' % (t0, t1))
                     wave = hps[t0:t1]
+                    if t0 == t0s[-1]:
+                        print('last block asked:', t0, t1)
+                        print('last block received:', wave.ts[0], wave.ts[-1])
                     wave.data.T.tofile(datf) # write in column-major (Fortran) order
                 core.write_dat_json(hps, fulljsonfname)
         print('done exporting %s data' % export_msg)
@@ -518,6 +522,7 @@ class SpykeWindow(QtGui.QMainWindow):
         output to get sampfreq. Export chans in order of depth, superficial to deep.
         bipolarref: optionally take each channel's raw data to be the difference of the two
         immediately spatially adjacent channels, before calculating the envelope"""
+        ## TODO: round-trip results in loss of one uninterpolated datapoint?
         if self.hpstream.is_multi(): # self.hpstream is a MultiStream
             hpstreams = self.hpstream.streams
         else: # self.hpstream is a single Stream
@@ -2995,6 +3000,10 @@ class SpykeWindow(QtGui.QMainWindow):
                 neuron = sort.neurons[nid]
                 sid = s['id']
                 sw.MoveSpikes2List(neuron, [sid], update=False) # remove from its neuron
+                ## TODO: is this really the best option? might be better to display
+                ## rejected spikes, since they're still kept in the unclustered list:
+                ## maybe best to set artificial params = x, y, 1, 1 or so, so only the maxchan
+                ## gets a raster line
                 # leave s['nlockchans'] = 0, don't display raster ticks for rejected spikes
                 if DEBUG: det.log("reject spike %d at t=%d based on fit params"
                                   % (sid, spiket))
