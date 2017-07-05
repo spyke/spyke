@@ -14,7 +14,7 @@ from collections import OrderedDict as odict
 import numpy as np
 
 import core
-from core import (WaveForm, EmptyClass, intround, lrstrip, MU,
+from core import (WaveForm, EmptyClass, intround, intfloor, intceil, lrstrip, MU,
                   hamming, filterord, WMLDR, td2fusec)
 from core import (DEFHPRESAMPLEX, DEFLPSAMPLFREQ, DEFHPSRFSHCORRECT,
                   DEFHPDATSHCORRECT, DEFDATFILTMETH, DEFHPNSXSHCORRECT, DEFNSXFILTMETH, DEFCAR,
@@ -1154,9 +1154,7 @@ class MultiStream(object):
                              "chans %r in %s stream" % (chans, self.chans, self.kind))
         nchans = len(chans)
         tres = self.tres
-        start = intround(start / tres) * tres # round to nearest mult of tres
-        stop = intround(stop / tres) * tres # round to nearest mult of tres
-        start, stop = max(start, self.t0), min(stop, self.t1) # stay within stream limits
+
         #print('*** new MultiStream.__call__()')
         #print('multi start, stop: %f, %f' % (start, stop))
         ## BUG: The last datapoint of each stream within self is missing, replaced by zeros.
@@ -1164,31 +1162,52 @@ class MultiStream(object):
         ## floating point roundoff
         ##     - might be from using tres instead rawtres, like in single streams,
         ##     - most likely it's from working on times instead of indices!
+
+        t0xs = intfloor(start / tres) * tres # round down to nearest mult of tres
+        t1xs = intceil(stop / tres) * tres # round up to nearest mult of tres
+        t0xs, t1xs = max(t0xs, self.t0), min(t1xs, self.t1) # stay within stream limits
         streamis = []
         ## TODO: this could probably be more efficient by not iterating over all streams:
         for streami, trange in enumerate(self.streamtranges):
-            if (trange[0] <= start < trange[1]) or (trange[0] <= stop < trange[1]):
+            if (trange[0] <= t0xs < trange[1]) or (trange[0] <= t1xs < trange[1]):
                 streamis.append(streami)
-        nt = intround((stop - start) / tres)
+        ntxs = intround((t1xs - t0xs) / tres)
+        print('multi t0xs, t1xs, ntxs: %f, %f, %d' % (t0xs, t1xs, ntxs))
         # safer to use linspace than arange in case of float tres, deals with endpoints
         # better and gives slightly more accurate output float timestamps:
-        ts = np.linspace(start, start+(nt-1)*tres, nt)
-        assert len(ts) == nt
-        data = np.zeros((nchans, nt), dtype=np.int16) # any gaps will have zeros
+        tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*tres, ntxs)
+        assert len(tsxs) == ntxs
+        dataxs = np.zeros((nchans, ntxs), dtype=np.int16) # any gaps will have zeros
         for streami in streamis:
             stream = self.streams[streami]
             abst0 = self.streamtranges[streami, 0] # absolute start time of stream
             # find start and end offsets relative to abst0:
-            relt0 = max(start - abst0, 0) # stay within stream's lower limit
-            relt1 = min(stop - abst0, stream.t1 - stream.t0) # stay within stream's upper limit
+            relt0xs = t0xs - abst0
+            relt1xs = t1xs - abst0
+            relt0xs = max(relt0xs, 0) # stay within stream's lower limit
+            ## TODO: should there be a +1 in this upper limit? Like for a slice? Maybe with
+            ## xs it won't matter anyway
+            relt1xs = min(relt1xs, stream.t1 - stream.t0) # stay within stream's upper limit
+            print('multi relt0xs, relt1xs:', relt0xs, relt1xs)
             # source slice times:
-            st0 = relt0 + stream.t0
-            st1 = relt1 + stream.t0
-            sdata = stream(st0, st1, chans).data # source data
+            st0xs = stream.t0 + relt0xs
+            st1xs = stream.t0 + relt1xs
+            ## when asking for last block of a stream, stream call returns one less
+            ## data point than asked for, and therefore the last datapoint in the
+            ## concatenated .dat file has 0s in place of real data
+            sdataxs = stream(st0xs, st1xs, chans).data # excess source data
+            ntxssrc = sdataxs.shape[1]
             # destination slice indices:
-            dt0i = int((abst0 + relt0 - start) // tres) # absolute index, trunc to int
-            dt1i = dt0i + sdata.shape[1]
-            data[:, dt0i:dt1i] = sdata
-            #print('dt0i, dt1i', dt0i, dt1i)
-            #print('MLT:', start, stop, tres, sdata.shape, data.shape)
+            dt0xsi = intround((abst0 + relt0xs - t0xs) / tres) # absolute index
+            dt1xsi = dt0xsi + ntxssrc
+            ntxsdest = dt1xsi - dt0xsi
+            print('multi dt0xsi, dt1xsi:', dt0xsi, dt1xsi)
+            print('multi ntxssrc, ntxsdest:', ntxssrc, ntxsdest)
+            dataxs[:, dt0xsi:dt1xsi] = sdataxs
+
+        lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
+        data = dataxs[:, lo:hi]
+        ts = tsxs[lo:hi]
+        print('multi t0, t1, nt:', ts[0], ts[-1], len(ts))
+
         return WaveForm(data=data, ts=ts, chans=chans)
