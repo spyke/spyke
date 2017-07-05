@@ -1152,11 +1152,7 @@ class MultiStream(object):
         if not set(chans).issubset(self.chans):
             raise ValueError("requested chans %r are not a subset of available enabled "
                              "chans %r in %s stream" % (chans, self.chans, self.kind))
-        nchans = len(chans)
-        tres = self.tres
-        start = intround(start / tres) * tres # round to nearest mult of tres
-        stop = intround(stop / tres) * tres # round to nearest mult of tres
-        start, stop = max(start, self.t0), min(stop, self.t1) # stay within stream limits
+
         #print('*** new MultiStream.__call__()')
         #print('multi start, stop: %f, %f' % (start, stop))
         ## BUG: The last datapoint of each stream within self is missing, replaced by zeros.
@@ -1164,6 +1160,12 @@ class MultiStream(object):
         ## floating point roundoff
         ##     - might be from using tres instead rawtres, like in single streams,
         ##     - most likely it's from working on times instead of indices!
+
+        nchans = len(chans)
+        tres = self.tres
+        start = intround(start / tres) * tres # round to nearest mult of tres
+        stop = intround(stop / tres) * tres # round to nearest mult of tres
+        start, stop = max(start, self.t0), min(stop, self.t1) # stay within stream limits
         streamis = []
         ## TODO: this could probably be more efficient by not iterating over all streams:
         for streami, trange in enumerate(self.streamtranges):
