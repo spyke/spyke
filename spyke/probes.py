@@ -28,9 +28,7 @@ class Probe(object):
     correspond to positions further down the probe"""
     def siteloc_arr(self):
         """Return site locations in an array, sorted by channel ID"""
-        chans = self.SiteLoc.keys()
-        chans.sort()
-        return np.asarray([ self.SiteLoc[chan] for chan in chans ])
+        return np.asarray([ self.SiteLoc[chan] for chan in self.chans ])
 
     def unique_coords(self, axis=1):
         """Return sorted unique coords along axis"""
@@ -66,6 +64,12 @@ class Probe(object):
         return chan0
 
     chan0 = property(get_chan0)
+
+    def get_chans(self):
+        """Get all channel IDs, sorted"""
+        return sorted(self.SiteLoc.keys())
+
+    chans = property(get_chans)
 
 
 class uMap54_1a(Probe):
