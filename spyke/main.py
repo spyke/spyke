@@ -2973,6 +2973,12 @@ class SpykeWindow(QtGui.QMainWindow):
         for s, wd in zip(sort.spikes, sort.wavedata):
             # Get Vpp at each inclchan's tis, use as spatial weights:
             # see core.rowtake() or util.rowtake_cy() for indexing explanation:
+            sid = s['id']
+            # print out progress on a regular basis:
+            if sid % 10000 == 0:
+                print(sid, end='')
+            elif sid % 1000 == 0:
+                print('.', end='')
             spiket = intround(s['t']) # nearest us
             nid = s['nid']
             chan = s['chan']
