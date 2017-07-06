@@ -1920,7 +1920,7 @@ or remove all duplicate spikes from selected neurons
      </widget>
      <widget class="QMenu" name="menuExportRawData">
       <property name="toolTip">
-       <string>Export raw ephys data to .dat file(s) in same folder</string>
+       <string>Export raw ephys data to .dat file(s)</string>
       </property>
       <property name="title">
        <string>Raw data</string>
