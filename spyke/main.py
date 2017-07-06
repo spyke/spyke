@@ -202,6 +202,7 @@ class SpykeWindow(QtGui.QMainWindow):
         samplingGroup.addAction(ui.action60kHz)
         samplingGroup.addAction(ui.action80kHz)
         samplingGroup.addAction(ui.action100kHz)
+        samplingGroup.addAction(ui.action120kHz)
 
     @QtCore.pyqtSlot()
     def on_actionNew_triggered(self):
