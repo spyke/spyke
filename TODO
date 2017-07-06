@@ -1,5 +1,9 @@
 BLAB requests:
 
+- BUG: when resampling is enabled (60 kHz), at some time offsets (copied and pasted into the timepoint field), the data displayed in a long .track (many .ns6 files) appears shifted by about 1 data point when viewed in the exported .dat. When there's a difference, the displayed data for the .dat file seems to always appear advanced wrt the .track file.
+
+- BUG: when inputting a timepoint to jump to in the timepoint field, the slider position isn't updated
+
 1. add gui option to export in chan order or spatial order, default to chan order
     - also update "chan_order" field appropriately in .json file
 
