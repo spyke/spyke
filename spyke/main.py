@@ -447,14 +447,17 @@ class SpykeWindow(QtGui.QMainWindow):
                 t0s = np.arange(hps.t0, hps.t1, blocksize)
                 for t0 in t0s:
                     t1 = t0 + blocksize
-                    print('%d to %d us' % (t0, t1))
+                    #print('%d to %d us' % (t0, t1))
+                    print('.', end='') # succint progress indicator
                     wave = hps[t0:t1]
-                    if t0 == t0s[-1]:
-                        print('last block asked:', t0, t1)
-                        print('last block received:', wave.ts[0], wave.ts[-1])
+                    #if t0 == t0s[-1]:
+                    #    print('last block asked:', t0, t1)
+                    #    print('last block received:', wave.ts[0], wave.ts[-1])
                     wave.data.T.tofile(datf) # write in column-major (Fortran) order
+                print() # newline
                 core.write_dat_json(hps, fulljsonfname)
         print('done exporting %s data' % export_msg)
+        return path
 
     @QtCore.pyqtSlot()
     def on_actionExportLFPZipFiles_triggered(self):
@@ -616,7 +619,7 @@ class SpykeWindow(QtGui.QMainWindow):
             cat = True # concatenate
         else: # it's a single Stream
             cat = False # nothing to concatenate
-        self.export_hpstream(cat=cat, export_msg='raw', export_ext='.dat')
+        exportpath = self.export_hpstream(cat=cat, export_msg='raw', export_ext='.dat')
 
         # restore hpstream settings:
         print('restoring filtering, CAR, and resampling settings')
