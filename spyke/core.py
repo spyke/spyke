@@ -23,7 +23,7 @@ getSaveFileName = QtGui.QFileDialog.getSaveFileName
 
 import numpy as np
 from numpy import pi
-import scipy.signal
+import scipy.signal, scipy.io
 
 import matplotlib as mpl
 
@@ -1937,3 +1937,34 @@ def write_dat_json(stream, fulljsonfname,
         json.dump(od, jsonf, indent=0, separators=(',', ': '))
         jsonf.write('\n') # end with a blank line
     print('wrote metadata file %r' % fulljsonfname)
+
+def write_ks_chanmap_mat(stream, fname):
+    """Write stream's channel map information to .mat file for use by kilosort"""
+    nchans = stream.nchans # number of enabled chans
+    probe = stream.probe
+    # mask to tell ks which chans in .dat to use for sorting?:
+    connected = np.tile(True, (nchans, 1)) # column vector
+    chans = stream.chans # array of enabled chans
+    chan0 = probe.chan0 # numbering base of chans
+    if chan0 == 0:
+        chanMap = chans + 1 # row vector, 1-based IDs of chans in .dat
+    elif chan0 == 1:
+        chanMap = chans # row vector, 1-based IDs of chans in .dat
+    else:
+        raise ValueError('invalid value %d for channel numbering base' % chan0)
+    chanMap0ind = chanMap - 1 # row vector, 0-based IDs of chans in .dat
+    coords = np.asarray([ probe.SiteLoc[chan] for chan in probe.chans ])
+    xcoords = coords[:, 0].reshape(-1, 1) # column vector
+    ycoords = coords[:, 1].reshape(-1, 1) # column vector, origin is at top of probe
+    ycoords = ycoords.max() - ycoords # ks expects origin at bottom of probe
+    kcoords = np.tile(1, (probe.nchans, 1)) # column vector, something to do with shanks?
+    fs = stream.rawsampfreq
+    matd = {'connected': connected,
+            'chanMap': chanMap,
+            'chanMap0ind': chanMap0ind,
+            'xcoords': xcoords,
+            'ycoords': ycoords,
+            'kcoords': kcoords,
+            'fs': fs}
+    scipy.io.savemat(fname, matd)
+    print('wrote kilosort chanmap file %r' % fname)

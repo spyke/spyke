@@ -628,8 +628,9 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SetSampfreq(sampfreq)
         self.SetSHCorrect(shcorrect)
 
-        ## export kilosort channel map .mat file with just the enabled channels
-        print("TODO: export kilosort chan map!!!!")
+        # write kilosort channel map .mat file, indicate which chans are included in the .dat
+        fullmatfname = os.path.join(exportpath, stream.fname + '.ks_chanmap.mat')
+        core.write_ks_chanmap_mat(stream, fullmatfname)
 
     @QtCore.pyqtSlot()
     def on_actionConvertKiloSortNpy2EventsZip_triggered(self):
