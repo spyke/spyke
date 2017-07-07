@@ -1132,7 +1132,7 @@ class Sort(object):
         sids based on the chans closest to the mean of the sids. It's the caller's
         responsibility to mark sids as dirty and trigger resaving of .wave file"""
         nsids = len(sids)
-        print('reloading %d spikes' % nsids)
+        print('(re)loading %d spikes' % nsids)
         stream = self.stream
         if not stream.is_open():
             raise RuntimeError("no open stream to reload spikes from")

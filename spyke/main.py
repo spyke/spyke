@@ -2905,7 +2905,7 @@ class SpykeWindow(QtGui.QMainWindow):
         spikes['id'] = np.arange(nspikes)
         spikes['t'] = spikets
         spikes['t0'], spikes['t1'] = spikets+sort.tw[0], spikets+sort.tw[1]
-        spikes['chan'] = maxchans # one per spike
+        spikes['chan'] = maxchans # one maxchan per spike
         # convert inclnbhdi to inclnbhd, taking chan and returning inclchans instead of taking
         # chani and returning inclchanis:
         inclnbhd = {}
@@ -2959,7 +2959,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # find tis and do spatial localization of each spike:
         ntis, nalignis = {}, {} # tis and aligni derived from each neuron's mean waveform
         for neuron in sort.neurons.values():
-            nwave = neuron.get_wave() # updates and returns mean waveform
+            nwave = neuron.get_wave() # update and return mean waveform
             mintis = nwave.data.argmin(axis=1)
             maxtis = nwave.data.argmax(axis=1)
             ntis[neuron.id] = np.column_stack([mintis, maxtis])
@@ -2969,7 +2969,7 @@ class SpykeWindow(QtGui.QMainWindow):
         weights2f = sort.extractor.weights2spatial
         f = sort.extractor.f
         nreject = 0 # number spikes rejected during spatial localization
-        print('running spatial localization on all spikes')
+        print('running spatial localization on all %d spikes' % nspikes)
         for s, wd in zip(sort.spikes, sort.wavedata):
             # Get Vpp at each inclchan's tis, use as spatial weights:
             # see core.rowtake() or util.rowtake_cy() for indexing explanation:
@@ -2986,10 +2986,8 @@ class SpykeWindow(QtGui.QMainWindow):
             chans = s['chans'][:nchans]
             neuronchans = sort.neurons[nid].wave.chans
             assert (chans == neuronchans).all()
-            s['tis'][:nchans] = ntis[nid] # wrt t0i=0
-            # note that aligni is a bit nonsensical, because KiloSort often doesn't actually
-            # align to either peak:
-            s['aligni'] = nalignis[nid]
+            s['tis'][:nchans] = ntis[nid] # set according to its neuron, wrt t0i=0
+            s['aligni'] = nalignis[nid] # set according to its neuron
             maxchani = s['chani']
             t0i, t1i = int(s['tis'][maxchani, 0]), int(s['tis'][maxchani, 1])
             s['dt'] = abs(t1i - t0i) / sort.sampfreq * 1e6 # us
@@ -2998,8 +2996,8 @@ class SpykeWindow(QtGui.QMainWindow):
             s['V0'], s['V1'] = AD2uV(wd[maxchani, t0i]), wd[maxchani, t1i] # uV
             s['Vpp'] = abs(s['V1'] - s['V0']) # uV
             chanis = det.chans.searchsorted(chans)
-            w = np.float32(wd[np.arange(s['nchans'])[:, None], s['tis'][:nchans]])
-            w = abs(w).sum(axis=1)
+            w = np.float32(wd[np.arange(s['nchans'])[:, None], s['tis'][:nchans]]) # nchans x 2
+            w = abs(w).sum(axis=1) # Vpp for each chan, measured at t0i and t1i
             x = det.siteloc[chanis, 0] # 1D array (row)
             y = det.siteloc[chanis, 1]
             params = weights2f(f, w, x, y, maxchani)
@@ -3038,7 +3036,9 @@ class SpykeWindow(QtGui.QMainWindow):
             nlockchans = len(lockchans)
             s['lockchans'][:nlockchans], s['nlockchans'] = lockchans, nlockchans
 
-        print('rejected %d/%d spikes, set as unclustered' % (nreject, nspikes))
+        preject = nreject / nspikes * 100
+        print('rejected %d/%d spikes (%.1f %%), set as unclustered'
+              % (nreject, nspikes, preject))
 
         # remove any empty neurons due to all their spikes being rejected:
         for neuron in sort.neurons.values():
