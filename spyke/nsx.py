@@ -190,18 +190,20 @@ class FileHeader(object):
         ext = os.path.splitext(fname)[1] # e.g., '.ns6'
         # check if there is a file named exactly fname.json:
         jsonfname = fname + '.json'
-        print('Checking for metadata file %r' % jsonfname)
+        jsonbasefname = os.path.split(jsonfname)[-1]
+        print('Checking for metadata file %r' % jsonbasefname)
         if os.path.exists(jsonfname):
-            print('Found metadata file %r' % jsonfname)
+            print('Found metadata file %r' % jsonbasefname)
         else:
-            print('No file named %s, checking for a single .nsx.json file of any name'
-                  % jsonfname)
             jsonext = '%s.json' % ext # e.g. '.ns6.json'
-            fnames = [ fname for fname in os.listdir(path) if fname.endswith(jsonext) ]
-            njsonfiles = len(fnames)
+            print('No file named %r, checking for a single %s file of any name'
+                  % (jsonbasefname, jsonext))
+            jsonbasefnames = [ fname for fname in os.listdir(path) if fname.endswith(jsonext) ]
+            njsonfiles = len(jsonbasefnames)
             if njsonfiles == 1:
-                jsonfname = os.path.join(path, fnames[0]) # full fname with path
-                print('Using metadata file %s' % jsonfname)
+                jsonbasefname = jsonbasefnames[0]
+                jsonfname = os.path.join(path, jsonbasefname) # full fname with path
+                print('Using metadata file %r' % jsonbasefname)
             else:
                 jsonfname = None
                 print('Found %d %s files, ignoring them' % (njsonfiles, jsonext))
@@ -216,7 +218,8 @@ class FileHeader(object):
                 raise ValueError("Only 'chan_layout_name' field currently allowed in "
                                  ".nsx.json metadata files")
             self.probename = j.pop('chan_layout_name')
-            print('Setting probe name %s from metadata file' % self.probename)
+            print('Setting probe name %s from metadata file %r'
+                   % (self.probename, jsonbasefname))
         else: # no .json file, maybe the .nsx comment specifies the probe type?
             self.probename = self.comment.replace(' ', '_')
             if self.probename != '':
