@@ -1951,23 +1951,18 @@ def write_dat_json(stream, fulljsonfname,
 def write_ks_chanmap_mat(stream, fname):
     """Write stream's channel map information to .mat file for use by kilosort"""
     nchans = stream.nchans # number of enabled chans
-    probe = stream.probe
     # mask to tell ks which chans in .dat to use for sorting?:
     connected = np.tile(True, (nchans, 1)) # column vector
     chans = stream.chans # array of enabled chans
-    chan0 = probe.chan0 # numbering base of chans
-    if chan0 == 0:
-        chanMap = chans + 1 # row vector, 1-based IDs of chans in .dat
-    elif chan0 == 1:
-        chanMap = chans # row vector, 1-based IDs of chans in .dat
-    else:
-        raise ValueError('invalid value %d for channel numbering base' % chan0)
-    chanMap0ind = chanMap - 1 # row vector, 0-based IDs of chans in .dat
-    coords = np.asarray([ probe.SiteLoc[chan] for chan in probe.chans ])
+    # row vector, 1-based indices into coords, in order of data in .dat
+    chanMap = np.arange(1, nchans+1)
+    chanMap0ind = chanMap - 1 # 0-based version of chanMap
+    # get coords of only the enabled chans, will be indexed into by chanMap in MATLAB:
+    coords = np.asarray([ stream.probe.SiteLoc[chan] for chan in chans ])
     xcoords = coords[:, 0].reshape(-1, 1) # column vector
     ycoords = coords[:, 1].reshape(-1, 1) # column vector, origin is at top of probe
     ycoords = ycoords.max() - ycoords # ks expects origin at bottom of probe
-    kcoords = np.tile(1, (probe.nchans, 1)) # column vector, something to do with shanks?
+    kcoords = np.tile(1, (nchans, 1)) # column vector, something to do with shanks?
     fs = stream.rawsampfreq
     """
     Export to .mat file with exactly the same dtypes (doubles) that kilosort's chanmap
