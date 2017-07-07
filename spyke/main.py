@@ -3078,8 +3078,9 @@ class SpykeWindow(QtGui.QMainWindow):
         templates = np.swapaxes(templates, 1, 2)
         templates = np.ascontiguousarray(templates) # make C contiguous
 
-        # calculate spike times, assume KiloSort was run on raw uninterpolated data:
-        spikets = s.t0 + spiketis / s.rawsampfreq * 1e6 # us
+        # calculate spike times to nearest int64 us, assume KiloSort was run on
+        # raw uninterpolated data:
+        spikets = intround(s.t0 + spiketis / s.rawsampfreq * 1e6) # us
 
         # find maxchan for each template: find max along time axis of each chan of each
         # template, then find argmax along chan axis of each template:
@@ -3089,8 +3090,6 @@ class SpykeWindow(QtGui.QMainWindow):
         templatemaxchans = s.chans[templatemaxchanis] # one per template
         maxchans = templatemaxchans[nids] # one per spike
 
-        # ensure spike times are int64:
-        spikets = np.int64(spikets)
 
         # check limits, convert maxchans to uint8:
         assert maxchans.max() < 2**8
