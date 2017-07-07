@@ -6,10 +6,6 @@
 
 - BUG: when inputting a timepoint to jump to in the timepoint field, the slider position isn't updated
 
-- add progress indication to spatial fit step during import of spike times
-
-- spikes rejected on import should get a raster line anyway (they currently do not), so we can fairly evaluate which spikes kilosort missed.
-
 - either reduce default include radius, or add a separate maxnchans param somewhere to limit the number of channels per spike, and therefore keep memory usage under control, especially for sorts with increasingly high spike counts
 
 - add zeros to start of all exported .dat files and set offset field to 0 in .json
@@ -1428,6 +1424,9 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - Nope, this seems like too much extension appending, and doesn't really gain anything:
     - for data exported to .dat, should files be named e.g. .ns6.dat, to help indicate that they came from an .ns6 file instead of being directly recorded to .dat? This would be in addition to the note in the .json file. This would also mean the json file would be named .ns6.dat.json.
 - Nope, not necessary: add support for .series file? would be identical to .track file
+- add progress indication to spatial fit step during import of spike times
+- spikes rejected on import should get a raster line anyway (they currently do not), so we can fairly evaluate which spikes kilosort missed.
+
 
 
 end of DONE
