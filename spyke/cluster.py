@@ -823,7 +823,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                 QtGui.QMessageBox.critical(
                     self.panel, "Error saving file", str(e),
                     QtGui.QMessageBox.Ok, QtGui.QMessageBox.NoButton)
-            print('cluster plot saved to %r' % fname)
+            print('Cluster plot saved to %r' % fname)
 
 
     def showToolTip(self):

@@ -175,7 +175,7 @@ class File(object):
             if force: # force a new parsing
                 raise IOError # make the try fail, skip to the except block
             self.unpickle()
-            print('unpickling took %.3f sec' % (time.time()-t0))
+            print('Unpickling took %.3f sec' % (time.time()-t0))
         # parsing is being forced, or .parse file doesn't exist, or something's
         # wrong with it (perhaps class names have changed). Parse the .srf file
         except:
@@ -184,7 +184,7 @@ class File(object):
             #cProfile.runctx('self._parseRecords()', globals(), locals())
             self._parseRecords()
             print('Done parsing %r' % self.fname)
-            print('parsing took %.3f sec' % (time.time()-t0))
+            print('Parsing took %.3f sec' % (time.time()-t0))
             self._trimRecords()
             self._buildLowpassMultiChanRecords()
             self._verifyParsing()
@@ -203,7 +203,7 @@ class File(object):
             if save:
                 tsave = time.time()
                 self.pickle()
-                print('pickling took %.3f sec' % (time.time()-tsave))
+                print('Pickling took %.3f sec' % (time.time()-tsave))
 
     def _parseRecords(self):
         """Parse all the records in the file, but don't load any waveforms"""
@@ -396,7 +396,7 @@ class File(object):
             if attrname.endswith('records') and iterable(attr):
                 ts = get_record_timestamps(attr)
                 if not issorted(ts):
-                    print('sorting %s' % attrname)
+                    print('Sorting %s' % attrname)
                     if type(attr) == list:
                         attr = list(np.asarray(attr)[ts.argsort()])
                     else:

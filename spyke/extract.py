@@ -606,7 +606,7 @@ class Extractor(object):
             pool = mp.Pool(ncpus, initializer, (self, det)) # send pickled copies to processes
             args = zip(spikeslist, wavedata)
             results = pool.map(callspike2XY, args) # using chunksize=1 is a bit slower
-            print('done with pool.map()')
+            print('Done with pool.map()')
             pool.close()
             # results is a list of (x0, y0, sx, sy) tuples, and needs to be unzipped
             spikes['x0'], spikes['y0'], spikes['sx'], spikes['sy'] = zip(*results)

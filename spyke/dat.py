@@ -126,7 +126,7 @@ class FileHeader(object):
     def parse_json(self, datfname):
         """Parse metadata from .dat.json file"""
         jsonfname = datfname + '.json' # assume that .dat meta files are named *.dat.json
-        print('parsing file %r' % jsonfname)
+        print('Parsing file %r' % jsonfname)
         with open(jsonfname, 'r') as jf:
             j = json.load(jf) # should return a dict of key:val pairs
         assert type(j) == dict

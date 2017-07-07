@@ -155,7 +155,7 @@ class FileHeader(object):
             chanheader.parse(f)
             label, id = chanheader.label, chanheader.id
             if label != ('chan%d' % id):
-                print('excluding chan%d (%r) as auxiliary channel' % (id, label))
+                print('Excluding chan%d (%r) as auxiliary channel' % (id, label))
                 self.auxchanheaders[id] = chanheader
             else: # save ephys channel
                 self.chanheaders[id] = chanheader
@@ -163,7 +163,7 @@ class FileHeader(object):
         self.nauxchans = len(self.auxchanheaders) # number of aux chans
         assert self.nchans + self.nauxchans == self.nchanstotal
         if self.nauxchans > 0: # some chans were aux chans
-            print('excluded %d auxiliary channels' % (self.nauxchans))
+            print('Excluded %d auxiliary channels' % (self.nauxchans))
         assert len(self) == f.tell() # header should be of expected length
         self.chans = np.asarray(sorted(self.chanheaders)) # sorted array of keys
         self.auxchans = np.asarray(sorted(self.auxchanheaders)) # sorted array of keys

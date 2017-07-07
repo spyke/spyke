@@ -329,7 +329,7 @@ class SpykeToolWindow(QtGui.QMainWindow):
                 QtGui.QMessageBox.critical(
                     self.panel, "Error saving file", str(e),
                     QtGui.QMessageBox.Ok, QtGui.QMessageBox.NoButton)
-            print('panel saved to %r' % fname)
+            print('Panel saved to %r' % fname)
 
 
 class SpykeListView(QtGui.QListView):
@@ -410,7 +410,7 @@ class SpykeListView(QtGui.QListView):
                 # if we can't add all the requested spikes to the sort panel without
                 # exceeding MAXNSPIKEPLOTS, then randomly sample however many we can still
                 # add (maxnadd), and add them to the sort panel
-                print('adding %d randomly sampled plots of %d selected spikes'
+                print('Adding %d randomly sampled plots of %d selected spikes'
                       % (maxnadd, self.nrowsSelected))
                 addis = random.sample(addis, maxnadd)
                 panel.maxed_out = True
@@ -1936,7 +1936,7 @@ def write_dat_json(stream, fulljsonfname,
         # write contents of odict to file:
         json.dump(od, jsonf, indent=0, separators=(',', ': '))
         jsonf.write('\n') # end with a blank line
-    print('wrote metadata file %r' % fulljsonfname)
+    print('Wrote metadata file %r' % fulljsonfname)
 
 def write_ks_chanmap_mat(stream, fname):
     """Write stream's channel map information to .mat file for use by kilosort"""
@@ -1967,4 +1967,4 @@ def write_ks_chanmap_mat(stream, fname):
             'kcoords': kcoords,
             'fs': fs}
     scipy.io.savemat(fname, matd)
-    print('wrote kilosort chanmap file %r' % fname)
+    print('Wrote kilosort chanmap file %r' % fname)

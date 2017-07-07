@@ -146,7 +146,7 @@ class Sort(object):
             except AttributeError:
                 pass # one of the above aren't bound
         self._stream = stream # set it
-        print('bound stream %r to sort %r' % (stream.fname, self.fname))
+        print('Bound stream %r to sort %r' % (stream.fname, self.fname))
         # now that tres is known, calculate window timepoints wrt spike time:
         self.calc_twts_twi()
 
@@ -299,7 +299,7 @@ class Sort(object):
             streams = self.stream.streams
         else: # self.stream is a single Stream
             streams = [self.stream]
-        print('exporting "good" clusters to:')
+        print('Exporting "good" clusters to:')
         # do a separate export for each recording
         for stream in streams:
             # get time delta between stream i and stream 0, could be 0:
@@ -367,7 +367,7 @@ class Sort(object):
         chans = spikes['chan']
         #chans = np.hstack(chans)
         data = np.column_stack([tsecs, nids, chans])
-        print('exporting (tsec, nid, chan) of all spikes marked as "good" to %s' % fname)
+        print('Exporting (tsec, nid, chan) of all spikes marked as "good" to %s' % fname)
         np.savetxt(fname, data, fmt='%.6f, %d, %d')
 
     def exportgdffiles(self, basepath=None):
@@ -385,7 +385,7 @@ class Sort(object):
         for nid in self.good:
             good[self.neurons[nid].sids] = True
         sids, = np.where(good == True) # sids to export across all streams
-        print('exporting clustered spikes to:')
+        print('Exporting clustered spikes to:')
         # do a separate export for each recording
         for stream in streams:
             # get time delta between stream i and stream 0, could be 0:
@@ -454,7 +454,7 @@ class Sort(object):
             streamtranges = self.stream.streamtranges # includes offsets
         except AttributeError: # self.stream is a normal Stream
             streamtranges = np.int64([[self.stream.t0, self.stream.t1]])
-        print('exporting clustered spikes to:')
+        print('Exporting clustered spikes to:')
         # do a separate export for each recording
         for srffname, streamtrange in zip(srffnames, streamtranges):
             srffnameroot = lrstrip(srffname, '../', '.srf')
@@ -507,7 +507,7 @@ class Sort(object):
         else: # self.stream is a single Stream
             streams = [self.stream]
         dinfiledtype=[('TimeStamp', '<i8'), ('SVal', '<i8')] # pairs of int64s
-        print('exporting DIN(s) to:')
+        print('Exporting DIN(s) to:')
         for stream in streams:
             try: # neither of these attribs should exist for recordings with no stimuli:
                 svrecs = stream.srff.digitalsvalrecords
@@ -554,7 +554,7 @@ class Sort(object):
             streams = self.stream.streams
         else: # self.stream is a single Stream
             streams = [self.stream]
-        print('exporting text header(s) to:')
+        print('Exporting text header(s) to:')
         for stream in streams:
             try:
                 dsprecs = stream.srff.displayrecords
@@ -622,7 +622,7 @@ class Sort(object):
             np.savetxt(fname, data, fmt='%d', delimiter=',') # data should be int
         else:
             raise ValueError('unknown format: %r' % format)
-        print('exported %d spikes on chans=%r and tis=%r to %s'
+        print('Exported %d spikes on chans=%r and tis=%r to %s'
               % (nspikes, list(chans), list(tis), fname))
         
     def get_param_matrix(self, kind=None, sids=None, tis=None, selchans=None, dims=None,
@@ -704,14 +704,14 @@ class Sort(object):
         try: self.X
         except AttributeError: self.X = {} # init the dimension reduction cache attrib
         if Xhash in self.X:
-            print('cache hit, using cached %ss from tis=%r, chans=%r of %d spikes' %
+            print('Cache hit, using cached %ss from tis=%r, chans=%r of %d spikes' %
                  (kind[:-1], list(tis), list(chans), nspikes))
             return self.X[Xhash] # no need to recalculate
 
-        print('cache miss, (re)calculating %ss' % kind[:-1])
+        print('Cache miss, (re)calculating %ss' % kind[:-1])
 
         # collect data between tis from chans from all spikes:
-        print('doing %s on tis=%r, chans=%r of %d spikes' %
+        print('Doing %s on tis=%r, chans=%r of %d spikes' %
              (kind, list(tis), list(chans), nspikes))
         # MDP complains of roundoff errors with float32 for large covariance matrices
         data = np.zeros((nspikes, nchans, nt), dtype=np.float64)
@@ -719,10 +719,10 @@ class Sort(object):
             spikechans = chanslist[sii]
             spikechanis = spikechans.searchsorted(chans)
             data[sii] = self.wavedata[sid][spikechanis, ti0:ti1]
-        print('input shape for %s: %r' % (kind, data.shape))
+        print('Input shape for %s: %r' % (kind, data.shape))
         t0 = time.time()
         data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
-        print('reshaped input for %s: %r' % (kind, data.shape))
+        print('Reshaped input for %s: %r' % (kind, data.shape))
         if kind == 'PCA': # principal components analysis
             if PCALIB == 'mdp':
                 import mdp # delay as late as possible
@@ -842,7 +842,7 @@ class Sort(object):
             '''
         else:
             raise ValueError('unknown kind %r' % kind)
-        print('output shape for %s: %r' % (kind, X.shape))
+        print('Output shape for %s: %r' % (kind, X.shape))
         self.X[Xhash] = X # cache for fast future retrieval
         print('%s took %.3f sec' % (kind, time.time()-t0))
         unids = list(np.unique(spikes['nid'][sids])) # set of all nids that sids span
@@ -876,7 +876,7 @@ class Sort(object):
             raise RuntimeError("Spikes have no common chans for RMS error")
 
         # collect data between tis from chans from all spikes:
-        print('getting RMS error on tis=%r, chans=%r of %d spikes' %
+        print('Getting RMS error on tis=%r, chans=%r of %d spikes' %
              (list(tis), list(chans), nspikes))
         data = np.zeros((nspikes, nchans, nt), dtype=np.float64)
         for sii, sid in enumerate(sids):
@@ -903,7 +903,7 @@ class Sort(object):
         nchanss = spikes['nchans'][sids]
         #t0 = time.time()
         chanslist = [ cs[:ncs] for cs, ncs in zip(chanss, nchanss) ] # list of arrays
-        #print('building chanslist took %.3f sec' % (time.time()-t0))
+        #print('Building chanslist took %.3f sec' % (time.time()-t0))
         commonchans = util.intersect1d_uint8(chanslist) # find intersection
         if chans != None and len(chans) > 0:
             # values in chans but not in commonchans:
@@ -1000,7 +1000,7 @@ class Sort(object):
         sti0s = [ ti0+shifti for shifti in range(nshifts) ] # shifted ti0 values
         sti1s = [ ti1+shifti for shifti in range(nshifts) ] # shifted ti1 values
         sti0ssti1s = zip(sti0s, sti1s)
-        print("padding waveforms with up to +/- %d points of fake data" % maxshift)
+        print("Padding waveforms with up to +/- %d points of fake data" % maxshift)
 
         # not worth subsampling here while calculating meandata, since all this
         # stuff in this loop is needed in the shift loop below
@@ -1013,10 +1013,10 @@ class Sort(object):
             spikechans = spike['chans'][:nspikechans]
             spikechanis[sidi] = spikechans.searchsorted(chans)
             subsd[sidi] = wd[sid, spikechanis[sidi], ti0:ti1]
-        print('mean prep loop for best shift took %.3f sec' % (time.time()-t0))
+        print('Mean prep loop for best shift took %.3f sec' % (time.time()-t0))
         t0 = time.time()
         meandata = subsd.mean(axis=0) # float64
-        print('mean for best shift took %.3f sec' % (time.time()-t0))
+        print('Mean for best shift took %.3f sec' % (time.time()-t0))
 
         # choose best shifted waveform for each spike
         # widesd holds current spike data plus padding on either side
@@ -1060,7 +1060,7 @@ class Sort(object):
                 wd[sid] = widesd[:, bestshifti:bestshifti+nt]
                 shiftedsubsd[sidi] = tempsubshifts[bestshifti]
                 dirtysids.append(sid) # mark sid as dirty
-        print('shifting loop took %.3f sec' % (time.time()-t0))
+        print('Shifting loop took %.3f sec' % (time.time()-t0))
         AD2uV = self.converter.AD2uV
         stdevbefore = AD2uV(subsd.std(axis=0).mean())
         stdevafter = AD2uV(shiftedsubsd.std(axis=0).mean())
@@ -1086,7 +1086,7 @@ class Sort(object):
             raise ValueError('unknown to %r' % to)
         sids = sids[i] # sids that need realigning
         nspikes = len(sids)
-        print("realigning %d spikes" % nspikes)
+        print("Realigning %d spikes" % nspikes)
         if nspikes == 0: # nothing to do
             return [] # no sids to mark as dirty
 
@@ -1132,7 +1132,7 @@ class Sort(object):
         sids based on the chans closest to the mean of the sids. It's the caller's
         responsibility to mark sids as dirty and trigger resaving of .wave file"""
         nsids = len(sids)
-        print('(re)loading %d spikes' % nsids)
+        print('(Re)loading %d spikes' % nsids)
         stream = self.stream
         if not stream.is_open():
             raise RuntimeError("no open stream to reload spikes from")
@@ -1140,14 +1140,14 @@ class Sort(object):
         det = self.detector
         ver_lte_03 = float(self.__version__) <= 0.3
         if ver_lte_03:
-            print('fixing potentially wrong time values during spike reloading')
+            print('Fixing potentially wrong time values during spike reloading')
             nfixed = 0
         treload = time.time()
         if usemeanchans:
             if ver_lte_03:
                 raise RuntimeError("Best not to choose new chans from mean until after "
                                    "converting to .sort >= 0.4")
-            print('choosing new channel set for all selected spikes')
+            print('Choosing new channel set for all selected spikes')
             # get mean waveform of all sids, then find the mean's chan with max Vpp, then
             # choose det.maxnchansperspike channels around that maxchan
             meanwave = self.get_mean_wave(sids)
@@ -1176,7 +1176,7 @@ class Sort(object):
                   "or cause indexing problems, sorting by time...")
             tsis = ts.argsort()
             sids = sids[tsis]
-            print("done sorting sids by time")
+            print("Done sorting sids by time")
         MAXISI = 100000 # us (100 ms)
         MAXGROUPDT = 100000000 # us (100 s)
         # break up spikes by ISIs >= MAXISI:
@@ -1317,8 +1317,8 @@ class Sort(object):
         print()
 
         if ver_lte_03:
-            print('fixed time values of %d spikes' % nfixed)
-        print('reloaded %d spikes, took %.3f sec' % (len(sids), time.time()-treload))
+            print('Fixed time values of %d spikes' % nfixed)
+        print('(Re)loaded %d spikes, took %.3f sec' % (len(sids), time.time()-treload))
     '''
     def get_component_matrix(self, dims=None, weighting=None):
         """Convert spike param matrix into pca/ica data for clustering"""
@@ -2401,7 +2401,7 @@ class SortWindow(SpykeToolWindow):
             cluster.neuron.good = not cluster.neuron.good
             cids.append(cluster.id)
         self.nlist.updateAll() # nlist item colouring will change as a result
-        print("toggled 'good' flag of clusters %r" % cids)
+        print("Toggled 'good' flag of clusters %r" % cids)
 
     def on_actionLabelMultiunit_triggered(self):
         """- button click. Label all selected clusters as multiunit by deleting them
@@ -2485,7 +2485,7 @@ class SortWindow(SpykeToolWindow):
         if not ok:
             return
         if newid in s.norder:
-            print("choose a non-existing nid to renumber to")
+            print("Choose a non-existing nid to renumber to")
             return
         # deselect cluster
         spw.SelectClusters(cluster, on=False)
@@ -2509,7 +2509,7 @@ class SortWindow(SpykeToolWindow):
         # some cluster changes in stack may no longer be applicable, reset cchanges
         del spw.cchanges[:]
         spw.cci = -1
-        print('renumbered neuron %d to %d' % (oldid, newid))
+        print('Renumbered neuron %d to %d' % (oldid, newid))
 
     def renumber_all_clusters(self):
         """Renumber single unit clusters consecutively from 1, ordered by y position. Do the
@@ -2550,7 +2550,7 @@ class SortWindow(SpykeToolWindow):
 
         # test
         if np.all(oldids == newids):
-            print('nothing to renumber: cluster IDs already ordered in y0 and contiguous')
+            print('Nothing to renumber: cluster IDs already ordered in y0 and contiguous')
             return
         # update for replacing oldids with newids
         oldids = np.concatenate([oldmuids, oldsuids])
@@ -2563,7 +2563,7 @@ class SortWindow(SpykeToolWindow):
         # delete junk cluster, if it exists
         if 0 in s.clusters:
             s.remove_neuron(0)
-            print('deleted junk cluster 0')
+            print('Deleted junk cluster 0')
         if 0 in oldselids:
             oldselids.remove(0)
 
@@ -2606,7 +2606,7 @@ class SortWindow(SpykeToolWindow):
         # all cluster changes in stack are no longer applicable, reset cchanges
         del spw.cchanges[:]
         spw.cci = -1
-        print('renumbering complete')
+        print('Renumbering complete')
 
     def on_actionFind_triggered(self):
         """Find current cluster or spike"""
@@ -2793,7 +2793,7 @@ class SortWindow(SpykeToolWindow):
         if len(selchans) > 0:
             srcchans = np.intersect1d(source.neuron.wave.chans, selchans)
             if len(srcchans) == 0:
-                print("source cluster doesn't overlap with selected chans")
+                print("Source cluster doesn't overlap with selected chans")
                 return
         else:
             srcchans = source.neuron.wave.chans
@@ -2821,7 +2821,7 @@ class SortWindow(SpykeToolWindow):
             errors.append(error)
             dests.append(dest)
         if len(errors) == 0:
-            print("no sufficiently overlapping clusters on selected chans to compare to")
+            print("No sufficiently overlapping clusters on selected chans to compare to")
             return
         errors = np.asarray(errors)
         dests = np.asarray(dests)
@@ -2867,7 +2867,7 @@ class SortWindow(SpykeToolWindow):
         spw = self.spykewindow
         sids = np.concatenate((spw.GetClusterSpikes(), spw.GetUnsortedSpikes()))
         self.sort.shift(sids, nt)
-        print('shifted %d spikes by %d timepoints' % (len(sids), nt))
+        print('Shifted %d spikes by %d timepoints' % (len(sids), nt))
         unids = np.unique(spikes['nid'][sids])
         neurons = [ s.neurons[nid] for nid in unids ]
         for neuron in neurons:
@@ -2892,19 +2892,19 @@ class SortWindow(SpykeToolWindow):
             selchans = spw.get_selchans(sids)
             for selchan in selchans:
                 if selchan not in commonchans:
-                    print("chan %d not common to all spikes, pick from %r"
+                    print("Chan %d not common to all spikes, pick from %r"
                           % (selchan, list(commonchans)))
                     return
-            print('best fit aligning %d spikes between tis=%r on chans=%r' %
+            print('Best fit aligning %d spikes between tis=%r on chans=%r' %
                   (len(sids), list(tis), selchans))
             # numpy implementation:
             #dirtysids = s.alignbest(sids, tis, selchans)
             # cython implementation:
             dirtysids = util.alignbest_cy(s, sids, tis, np.int64(selchans))
         else: # to in ['min', 'max']
-            print('aligning %d spikes to %s' % (len(sids), to))
+            print('Aligning %d spikes to %s' % (len(sids), to))
             dirtysids = s.alignminmax(sids, to)
-        print('aligned %d spikes' % len(dirtysids))
+        print('Aligned %d spikes' % len(dirtysids))
         unids = np.unique(spikes['nid'][dirtysids])
         neurons = [ s.neurons[nid] for nid in unids ]
         for neuron in neurons:
@@ -2968,12 +2968,12 @@ class SortWindow(SpykeToolWindow):
         if nclusters == 0:
             mplw.ax.clear()
             mplw.figurecanvas.draw()
-            print("no spikes selected")
+            print("No spikes selected")
             return
         elif nclusters > 5: # to prevent slowdowns, don't plot too many
             mplw.ax.clear()
             mplw.figurecanvas.draw()
-            print("too many clusters selected for cluster histogram")
+            print("Too many clusters selected for cluster histogram")
             return
         elif nclusters == 2:
             calc_measures = True

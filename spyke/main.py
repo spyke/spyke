@@ -435,14 +435,14 @@ class SpykeWindow(QtGui.QMainWindow):
         if not path:
             return
 
-        print('exporting %d channels:' % self.hpstream.nchans)
+        print('Exporting %d channels:' % self.hpstream.nchans)
         print('chans = %s' % self.hpstream.chans)
         blocksize = int(float(self.ui.blockSizeLineEdit.text()))
-        print('exporting in blocks of %d us' % blocksize)
+        print('Exporting in blocks of %d us' % blocksize)
         for hps in hpstreams:
             fullfname = os.path.join(path, hps.srcfnameroot + export_ext)
             fulljsonfname = fullfname + '.json'
-            print('exporting %s data to %s' % (export_msg, fullfname))
+            print('Exporting %s data to %r' % (export_msg, fullfname))
             with open(fullfname, 'wb') as datf:
                 t0s = np.arange(hps.t0, hps.t1, blocksize)
                 for t0 in t0s:
@@ -456,7 +456,7 @@ class SpykeWindow(QtGui.QMainWindow):
                     wave.data.T.tofile(datf) # write in column-major (Fortran) order
                 print() # newline
                 core.write_dat_json(hps, fulljsonfname)
-        print('done exporting %s data' % export_msg)
+        print('Done exporting %s data' % export_msg)
         return path
 
     @QtCore.pyqtSlot()
@@ -481,7 +481,7 @@ class SpykeWindow(QtGui.QMainWindow):
             lpstreams = self.lpstream.streams
         else: # self.lpstream is a single Stream
             lpstreams = [self.lpstream]
-        print('exporting low-pass data to:')
+        print('Exporting low-pass data to:')
         for lps in lpstreams:
             path = os.path.join(basepath, lps.srcfnameroot)
             try: os.mkdir(path)
@@ -509,7 +509,7 @@ class SpykeWindow(QtGui.QMainWindow):
                                         uVperAD=uVperAD)
             else: # format == 'text'
                 np.savetxt(fullfname, data, fmt='%d', delimiter=',') # data should be int
-        print('done exporting low-pass data')
+        print('Done exporting low-pass data')
 
     @QtCore.pyqtSlot()
     def on_actionExportHighPassEnvelopeDatFiles_triggered(self):
@@ -536,7 +536,7 @@ class SpykeWindow(QtGui.QMainWindow):
         path = str(getExistingDirectory(self, caption=caption, directory=defaultpath))
         if not path:
             return
-        print('exporting high-pass envelope data to:')
+        print('Exporting high-pass envelope data to:')
         for hps in hpstreams:
             assert hps.sampfreq % sampfreq == 0
             decimatex = intround(hps.sampfreq / sampfreq)
@@ -586,7 +586,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 envelope['f1'] = f1
                 core.write_dat_json(hps, fulljsonfname, sampfreq=sampfreq,
                                     chans=ychans, chan_order='depth', envelope=envelope)
-        print('done exporting high-pass envelope data')
+        print('Done exporting high-pass envelope data')
 
     @QtCore.pyqtSlot()
     def on_actionExportRawDataDatFiles_triggered(self):
@@ -607,7 +607,7 @@ class SpykeWindow(QtGui.QMainWindow):
         shcorrect = stream.shcorrect
 
         # set hpstream to show raw data:
-        print('temporarily disabling filtering, CAR, and resampling for raw export')
+        print('Temporarily disabling filtering, CAR, and resampling for raw export')
         self.SetFiltmeth(None)
         self.SetCAR(None)
         self.SetSampfreq(stream.rawsampfreq)
@@ -622,7 +622,7 @@ class SpykeWindow(QtGui.QMainWindow):
         exportpath = self.export_hpstream(cat=cat, export_msg='raw', export_ext='.dat')
 
         # restore hpstream settings:
-        print('restoring filtering, CAR, and resampling settings')
+        print('Restoring filtering, CAR, and resampling settings')
         self.SetFiltmeth(filtmeth)
         self.SetCAR(car)
         self.SetSampfreq(sampfreq)
@@ -649,10 +649,10 @@ class SpykeWindow(QtGui.QMainWindow):
         if v > lv:
             raise RuntimeError('versioning error')
         if v == lv:
-            print('no update necessary')
+            print('No update necessary')
             return
         if v < 0.3:
-            print("can't auto update from sort version < 0.3")
+            print("Can't auto update from sort version < 0.3")
             return
         if v == 0.3:
             v = self.update_0_3_to_0_4()
@@ -670,32 +670,32 @@ class SpykeWindow(QtGui.QMainWindow):
             v = self.update_0_9_to_1_0()
         if v == 1.0:
             v = self.update_1_0_to_1_1()
-        print('now save me!')
+        print('Now save me!')
             
     def update_0_3_to_0_4(self):
         """Update sort 0.3 to 0.4:
             - reload all spike waveforms and fix all of their time values
         """        
-        print('updating sort from version 0.3 to 0.4')
+        print('Updating sort from version 0.3 to 0.4')
         s = self.sort
         sids = np.arange(s.nspikes)
         s.reloadSpikes(sids)
         # add sids to the set of dirtysids to be resaved to .wave file:
         self.dirtysids.update(sids)
         s.__version__ = '0.4' # update
-        print('done updating sort from version 0.3 to 0.4')
+        print('Done updating sort from version 0.3 to 0.4')
         return float(s.__version__)
         
     def update_0_4_to_0_5(self):
         """Update sort 0.4 to 0.5:
             - rename sort.sortfname to sort.fname
         """
-        print('updating sort from version 0.4 to 0.5')
+        print('Updating sort from version 0.4 to 0.5')
         s = self.sort
         s.fname = s.sortfname
         del s.sortfname
         s.__version__ = '0.5' # update
-        print('done updating sort from version 0.4 to 0.5')
+        print('Done updating sort from version 0.4 to 0.5')
         return float(s.__version__)
 
     def update_0_5_to_0_6(self):
@@ -704,7 +704,7 @@ class SpykeWindow(QtGui.QMainWindow):
               'tis' and 'dt' respectively
             - remove unused 'cid', 's0' and 's1' fields from sort.spikes, reorder fields
         """
-        print('updating sort from version 0.5 to 0.6')
+        print('Updating sort from version 0.5 to 0.6')
         s = self.sort
         names = list(s.spikes.dtype.names) # convert from tuple
         phasetis_index = names.index('phasetis')
@@ -743,19 +743,19 @@ class SpykeWindow(QtGui.QMainWindow):
             c.normpos['dt'] = c.normpos.pop('dphase')
 
         s.__version__ = '0.6' # update
-        print('done updating sort from version 0.5 to 0.6')
+        print('Done updating sort from version 0.5 to 0.6')
         return float(s.__version__)
 
     def update_0_6_to_0_7(self):
         """Update sort 0.6 to 0.7:
             - replace sort.TW class attribute with sort.tw instance attribute
         """
-        print('updating sort from version 0.6 to 0.7')
+        print('Updating sort from version 0.6 to 0.7')
         s = self.sort
         # Sort.TW class attrib was (-500, 500) in version 0.6
         s.tw = -500, 500
         s.__version__ = '0.7' # update
-        print('done updating sort from version 0.6 to 0.7')
+        print('Done updating sort from version 0.6 to 0.7')
         return float(s.__version__)
 
     def update_0_7_to_0_8(self):
@@ -768,7 +768,7 @@ class SpykeWindow(QtGui.QMainWindow):
             - rename MultiStream attrib .srffnames -> .fnames
             - add potentially missing sort.npcsperchan attrib
         """
-        print('updating sort from version 0.7 to 0.8')
+        print('Updating sort from version 0.7 to 0.8')
         s = self.sort
         stream = s.stream
         classname = stream.__class__.__name__
@@ -791,21 +791,21 @@ class SpykeWindow(QtGui.QMainWindow):
             s.npcsperchan = NPCSPERCHAN
 
         s.__version__ = '0.8' # update
-        print('done updating sort from version 0.7 to 0.8')
+        print('Done updating sort from version 0.7 to 0.8')
         return float(s.__version__)
 
     def update_0_8_to_0_9(self):
         """Update sort 0.8 to 0.9:
             - add sort.filtmeth attrib, init to None
         """
-        print('updating sort from version 0.8 to 0.9')
+        print('Updating sort from version 0.8 to 0.9')
         s = self.sort
         try:
             s.filtmeth
         except AttributeError:
             s.filtmeth = None
         s.__version__ = '0.9' # update
-        print('done updating sort from version 0.8 to 0.9')
+        print('Done updating sort from version 0.8 to 0.9')
         return float(s.__version__)
 
     def update_0_9_to_1_0(self):
@@ -813,7 +813,7 @@ class SpykeWindow(QtGui.QMainWindow):
             - add nlockchans and lockchans fields to spike record
             - add detector.lockrx attrib
         """
-        print('updating sort from version 0.9 to 1.0')
+        print('Updating sort from version 0.9 to 1.0')
         s = self.sort
         oldspikes = s.spikes
 
@@ -847,34 +847,34 @@ class SpykeWindow(QtGui.QMainWindow):
         s.detector.lockrx = 0.0 # set to 0 to indicate it wasn't used during detection
 
         s.__version__ = '1.0' # update
-        print('done updating sort from version 0.9 to 1.0')
+        print('Done updating sort from version 0.9 to 1.0')
         return float(s.__version__)
 
     def update_1_0_to_1_1(self):
         """Update sort 1.0 to 1.1:
             - add sort.car attrib, init to None
         """
-        print('updating sort from version 1.0 to 1.1')
+        print('Updating sort from version 1.0 to 1.1')
         s = self.sort
         try:
             s.car
         except AttributeError:
             s.car = None
         s.__version__ = '1.1' # update
-        print('done updating sort from version 1.0 to 1.1')
+        print('Done updating sort from version 1.0 to 1.1')
         return float(s.__version__)
 
     @QtCore.pyqtSlot()
     def on_actionCloseSort_triggered(self):
         # TODO: add confirmation dialog if Sort not saved
         self.CloseSortFile()
-        print('closed sort')
+        print('Closed sort')
 
     @QtCore.pyqtSlot()
     def on_actionCloseStream_triggered(self):
         if self.hpstream is not None:
             self.CloseStream()
-            print('closed stream')
+            print('Closed stream')
 
     @QtCore.pyqtSlot()
     def on_actionQuit_triggered(self):
@@ -903,12 +903,12 @@ class SpykeWindow(QtGui.QMainWindow):
         try:
             cc = self.cchanges[self.cci]
         except IndexError:
-            print('nothing to undo')
+            print('Nothing to undo')
             return
-        print('undoing: %s' % cc.message)
+        print('Undoing: %s' % cc.message)
         self.ApplyClusterChange(cc, direction='back')
         self.cci -= 1 # move pointer one change back on the stack
-        print('undo complete')
+        print('Undo complete')
 
     @QtCore.pyqtSlot()
     def on_actionRedo_triggered(self):
@@ -916,12 +916,12 @@ class SpykeWindow(QtGui.QMainWindow):
         try:
             cc = self.cchanges[self.cci+1]
         except IndexError:
-            print('nothing to redo')
+            print('Nothing to redo')
             return
-        print('redoing: %s' % cc.message)
+        print('Redoing: %s' % cc.message)
         self.ApplyClusterChange(cc, direction='forward')
         self.cci += 1 # move pointer one change forward on the stack
-        print('redo complete')
+        print('Redo complete')
 
     @QtCore.pyqtSlot()
     def on_actionSpikeWindow_triggered(self):
@@ -1234,7 +1234,7 @@ class SpykeWindow(QtGui.QMainWindow):
         t0 = time.time()
         if comps and np.all(sids == spikes['id']): # doing PCA/ICA on all spikes
             if not oldclusters:
-                print("no existing clusters to sequentially do PCA/ICA on and subcluster")
+                print("No existing clusters to sequentially do PCA/ICA on and subcluster")
                 return
             # partition data by existing clusters before clustering,
             # restrict to only clustered spikes:
@@ -1247,7 +1247,7 @@ class SpykeWindow(QtGui.QMainWindow):
             subsidss.append(sids)
             msgs.append('%d selected sids' % len(sids))
         nids = self.subcluster(sids, subsidss, msgs, dims)
-        print('clustering took %.3f sec' % (time.time()-t0))
+        print('Clustering took %.3f sec' % (time.time()-t0))
         self.apply_clustering(oldclusters, sids, nids, verb='GAC')
 
     def subcluster(self, sids, subsidss, msgs, dims):
@@ -1256,7 +1256,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # init nids output array to be all unclustered:
         nids = np.zeros(len(sids), dtype=np.int32)
         for subsids, msg in zip(subsidss, msgs):
-            print('clustering %s on dims %r' % (msg, dims))
+            print('Clustering %s on dims %r' % (msg, dims))
             subnids = self.gac(subsids, dims) # subclustering result
             ci = subnids > 0 # consider only the clustered sids
             subsids = subsids[ci]
@@ -1283,7 +1283,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # each row in uchancombos is a unique combination of chans:
         uchancombos = np.unique(strchans).view(chans.dtype).reshape(-1, chans.shape[1])
         if len(uchancombos) == 1:
-            print("selected spikes all share the same set of channels, can't chancombosplit")
+            print("Selected spikes all share the same set of channels, can't chancombosplit")
             return
         # init to unclustered, shouldn't be any once done:
         nids = np.zeros(len(sids), dtype=np.int32)
@@ -1307,7 +1307,7 @@ class SpykeWindow(QtGui.QMainWindow):
         maxchans = spikes[sids]['chan']
         umaxchans = np.unique(maxchans)
         if len(umaxchans) == 1:
-            print("selected spikes all share the same set of max channels, can't maxchansplit")
+            print("Selected spikes all share the same set of max channels, can't maxchansplit")
             return
         # init to unclustered, shouldn't be any once done:
         nids = np.zeros(len(sids), dtype=np.int32)
@@ -1325,7 +1325,7 @@ class SpykeWindow(QtGui.QMainWindow):
         spikes = s.spikes
         oldclusters = self.GetClusters() # all selected clusters
         if len(oldclusters) != 2:
-            print("need to select exactly 2 clusters to split them by density")
+            print("Need to select exactly 2 clusters to split them by density")
             return
         dims = self.GetClusterPlotDims()
         try:
@@ -1408,7 +1408,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # grab gac() params and run it
         self.update_sort_from_cluster_pane()
         npoints, ndims = data.shape
-        print('clustering %d points in %d-D space' % (npoints, ndims))
+        print('Clustering %d points in %d-D space' % (npoints, ndims))
         t0 = time.time()
         nids = gac(data, sigma=s.sigma, rmergex=s.rmergex, rneighx=s.rneighx,
                    alpha=s.alpha, maxgrad=s.maxgrad,
@@ -1540,7 +1540,7 @@ class SpykeWindow(QtGui.QMainWindow):
         nchans = len(chans)
         if nchans == 0:
             raise RuntimeError("no channels selected")
-        print('clustering on chans %r' % list(chans))
+        print('Clustering on chans %r' % list(chans))
 
         # collect data from chans from all spikes:
         nspikes = len(sids)
@@ -1621,7 +1621,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # amplifier gain was during recording
         norm = data.std(axis=0).max()
         data /= norm
-        print('normalized waveform data by %f' % norm)
+        print('Normalized waveform data by %f' % norm)
         return data
 
     @QtCore.pyqtSlot()
@@ -1793,7 +1793,7 @@ class SpykeWindow(QtGui.QMainWindow):
         cids = np.sort(self.sort.clusters.keys())
         sids = self.sort.usids.copy()
         ncids, nsids = len(cids), len(sids)
-        print('calculating rmserror between all %d clusters and all %d unsorted spikes'
+        print('Calculating rmserror between all %d clusters and all %d unsorted spikes'
               % (ncids, nsids))
         errs = np.empty((ncids, nsids), dtype=np.float32)
         errs.fill(np.inf) # TODO: replace with sparse matrix with np.inf as default value
@@ -1812,7 +1812,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 errs[cidi, sidi] = core.rms(ndata - sdata)
         errs = self.sort.converter.AD2uV(errs) # convert from AD units to uV, np.infs are OK
         self.match = Match(cids, sids, errs)
-        print('done calculating rmserror between all %d clusters and all %d unsorted spikes'
+        print('Done calculating rmserror between all %d clusters and all %d unsorted spikes'
               % (ncids, nsids))
         return self.match
         
@@ -1826,7 +1826,7 @@ class SpykeWindow(QtGui.QMainWindow):
             self.match = self.on_calcMatchErrorsButton_clicked() # (re)calc
         errs = self.match.get_best_errs(cid)
         if len(errs) == 0:
-            print('no unsorted spikes fit cluster %d' % cid)
+            print('No unsorted spikes fit cluster %d' % cid)
             return
         f = pl.gcf()
         pl.clf()
@@ -1849,7 +1849,7 @@ class SpykeWindow(QtGui.QMainWindow):
             self.match = self.on_calcMatchErrorsButton_clicked() # (re)calc
         errs = self.match.get_best_errs(cid)
         if len(errs) == 0:
-            print('no unsorted spikes fit cluster %d' % cid)
+            print('No unsorted spikes fit cluster %d' % cid)
             return
         bestsids = self.match.best[cid]
         thresh = self.ui.matchThreshSpinBox.value()
@@ -1859,7 +1859,7 @@ class SpykeWindow(QtGui.QMainWindow):
         sw = self.windows['Sort']
         sw.uslist.clearSelection()
         sw.uslist.selectRows(sidis, on=True, scrollTo=False)
-        print('matched %d spikes to cluster %d' % (len(sids), cid))
+        print('Matched %d spikes to cluster %d' % (len(sids), cid))
 
     @QtCore.pyqtSlot()
     def on_plotXcorrsButton_clicked(self):
@@ -1942,7 +1942,7 @@ class SpykeWindow(QtGui.QMainWindow):
             nids = sorted(self.sort.neurons)
 
         rmsidss = {} # dict of lists of sids to split off or remove, indexed by nid
-        print('duplicate spikes:')
+        print('Duplicate spikes:')
         for nid in nids:
             # For each pair of duplicate spikes, keep whichever has the most channel overlap
             # with neuron template. If they have same amount of overlap, keep the first one
@@ -1981,7 +1981,7 @@ class SpykeWindow(QtGui.QMainWindow):
             print('neuron %d: %r' % (nid, rmsids))
             rmsidss[nid] = rmsids
         nrm = sum([ len(rmsids) for rmsids in rmsidss.values() ])
-        print('found %d duplicate spikes' % nrm)
+        print('Found %d duplicate spikes' % nrm)
         if nrm == 0:
             return
         sw = self.windows['Sort']
@@ -2009,7 +2009,7 @@ class SpykeWindow(QtGui.QMainWindow):
         sw.uslist.updateAll()
         # cluster changes in stack no longer applicable, reset cchanges:
         del self.cchanges[:]
-        print('removed %d duplicate spikes' % nrm)
+        print('Removed %d duplicate spikes' % nrm)
 
     def GetSortedSpikes(self):
         """Return IDs of selected sorted spikes"""
@@ -2096,7 +2096,7 @@ class SpykeWindow(QtGui.QMainWindow):
         rows = [ self.sort.norder.index(selnid) for selnid in selnids ]
         nlist = self.windows['Sort'].nlist
         nlist.selectRows(rows, on)
-        #print('set rows %r to %r' % (rows, on))
+        #print('Set rows %r to %r' % (rows, on))
 
     def ToggleCluster(self, cluster):
         """Toggle selection of given cluster"""
@@ -2389,7 +2389,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def OpenFile(self, fname):
         """Open a stream or sort file. fname in this case must contain a full path"""
-        print('opening file %r' % fname)
+        print('Opening file %r' % fname)
         head, tail = os.path.split(fname)
         assert head # make sure fname has a path to it
         base, ext = os.path.splitext(tail)
@@ -2619,7 +2619,7 @@ class SpykeWindow(QtGui.QMainWindow):
         both spike and LFP data"""
         try: f = open(join(self.streampath, fname), 'rb')
         except IOError:
-            print("can't find file %r" % fname)
+            print("Can't find file %r" % fname)
             return
         header = f.read(16)
         assert header == 'Test spike file '
@@ -2664,14 +2664,14 @@ class SpykeWindow(QtGui.QMainWindow):
         f.seek(0, 2)
         nbytes = f.tell()
         f.close()
-        print('read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
+        print('Read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
         return hpstream, lpstream
 
     def OpenTSFFile_1000(self, fname):
         """Open TSF file, version 1000. Assume wavedata is highpass spike data only"""
         try: f = open(join(self.streampath, fname), 'rb')
         except IOError:
-            print("can't find file %r" % fname)
+            print("Can't find file %r" % fname)
             return
         header = f.read(16)
         assert header == 'Test spike file '
@@ -2701,7 +2701,7 @@ class SpykeWindow(QtGui.QMainWindow):
         if groundtruth == '': # reached EOF
             nbytes = f.tell()
             f.close()
-            print('read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
+            print('Read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
             return hpstream, lpstream
         else:
             f.seek(pos) # go back and parse ground truth data
@@ -2723,7 +2723,7 @@ class SpykeWindow(QtGui.QMainWindow):
         f.seek(0, 2)
         nbytes = f.tell()
         f.close()
-        print('read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
+        print('Read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))
         return hpstream, lpstream
 
     def renumber_tsf_truth(self, truth, stream):
@@ -2767,7 +2767,7 @@ class SpykeWindow(QtGui.QMainWindow):
         fullfname = os.path.join(self.eventspath, fname)
         with open(fullfname, 'rb') as f:
             d = dict(np.load(f)) # convert to an actual dict to use d.get() method
-            print('done opening .eventswave.zip file')
+            print('Done opening .eventswave.zip file')
             print('.eventswave.zip file was %d bytes long' % f.tell())
             chan = d.get('chan') # array of maxchans, one per event
             chanpos = d.get('chanpos') # array of (x, y) coords, in channel order
@@ -2875,7 +2875,7 @@ class SpykeWindow(QtGui.QMainWindow):
         fullfname = os.path.join(self.eventspath, fname)
         with open(fullfname, 'rb') as f:
             d = dict(np.load(f)) # convert to an actual dict to use d.get() method
-            print('done opening .events.zip file')
+            print('Done opening .events.zip file')
             print('.events.zip file was %d bytes long' % f.tell())
             spikets = d.get('spikets') # spike times, us
             maxchans = d.get('maxchans') # maxchans
@@ -2892,7 +2892,7 @@ class SpykeWindow(QtGui.QMainWindow):
         nspikes = len(spikets)
 
         # shift kilosort spike times for better positioning in sort window:
-        print('shifting kilosort spike times by %d us' % KILOSORTSHIFTCORRECT)
+        print('Shifting kilosort spike times by %d us' % KILOSORTSHIFTCORRECT)
         spikets = spikets + KILOSORTSHIFTCORRECT
 
         # create sort:
@@ -2974,7 +2974,7 @@ class SpykeWindow(QtGui.QMainWindow):
         weights2spatialmean = sort.extractor.weights2spatialmean
         f = sort.extractor.f
         nreject = 0 # number spikes rejected during spatial localization
-        print('running spatial localization on all %d spikes' % nspikes)
+        print('Running spatial localization on all %d spikes' % nspikes)
         for s, wd in zip(sort.spikes, sort.wavedata):
             # Get Vpp at each inclchan's tis, use as spatial weights:
             # see core.rowtake() or util.rowtake_cy() for indexing explanation:
@@ -3008,7 +3008,7 @@ class SpykeWindow(QtGui.QMainWindow):
             params = weights2f(f, w, x, y, maxchani)
             if params == None: # presumably a non-localizable many-channel noise event
                 #print('X', end='') # to indicate a rejected spikes
-                if DEBUG: det.log("reject spike %d at t=%d based on fit params"
+                if DEBUG: det.log("Reject spike %d at t=%d based on fit params"
                                   % (sid, spiket))
                 neuron = sort.neurons[nid]
                 # remove from its neuron, add to unsorted list of spikes:
@@ -3040,7 +3040,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
         print() # newline
         preject = nreject / nspikes * 100
-        print('rejected %d/%d spikes (%.1f %%), set as unclustered'
+        print('Rejected %d/%d spikes (%.1f %%), set as unclustered'
               % (nreject, nspikes, preject))
 
         # remove any empty neurons due to all their spikes being rejected:
@@ -3054,7 +3054,7 @@ class SpykeWindow(QtGui.QMainWindow):
         for cluster in sort.clusters.values():
             cluster.update_pos()
 
-        print('done importing events from %r' % fullfname)
+        print('Done importing events from %r' % fullfname)
 
     def convert_kilosortnpy2eventszip(self, path):
         """Read relevant KiloSort .npy results files in path, process them slightly,
@@ -3107,23 +3107,23 @@ class SpykeWindow(QtGui.QMainWindow):
         nids = np.int16(nids) # save space, use same dtype as in SPIKEDTYPE
 
         assert len(spikets) == len(maxchans) == len(nids)
-        print('converting KiloSort events to:\n%r' % outputfname)
+        print('Converting KiloSort events to:\n%r' % outputfname)
         with open(outputfname, 'wb') as f:
             np.savez_compressed(f, spikets=spikets, maxchans=maxchans, nids=nids)
-        print('done converting KiloSort events')
+        print('Done converting KiloSort events')
 
     def OpenSortFile(self, fname):
         """Open a Sort from a .sort and .spike file, try and open a .wave file
         with the same name, restore the (closed) stream"""
         self.DeleteSort() # delete any existing Sort
-        print('opening sort file %r' % fname)
+        print('Opening sort file %r' % fname)
         t0 = time.time()
         f = open(join(self.sortpath, fname), 'rb')
         unpickler = cPickle.Unpickler(f)
         unpickler.find_global = core.unpickler_find_global_0_7_to_0_8
         sort = unpickler.load()
-        print('done opening sort file, took %.3f sec' % (time.time()-t0))
-        print('sort file was %d bytes long' % f.tell())
+        print('Done opening sort file, took %.3f sec' % (time.time()-t0))
+        print('Sort file was %d bytes long' % f.tell())
         f.close()
         self.sort = sort
 
@@ -3210,12 +3210,12 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def OpenSpikeFile(self, fname):
         sort = self.sort
-        print('loading spike file %r' % fname)
+        print('Loading spike file %r' % fname)
         t0 = time.time()
         f = open(join(self.sortpath, fname), 'rb')
         spikes = np.load(f)
-        print('done opening spike file, took %.3f sec' % (time.time()-t0))
-        print('spike file was %d bytes long' % f.tell())
+        print('Done opening spike file, took %.3f sec' % (time.time()-t0))
+        print('Spike file was %d bytes long' % f.tell())
         f.close()
         sort.spikes = spikes
         # when loading a spike file, make sure the nid field is overwritten
@@ -3230,19 +3230,19 @@ class SpykeWindow(QtGui.QMainWindow):
     def OpenWaveFile(self, fname):
         """Open a .wave file and return wavedata array"""
         sort = self.sort
-        print('opening wave file %r' % fname)
+        print('Opening wave file %r' % fname)
         t0 = time.time()
         try: f = open(join(self.sortpath, fname), 'rb')
         except IOError:
-            print("can't find file %r" % fname)
+            print("Can't find file %r" % fname)
             return
         try:
             del sort.wavedata
             #gc.collect() # ensure memory is freed up to prepare for new wavedata, necessary?
         except AttributeError: pass
         wavedata = np.load(f)
-        print('done opening wave file, took %.3f sec' % (time.time()-t0))
-        print('wave file was %d bytes long' % f.tell())
+        print('Done opening wave file, took %.3f sec' % (time.time()-t0))
+        print('Wave file was %d bytes long' % f.tell())
         f.close()
         if len(wavedata) != sort.nspikes:
             critical = QtGui.QMessageBox.critical
@@ -3271,7 +3271,7 @@ class SpykeWindow(QtGui.QMainWindow):
         except AttributeError: # corresponding .spike filename hasn't been generated yet
             s.spikefname = os.path.splitext(fname)[0] + '.spike'
         self.SaveSpikeFile(s.spikefname) # always (re)save .spike when saving .sort
-        print('saving sort file %r' % fname)
+        print('Saving sort file %r' % fname)
         t0 = time.time()
         self.save_clustering_selections()
         self.save_window_states()
@@ -3279,7 +3279,7 @@ class SpykeWindow(QtGui.QMainWindow):
         f = open(join(self.sortpath, fname), 'wb')
         cPickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
         f.close()
-        print('done saving sort file, took %.3f sec' % (time.time()-t0))
+        print('Done saving sort file, took %.3f sec' % (time.time()-t0))
         self.updateTitle()
         self.updateRecentFiles(join(self.sortpath, fname))
 
@@ -3327,12 +3327,12 @@ class SpykeWindow(QtGui.QMainWindow):
         if len(self.dirtysids) > 0:
             self.SaveWaveFile(s.wavefname, sids=self.dirtysids)
             self.dirtysids.clear() # no longer dirty
-        print('saving spike file %r' % fname)
+        print('Saving spike file %r' % fname)
         t0 = time.time()
         f = open(join(self.sortpath, fname), 'wb')
         np.save(f, s.spikes)
         f.close()
-        print('done saving spike file, took %.3f sec' % (time.time()-t0))
+        print('Done saving spike file, took %.3f sec' % (time.time()-t0))
         s.spikefname = fname # used to indicate that the spikes have been saved
 
     def SaveWaveFile(self, fname, sids=None):
@@ -3343,19 +3343,19 @@ class SpykeWindow(QtGui.QMainWindow):
         except AttributeError: return # no wavedata to save
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.wave'
-        print('saving wave file %r' % fname)
+        print('Saving wave file %r' % fname)
         t0 = time.time()
         if sids != None and len(sids) >= NDIRTYSIDSTHRESH:
             sids = None # resave all of them for speed
         if sids is None: # write the whole file
-            print('updating all %d spikes in wave file %r' % (s.nspikes, fname))
+            print('Updating all %d spikes in wave file %r' % (s.nspikes, fname))
             f = open(join(self.sortpath, fname), 'wb')
             np.save(f, s.wavedata)
             f.close()
         else: # write only sids
-            print('updating %d spikes in wave file %r' % (len(sids), fname))
+            print('Updating %d spikes in wave file %r' % (len(sids), fname))
             core.updatenpyfilerows(join(self.sortpath, fname), sids, s.wavedata)
-        print('done saving wave file, took %.3f sec' % (time.time()-t0))
+        print('Done saving wave file, took %.3f sec' % (time.time()-t0))
         s.wavefname = fname
 
     def DeleteSort(self):
@@ -3363,7 +3363,7 @@ class SpykeWindow(QtGui.QMainWindow):
         try:
             # TODO: if Save button is enabled, check if Sort is saved,
             # if not, prompt to save
-            #print('deleting existing Sort and entries in list controls')
+            #print('Deleting existing Sort and entries in list controls')
             #self.sort.spikes.resize(0, recheck=False) # doesn't work, doesn't own memory
             del self.sort
         except AttributeError:

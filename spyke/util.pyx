@@ -476,7 +476,7 @@ def alignbest_cy(sort,
     cdef np.ndarray[int8_t, ndim=1, mode='c'] shifts = \
         np.arange(-MAXSHIFT, MAXSHIFT+1, dtype=np.int8)
     cdef int nshifts = shifts.shape[0]
-    print("padding waveforms with up to +/- %d points of edge data" % MAXSHIFT)
+    print("Padding waveforms with up to +/- %d points of edge data" % MAXSHIFT)
 
     # not worth subsampling here while calculating meandata, since all this
     # stuff in this loop is needed in the shift loop below

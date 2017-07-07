@@ -774,7 +774,7 @@ class Detector(object):
             # randomly sample self.fixednoisewin's worth of data from self.trange in
             # blocks of self.blocksize, without replacement
             tload = time.time()
-            print('loading data to calculate noise')
+            print('Loading data to calculate noise')
             if self.fixednoisewin >= abs(self.trange[1] - self.trange[0]):
                 # sample width meets or exceeds search trange
                 blockranges = [self.trange] # use a single block of data, as defined by trange

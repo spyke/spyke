@@ -188,7 +188,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         stds = data.var(axis=0)
         sortdimis = stds.argsort()[::-1] # dim indices in order of decreasing variance
         data = data[:, sortdimis].copy() # reorder dims by dec variance, copy for C contig
-        print('reordered dimensions of data by variance: %s' % sortdimis)
+        print('Reordered dimensions of data by variance: %s' % sortdimis)
     ELSE:
         # always sort along dimension 0. Due to subsampling, sorting along various dimensions
         # can affect clustering results. This can be mitigated by increasing maxgrad.
@@ -199,9 +199,9 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     data = data[sortis]
     sortis = sortis.argsort() # sorting of points (not dimensions) needs to be undone later
     IF SORTDIMSBYVARIANCE:
-        print('sorted data along dimension %d' % sortdimis[0])
+        print('Sorted data along dimension %d' % sortdimis[0])
     #ELSE:
-    #    print('sorted data along dimension 0')
+    #    print('Sorted data along dimension 0')
     
     # declare placeholder scout:
     cdef Scout *scouti

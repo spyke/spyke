@@ -987,7 +987,7 @@ class MultiStream(object):
         if not contiguous.all() and kind == 'highpass':
             # don't bother reporting again for lowpass
             fnames = [ s.fname for s, c in zip(streams, contiguous) if not c ]
-            print("some files are non contiguous:")
+            print("Some files are non contiguous:")
             for fname in fnames:
                 print(fname)
         probe = streams[0].probe
