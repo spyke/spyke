@@ -51,7 +51,7 @@ from collections import OrderedDict as odict
 #sys.path.insert(0, spykepath)
 
 import core
-from core import toiter, tocontig, intround, MICRO, ClusterChange, SpykeToolWindow
+from core import toiter, tocontig, intround, printflush, MICRO, ClusterChange, SpykeToolWindow
 from core import DJS, g, dist
 import stream
 from stream import SimpleStream, MultiStream
@@ -448,7 +448,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 for t0 in t0s:
                     t1 = t0 + blocksize
                     #print('%d to %d us' % (t0, t1))
-                    print('.', end='') # succint progress indicator
+                    printflush('.', end='') # succint progress indicator
                     wave = hps[t0:t1]
                     #if t0 == t0s[-1]:
                     #    print('last block asked:', t0, t1)
@@ -2977,9 +2977,9 @@ class SpykeWindow(QtGui.QMainWindow):
             sid = s['id']
             # print out progress on a regular basis:
             if sid % 10000 == 0:
-                print(sid, end='')
+                printflush(sid, end='')
             elif sid % 1000 == 0:
-                print('.', end='')
+                printflush('.', end='')
             spiket = intround(s['t']) # nearest us
             nid = s['nid']
             chan = s['chan']
@@ -3003,7 +3003,7 @@ class SpykeWindow(QtGui.QMainWindow):
             y = det.siteloc[chanis, 1]
             params = weights2f(f, w, x, y, maxchani)
             if params == None: # presumably a non-localizable many-channel noise event
-                #print('X', end='') # to indicate a rejected spikes
+                #printflush('X', end='') # to indicate a rejected spikes
                 if DEBUG: det.log("Reject spike %d at t=%d based on fit params"
                                   % (sid, spiket))
                 neuron = sort.neurons[nid]

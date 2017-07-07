@@ -35,7 +35,7 @@ import pylab as pl
 
 import core
 from core import WaveForm, Gaussian, MAXLONGLONG, R
-from core import toiter, intround, lstrip, rstrip, lrstrip, pad, td2usec, td2days
+from core import toiter, intround, printflush, lstrip, rstrip, lrstrip, pad, td2usec, td2days
 from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, SpikeSelectionSlider
 from core import lrrep2Darrstripis, rollwin2D
 from surf import EPOCH
@@ -1236,11 +1236,10 @@ class Sort(object):
             # slice out each spike's reloaded data from tempwave:
             for sid in group:
                 # print status:
-                if sidi % 1000 == 0:
-                    if sidi % 10000 == 0:
-                        print('%d' % sidi, end='')
-                    else:
-                        print('.', end='')
+                if sidi % 10000 == 0:
+                    printflush(sidi, end='')
+                elif sidi % 1000 == 0:
+                    printflush('.', end='')
                 if usemeanchans: # already checked above that ver_lte_03 == False
                     # this spike's chans have been set to meanchans, now
                     # check that each spike's maxchan is in meanchans:
@@ -1309,7 +1308,7 @@ class Sort(object):
                         # reslice tempwave again now that t0 and t1 have changed
                         rd = tempwave[spike['t0']:spike['t1']][chans].data
                         nfixed += 1
-                        #print('F', end='')
+                        #printflush('F', end='')
                 # else: assume time values for all spikes are accurate
 
                 self.wavedata[sid, :nchans, :nt] = rd # update wavedata

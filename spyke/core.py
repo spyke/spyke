@@ -6,10 +6,11 @@ from __future__ import with_statement
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
+import sys
+import os
 import hashlib
 import time
 import datetime
-import os
 from collections import OrderedDict as odict
 
 import random
@@ -1432,6 +1433,15 @@ def rms(a, axis=None):
 def rmserror(a, b, axis=None):
     """Return root-mean-squared error between arrays a and b"""
     return rms(a - b, axis=axis)
+
+def printflush(*args, **kwargs):
+    """Print args and flush to stdout immediately, so that
+    python need not be started in unbuffered mode, or PYTHONUNBUFFERED env need
+    not be set. Adapted from https://stackoverflow.com/a/27991478"""
+    file = sys.stdout
+    kwargs['file'] = file
+    print(*args, **kwargs)
+    file.flush()
 
 def lstrip(s, strip):
     """What I think str.lstrip should really do"""
