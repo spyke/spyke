@@ -2967,6 +2967,7 @@ class SpykeWindow(QtGui.QMainWindow):
             nalignis[neuron.id] = np.argmin([mintis.std(), maxtis.std()])
         AD2uV = sort.converter.AD2uV
         weights2f = sort.extractor.weights2spatial
+        weights2spatialmean = sort.extractor.weights2spatialmean
         f = sort.extractor.f
         nreject = 0 # number spikes rejected during spatial localization
         print('running spatial localization on all %d spikes' % nspikes)
@@ -3002,28 +3003,25 @@ class SpykeWindow(QtGui.QMainWindow):
             y = det.siteloc[chanis, 1]
             params = weights2f(f, w, x, y, maxchani)
             if params == None: # presumably a non-localizable many-channel noise event
-                neuron = sort.neurons[nid]
-                sid = s['id']
-                sw.MoveSpikes2List(neuron, [sid], update=False) # remove from its neuron
-                ## TODO: is this really the best option? might be better to display
-                ## rejected spikes, since they're still kept in the unclustered list:
-                ## maybe best to set artificial params = x, y, 1, 1 or so, so only the maxchan
-                ## gets a raster line
-                # leave s['nlockchans'] = 0, don't display raster ticks for rejected spikes
+                #print('X', end='') # to indicate a rejected spikes
                 if DEBUG: det.log("reject spike %d at t=%d based on fit params"
                                   % (sid, spiket))
-                # to find out afterwards exactly which spikes were rejected, run:
-                # import numpy as np; np.where(self.sort.spikes['nlockchans'] == 0)[0]
-                # in the IPython shell. You can also inspect the initial contents of the
-                # unclustered spike list
+                neuron = sort.neurons[nid]
+                # remove from its neuron, add to unsorted list of spikes:
+                sw.MoveSpikes2List(neuron, [sid], update=False)
+                # manually set localization params to Vpp-weighted spatial mean and 0 sigma:
+                x0, y0 = weights2spatialmean(w, x, y)
+                # set sigma to 0 um, and then later round lockr up to 1 um so that only one
+                # raster tick shows up for each rejected spike, reducing clutter
+                params = x0, y0, 0, 0
                 nreject += 1
-                continue # skip to next spike
             # Save spatial fit params, and "lockout" only the channels within lockrx*sx
             # of the fit spatial location of the spike, up to a max of self.inclr.
             s['x0'], s['y0'], s['sx'], s['sy'] = params
             x0, y0 = s['x0'], s['y0']
             # lockout radius for this spike:
             lockr = min(det.lockrx*s['sx'], det.inclr) # in um
+            lockr = max(lockr, 1) # at least 1 um, so at least the maxchan gets a tick
             # test y coords of chans in y array, ylockchaniis can be used to index
             # into x, y and chans:
             ylockchaniis, = np.where(np.abs(y - y0) <= lockr) # convert bool arr to int
@@ -3036,6 +3034,7 @@ class SpykeWindow(QtGui.QMainWindow):
             nlockchans = len(lockchans)
             s['lockchans'][:nlockchans], s['nlockchans'] = lockchans, nlockchans
 
+        print() # newline
         preject = nreject / nspikes * 100
         print('rejected %d/%d spikes (%.1f %%), set as unclustered'
               % (nreject, nspikes, preject))
