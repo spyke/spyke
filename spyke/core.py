@@ -1969,12 +1969,19 @@ def write_ks_chanmap_mat(stream, fname):
     ycoords = ycoords.max() - ycoords # ks expects origin at bottom of probe
     kcoords = np.tile(1, (probe.nchans, 1)) # column vector, something to do with shanks?
     fs = stream.rawsampfreq
-    matd = {'connected': connected,
-            'chanMap': chanMap,
-            'chanMap0ind': chanMap0ind,
-            'xcoords': xcoords,
-            'ycoords': ycoords,
-            'kcoords': kcoords,
-            'fs': fs}
+    """
+    Export to .mat file with exactly the same dtypes (doubles) that kilosort's chanmap
+    creation script (see .m files in templates/ks) does. Note that this saves to a MATLAB 5
+    (to version 7.2) .mat file, while by default contemporary MATLAB saves to the newer HDF5
+    version, which is unsupported by scipy.io. Both seem to load identically in MATLAB 2015a,
+    so it shouldn't matter:
+    """
+    matd = {'connected': connected, # leave as boolean
+            'chanMap': np.float64(chanMap),
+            'chanMap0ind': np.float64(chanMap0ind),
+            'xcoords': np.float64(xcoords),
+            'ycoords': np.float64(ycoords),
+            'kcoords': np.float64(kcoords),
+            'fs': np.float64(fs)}
     scipy.io.savemat(fname, matd)
     print('Wrote kilosort chanmap file %r' % fname)
