@@ -2891,10 +2891,6 @@ class SpykeWindow(QtGui.QMainWindow):
         assert len(spikets) == len(maxchans) == len(nids)
         nspikes = len(spikets)
 
-        # shift kilosort spike times for better positioning in sort window:
-        print('Shifting kilosort spike times by %d us' % KILOSORTSHIFTCORRECT)
-        spikets = spikets + KILOSORTSHIFTCORRECT
-
         # create sort:
         sort = self.CreateNewSort() # create a new sort, with bound stream
         # create detector and run Detector.predetect(), so that things initialize:
@@ -3068,6 +3064,7 @@ class SpykeWindow(QtGui.QMainWindow):
         nidsfname = os.path.join(path, 'spike_clusters.npy')
         templatesfname = os.path.join(path, 'templates.npy')
         outputfname = os.path.join(path, s.fname + '.events.zip')
+        print('Converting KiloSort events to:\n%r' % outputfname)
 
         # load relevant KiloSort .npy results files:
         # spike times, sample point integers relative to start of .dat file:
@@ -3081,6 +3078,11 @@ class SpykeWindow(QtGui.QMainWindow):
         # calculate spike times to nearest int64 us, assume KiloSort was run on
         # raw uninterpolated data:
         spikets = intround(s.t0 + spiketis / s.rawsampfreq * 1e6) # us
+
+        # shift kilosort spike times:
+        print('Shifting kilosort spike times by %d us for better positioning in sort window'
+              % KILOSORTSHIFTCORRECT)
+        spikets = spikets + KILOSORTSHIFTCORRECT
 
         # find maxchan for each template: find max along time axis of each chan of each
         # template, then find argmax along chan axis of each template:
@@ -3106,7 +3108,6 @@ class SpykeWindow(QtGui.QMainWindow):
         nids = np.int16(nids) # save space, use same dtype as in SPIKEDTYPE
 
         assert len(spikets) == len(maxchans) == len(nids)
-        print('Converting KiloSort events to:\n%r' % outputfname)
         with open(outputfname, 'wb') as f:
             np.savez_compressed(f, spikets=spikets, maxchans=maxchans, nids=nids)
         print('Done converting KiloSort events')
