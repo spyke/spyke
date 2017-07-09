@@ -652,7 +652,7 @@ class SpykeWindow(QtGui.QMainWindow):
         fullksconfigfname = os.path.join(path, ksconfigfname)
         with open(fullksconfigfname, 'w') as ksconfigf:
             ksconfigf.write(ksconfigstr)
-            print('Wrote kilosort config file %r' % fullksconfigfname)
+        print('Wrote kilosort config file %r' % fullksconfigfname)
 
         # write kilosort run .m file:
         with open('./templates/kilosort/ks_run.m') as templateksrunf:
@@ -662,7 +662,7 @@ class SpykeWindow(QtGui.QMainWindow):
         fullksrunfname = os.path.join(path, ksrunfname)
         with open(fullksrunfname, 'w') as ksrunf:
             ksrunf.write(ksrunstr)
-            print('Wrote kilosort run file %r' % fullksrunfname)
+        print('Wrote kilosort run file %r' % fullksrunfname)
 
     @QtCore.pyqtSlot()
     def on_actionConvertKiloSortNpy2EventsZip_triggered(self):
