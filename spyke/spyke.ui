@@ -1942,7 +1942,7 @@ or remove all duplicate spikes from selected neurons
      </property>
      <addaction name="actionConvertKiloSortNpy2EventsZip"/>
     </widget>
-    <addaction name="actionNew"/>
+    <addaction name="actionNewSort"/>
     <addaction name="actionOpen"/>
     <addaction name="separator"/>
     <addaction name="actionSaveSort"/>
@@ -2054,7 +2054,7 @@ or remove all duplicate spikes from selected neurons
    <attribute name="toolBarBreak">
     <bool>false</bool>
    </attribute>
-   <addaction name="actionNew"/>
+   <addaction name="actionNewSort"/>
    <addaction name="actionOpen"/>
    <addaction name="actionSaveSort"/>
    <addaction name="separator"/>
@@ -2107,13 +2107,13 @@ or remove all duplicate spikes from selected neurons
     <bool>true</bool>
    </property>
   </action>
-  <action name="actionNew">
+  <action name="actionNewSort">
    <property name="icon">
     <iconset>
      <normaloff>res/document-new.svg</normaloff>res/document-new.svg</iconset>
    </property>
    <property name="text">
-    <string>&amp;New</string>
+    <string>&amp;New Sort</string>
    </property>
    <property name="toolTip">
     <string>New sort</string>

@@ -205,7 +205,7 @@ class SpykeWindow(QtGui.QMainWindow):
         samplingGroup.addAction(ui.action120kHz)
 
     @QtCore.pyqtSlot()
-    def on_actionNew_triggered(self):
+    def on_actionNewSort_triggered(self):
         self.DeleteSort() # don't create a new one until spikes exist
 
     @QtCore.pyqtSlot()
