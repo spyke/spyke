@@ -322,6 +322,7 @@ class DATStream(Stream):
         specified chans"""
         if chans is None:
             chans = self.chans
+        nchans = len(chans)
         kind = self.kind
         try:
             chanis = core.argmatch(self.chans, chans) # where to find chans in self.chans
@@ -369,7 +370,7 @@ class DATStream(Stream):
 
         # init dataxs; unlike for .srf files, int32 dataxs array isn't necessary for
         # int16 .dat or .nsx files, since there's no need to zero or rescale
-        dataxs = np.zeros((self.nchans, ntxs), dtype=np.int16) # any gaps will have zeros
+        dataxs = np.zeros((nchans, ntxs), dtype=np.int16) # any gaps will have zeros
 
         '''
         Load up data+excess. The same raw data is used for high and low pass streams,
@@ -385,7 +386,7 @@ class DATStream(Stream):
         # destination slice indices:
         dt0i = max(t0i - t0xsi, 0)
         dt1i = min(t1i + 1 - t0xsi, ntxs)
-        allchanis = core.argmatch(self.f.fileheader.chans, self.chans)
+        allchanis = core.argmatch(self.f.fileheader.chans, chans)
         dataxs[:, dt0i:dt1i] = self.f.data[allchanis, st0i:st1i]
         #print('data load took %.3f sec' % (time.time()-tload))
 
@@ -451,7 +452,7 @@ class DATStream(Stream):
         # do any resampling if necessary:
         if resample:
             #tresample = time.time()
-            dataxs, tsxs = self.resample(dataxs, tsxs, self.chans)
+            dataxs, tsxs = self.resample(dataxs, tsxs, chans)
             #print('resample took %.3f sec' % (time.time()-tresample))
 
         #nresampletxs = len(tsxs)
