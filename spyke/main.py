@@ -440,7 +440,8 @@ class SpykeWindow(QtGui.QMainWindow):
         blocksize = int(float(self.ui.blockSizeLineEdit.text()))
         print('Exporting in blocks of %d us' % blocksize)
         for hps in hpstreams:
-            fullfname = os.path.join(path, hps.srcfnameroot + export_ext)
+            fname = hps.fname + export_ext
+            fullfname = os.path.join(path, fname)
             fulljsonfname = fullfname + '.json'
             print('Exporting %s data to %r' % (export_msg, fullfname))
             with open(fullfname, 'wb') as datf:
@@ -457,7 +458,9 @@ class SpykeWindow(QtGui.QMainWindow):
                 print() # newline
                 core.write_dat_json(hps, fulljsonfname)
         print('Done exporting %s data' % export_msg)
-        return path
+
+        if cat:
+            return path, fname
 
     @QtCore.pyqtSlot()
     def on_actionExportLFPZipFiles_triggered(self):
@@ -540,7 +543,7 @@ class SpykeWindow(QtGui.QMainWindow):
         for hps in hpstreams:
             assert hps.sampfreq % sampfreq == 0
             decimatex = intround(hps.sampfreq / sampfreq)
-            fullfname = os.path.join(path, hps.srcfnameroot + '.envl.dat')
+            fullfname = os.path.join(path, hps.fname + '.envl.dat')
             fulljsonfname = fullfname + '.json'
             print(fullfname)
             # excess data to get at either end of each block, to eliminate
@@ -619,7 +622,7 @@ class SpykeWindow(QtGui.QMainWindow):
             cat = True # concatenate
         else: # it's a single Stream
             cat = False # nothing to concatenate
-        exportpath = self.export_hpstream(cat=cat, export_msg='raw', export_ext='.dat')
+        path, datfname = self.export_hpstream(cat=cat, export_msg='raw', export_ext='.dat')
 
         # restore hpstream settings:
         print('Restoring filtering, CAR, and resampling settings')
@@ -629,8 +632,9 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SetSHCorrect(shcorrect)
 
         # write kilosort channel map .mat file, indicate which chans are included in the .dat
-        fullmatfname = os.path.join(exportpath, stream.fname + '.ks_chanmap.mat')
-        core.write_ks_chanmap_mat(stream, fullmatfname)
+        chanmapfname = datfname + '.ks_chanmap.mat'
+        fullchanpmapfname = os.path.join(path, chanmapfname)
+        core.write_ks_chanmap_mat(stream, fullchanpmapfname)
 
     @QtCore.pyqtSlot()
     def on_actionConvertKiloSortNpy2EventsZip_triggered(self):
