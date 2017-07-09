@@ -2652,7 +2652,7 @@ or remove all duplicate spikes from selected neurons
   </action>
   <action name="actionExportRawDataDatFiles">
    <property name="text">
-    <string>.dat Files</string>
+    <string>.dat &amp;&amp; KiloSort Files</string>
    </property>
    <property name="toolTip">
     <string>Export raw ephys data to .dat file(s) in same folder</string>

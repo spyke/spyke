@@ -639,6 +639,31 @@ class SpykeWindow(QtGui.QMainWindow):
         fullchanpmapfname = os.path.join(path, chanmapfname)
         core.write_ks_chanmap_mat(stream, fullchanpmapfname)
 
+        # write kilosort config .m file:
+        with open('./templates/kilosort/ks_config.m') as templateksconfigf:
+            ksconfigstr = templateksconfigf.read()
+        ksconfigstr = ksconfigstr.format(DATFNAME=datfname,
+                                         KSRESULTSFNAME=datfname + '.ks_results',
+                                         FS=stream.rawsampfreq,
+                                         NCHANS=stream.nchans,
+                                         NCLUSTS=3 * stream.nchans,
+                                         CHANMAPFNAME=chanmapfname)
+        ksconfigfname = datfname + '.ks_config.m'
+        fullksconfigfname = os.path.join(path, ksconfigfname)
+        with open(fullksconfigfname, 'w') as ksconfigf:
+            ksconfigf.write(ksconfigstr)
+            print('Wrote kilosort config file %r' % fullksconfigfname)
+
+        # write kilosort run .m file:
+        with open('./templates/kilosort/ks_run.m') as templateksrunf:
+            ksrunstr = templateksrunf.read()
+        ksrunstr = ksrunstr.format(KSCONFIGFNAME=ksconfigfname)
+        ksrunfname = datfname + '.ks_run.m'
+        fullksrunfname = os.path.join(path, ksrunfname)
+        with open(fullksrunfname, 'w') as ksrunf:
+            ksrunf.write(ksrunstr)
+            print('Wrote kilosort run file %r' % fullksrunfname)
+
     @QtCore.pyqtSlot()
     def on_actionConvertKiloSortNpy2EventsZip_triggered(self):
         caption = "Convert relevant KiloSort .npy files to a single .events.zip file"

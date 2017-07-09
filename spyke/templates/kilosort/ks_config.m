@@ -4,18 +4,15 @@ ops.verbose = 1; % whether to print command line progress
 ops.showfigures = 1; % whether to plot figures during optimization
 
 ops.datatype = 'dat';  % binary ('dat', 'bin') or 'openEphys'
-ops.fbinary = 'MY_DAT_FILENAME.dat';
+ops.fbinary = '{DATFNAME}';
 ops.fproc = 'temp_wh.dat'; % residual from RAM of preprocessed data
-ops.root = 'ks_results'; % results are saved in this local folder, created if missing
+ops.root = '{KSRESULTSFNAME}'; % results are saved in this local folder, created if missing
 
-ops.fs = 30000; % sampling rate (omit if already in chanMap file)
+ops.fs = {FS}; % sampling rate (omit if already in chanMap file)
 
-%%%% TODO: not sure if ks can handle auxchans in .dat files!!!!!!!! changing nchantot to 32
-%% didn't seem to give an error
-
-ops.NchanTOT = 32; % total number of channels (omit if already in chanMap file)
-ops.Nchan = 32; % number of active channels (omit if already in chanMap file)
-ops.Nfilt = 96; % number of clusters to use (2-4 times more than Nchan, should be a multiple of Nchan)
+ops.NchanTOT = {NCHANS}; % total number of channels (omit if already in chanMap file)
+ops.Nchan = {NCHANS}; % number of active channels (omit if already in chanMap file)
+ops.Nfilt = {NCLUSTS}; % number of clusters to use (2-4 times more than Nchan, should be a multiple of Nchan)
 ops.nNeighPC = 12; % visualization only (Phy): number of channnels to mask the PCs, leave empty to skip (12)
 ops.nNeigh = 16; % visualization only (Phy): number of neighboring templates to retain projections of (16)
 
@@ -25,7 +22,7 @@ ops.nSkipCov = 1; % compute whitening matrix from every N-th batch (1)
 ops.whiteningRange = 32; % how many channels to whiten together (Inf for whole probe whitening, should be fine if Nchan<=32)
 
 % define the channel map as a filename (string) or simply an array
-ops.chanMap = 'MY_CHANMAP_FILENAME.mat'; % make this file using createChannelMapFile.m
+ops.chanMap = '{CHANMAPFNAME}'; % make this file using createChannelMapFile.m
 ops.criterionNoiseChannels = 0.2; % fraction of "noise" templates allowed to span all channel groups (see createChannelMapFile for more info).
 % ops.chanMap = 1:ops.Nchan; % treated as linear probe if a chanMap file
 
