@@ -12,10 +12,6 @@
 - add zeros to start of all exported .dat files and set offset field to 0 in .json
     - disable export for .srf files
 
-- in export_raw_dat, also write ks_run and ks_config files, with appropriate values filled in
-
-- add menu option to only export the 3 kilosort files
-
 - test running kilosort on .dat with missing channels (e.g. due to disabling dead channels before export)
     - chanmap.mat will have to reflect the correct chans
 
@@ -27,8 +23,6 @@
     - this way the user is also forced to use the GUI and briefly inspect the data before exporting to .dat for ks, and also to see if certain channels should be disabled? How do we specify disabled chans in ks? Should we just not export those? If so, then we'd need to make a new ks channel map file for each combination of enabled channels, for each probe type, which kind of sucks. So maybe best to always export all chans?
 
 - test export and concatenated export with different sized blocks, like 30 or 60 seconds instead of 10. Make sure there aren't any indexing errors or missing/extra data in the exported files.
-
-- make kilosort always export to datfilename.ks or datfilename.kilosort or datfilename.ks_results folder in same folder as the source data, so that kilosort results from different source files in the same folder don't conflict with each other
 
 - make kilosort check if .dat file size is an integer multiple of ntot chans declared in ks_run.m file, or is that ignored? Shouldn't be, because only ephys chans are defined in the chanmap file!
 
@@ -1433,6 +1427,9 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - spikes rejected on import should get a raster line anyway (they currently do not), so we can fairly evaluate which spikes kilosort missed.
 - kilosort fails to run when nchans is less than the full set, as exported by spyke in the chanmap .mat file
     - I think the chanMap variable needs to be contiguous from 1 to nchans, and then the xcoords/ycoords/kcoords vars need to be just the right ones, i.e. leave out the coords of the excluded chans
+- make kilosort always export to datfilename.ks or datfilename.kilosort or datfilename.ks_results folder in same folder as the source data, so that kilosort results from different source files in the same folder don't conflict with each other
+- in export_raw_dat, also write ks_run and ks_config files, with appropriate values filled in
+- NOPE: add menu option to only export the 3 kilosort files
 
 
 
