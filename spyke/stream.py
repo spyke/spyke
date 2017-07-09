@@ -176,7 +176,11 @@ class Stream(object):
         # taps off of ADchan 0, but for probes like pt16a_HS27 and pt16b_HS27, it seems
         # ADchans start at 4.
         for chani, chan in enumerate(chans):
-            for point, kernel in enumerate(self.kernels[chan]):
+            try:
+                kernels = self.kernels[chan]
+            except KeyError: # all channels have the same kernels
+                kernels = self.kernels[None]
+            for point, kernel in enumerate(kernels):
                 """np.convolve(a, v, mode)
                 for mode='same', only the K middle values are returned starting at n = (M-1)/2
                 where K = len(a)-1 and M = len(v) - 1 and K >= M
@@ -227,7 +231,8 @@ class Stream(object):
         """
         if ADchans is None: # no per-channel delay:
             assert self.shcorrect == False
-            dis = np.zeros(self.nchans, dtype=np.int64)
+            chans = [None] # use same kernels for all channels
+            dis = np.array([0])
         else:
             assert self.shcorrect == True
             # ordinal position of each ADchan in the hold queue of its ADC board:
