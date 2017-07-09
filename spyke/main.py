@@ -51,8 +51,8 @@ from collections import OrderedDict as odict
 #sys.path.insert(0, spykepath)
 
 import core
-from core import toiter, tocontig, intround, printflush, MICRO, ClusterChange, SpykeToolWindow
-from core import DJS, g, dist
+from core import toiter, tocontig, intround, printflush, g, dist
+from core import MICRO, ClusterChange, SpykeToolWindow, DJS
 import stream
 from stream import SimpleStream, MultiStream
 import dat, nsx, surf
@@ -604,6 +604,9 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # save current hpstream filtering CAR and sampling settings:
         stream = self.hpstream
+        if not stream:
+            print('First open a stream!')
+            return
         filtmeth = stream.filtmeth
         car = stream.car
         sampfreq = stream.sampfreq
