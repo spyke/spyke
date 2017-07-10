@@ -51,7 +51,7 @@ from collections import OrderedDict as odict
 #sys.path.insert(0, spykepath)
 
 import core
-from core import toiter, tocontig, intround, printflush, g, dist
+from core import toiter, tocontig, intround, printflush, lstrip, g, dist, iterable
 from core import MICRO, ClusterChange, SpykeToolWindow, DJS
 import stream
 from stream import SimpleStream, MultiStream
@@ -211,12 +211,12 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionOpen_triggered(self):
         getOpenFileName = QtGui.QFileDialog.getOpenFileName
+        filter = (".dat, .ns6, .srf, .track, .tsf, .mat, .event & .sort files "
+                  "(*.dat *.ns6 *.srf *.track *.tsf *.mat *.event*.zip *.sort );;"
+                  "All files (*.*)")
         fname = getOpenFileName(self, caption="Open stream or sort",
                                 directory=self.streampath,
-                                filter="dat, ns6, srf, track, tsf, mat, event & sort files "
-                                       "(*.dat *.ns6 *.srf *.track *.tsf *.mat *.event*.zip "
-                                       "*.sort );;"
-                                       "All files (*.*)")
+                                filter=filter)
         fname = str(fname)
         if fname:
             self.OpenFile(fname)
@@ -2448,6 +2448,7 @@ class SpykeWindow(QtGui.QMainWindow):
         accordingly. fname is assumed to be relative to self.streampath"""
         if self.hpstream is not None:
             self.CloseStream() # in case a stream is already open
+        enabledchans = None
         ext = os.path.splitext(fname)[1]
         if ext == '.dat':
             f = dat.File(fname, self.streampath) # parses immediately
@@ -2466,10 +2467,20 @@ class SpykeWindow(QtGui.QMainWindow):
             fs = []
             with open(join(self.streampath, fname), 'r') as trackfile:
                 for line in trackfile: # one filename per line
-                    fn = line.strip() # remove leading and trailing whitespace
-                    if not fn or fn.startswith('#'): # it's blank, or a comment line
+                    line = line.strip() # remove leading and trailing whitespace
+                    print('%s' % line)
+                    if not line: # blank line
                         continue
-                    print('%r' % fn)
+                    if line.startswith('#'): # comment line
+                        line = lstrip(line, '#') # remove comment character
+                        line = line.replace(' ', '') # remove all spaces
+                        if line.startswith('enabledchans='):
+                            # it's a comment line describing which chans have been set to
+                            # enabled for this track
+                            enabledchans = list(eval(lstrip(line, 'enabledchans=')))
+                            assert iterable(enabledchans)
+                        continue # to next line
+                    fn = line
                     fext = os.path.splitext(fn)[1]
                     if fext == '.dat':
                         f = dat.File(fn, self.streampath)
@@ -2524,7 +2535,11 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.dynamicNoiseXSpinBox.setValue(DYNAMICNOISEX[ext])
         self.ui.dtSpinBox.setValue(DT[ext])
 
-        self.set_chans_enabled(self.hpstream.chans, enable=True)
+        if enabledchans is None:
+            self.chans_enabled = self.hpstream.chans
+        else:
+            print('setting enabled chans = %s' % enabledchans)
+            self.chans_enabled = enabledchans
         self.t = self.hpstream.t0 # set current timepoint (us)
 
         self.SPIKEWINDOWWIDTH = self.hpstream.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
