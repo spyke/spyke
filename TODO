@@ -18,10 +18,6 @@
 - add gui option to export in chan order or spatial order, default to chan order
     - also update "chan_order" field appropriately in .json file
 
-- add menu option "Create track file" which asks for a folder, looks for all .ns6 files in that folder (or failing that, all .dat files), and takes those names and generates a .track file using them
-    - then the user can open the .track file and export raw to .dat for ks
-    - this way the user is also forced to use the GUI and briefly inspect the data before exporting to .dat for ks, and also to see if certain channels should be disabled? How do we specify disabled chans in ks? Should we just not export those? If so, then we'd need to make a new ks channel map file for each combination of enabled channels, for each probe type, which kind of sucks. So maybe best to always export all chans?
-
 - test export and concatenated export with different sized blocks, like 30 or 60 seconds instead of 10. Make sure there aren't any indexing errors or missing/extra data in the exported files.
 
 - make kilosort check if .dat file size is an integer multiple of ntot chans declared in ks_run.m file, or is that ignored? Shouldn't be, because only ephys chans are defined in the chanmap file!
@@ -1430,7 +1426,10 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - make kilosort always export to datfilename.ks or datfilename.kilosort or datfilename.ks_results folder in same folder as the source data, so that kilosort results from different source files in the same folder don't conflict with each other
 - in export_raw_dat, also write ks_run and ks_config files, with appropriate values filled in
 - NOPE: add menu option to only export the 3 kilosort files
-
+- add menu option "New track" which asks for a folder, looks for all .ns6 files in that folder (or failing that, all .dat files), and takes those names and generates a .track file using them
+    - then the user can open the .track file and export raw to .dat for ks
+    - this way the user is also forced to use the GUI and briefly inspect the data before exporting to .dat for ks, and also to see if certain channels should be disabled
+- add "Save track channels" menu item to save enabled chan selection to comment in .track file
 
 
 end of DONE
