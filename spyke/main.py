@@ -704,7 +704,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SetSHCorrect(shcorrect)
 
         # write kilosort channel map .mat file, indicate which chans are included in the .dat
-        chanmapfname = datfname + '.ks_chanmap.mat'
+        datfnamenodots = datfname.replace('.', '_') # no dots allowed in MATLAB .m file names
+        chanmapfname = datfnamenodots + '_ks_chanmap.mat'
         fullchanpmapfname = os.path.join(path, chanmapfname)
         core.write_ks_chanmap_mat(stream, fullchanpmapfname)
 
@@ -717,7 +718,7 @@ class SpykeWindow(QtGui.QMainWindow):
                                          NCHANS=stream.nchans,
                                          NCLUSTS=3 * stream.nchans,
                                          CHANMAPFNAME=chanmapfname)
-        ksconfigfname = datfname + '.ks_config.m'
+        ksconfigfname = datfnamenodots + '_ks_config.m'
         fullksconfigfname = os.path.join(path, ksconfigfname)
         with open(fullksconfigfname, 'w') as ksconfigf:
             ksconfigf.write(ksconfigstr)
@@ -727,7 +728,7 @@ class SpykeWindow(QtGui.QMainWindow):
         with open('./templates/kilosort/ks_run.m') as templateksrunf:
             ksrunstr = templateksrunf.read()
         ksrunstr = ksrunstr.format(KSCONFIGFNAME=ksconfigfname)
-        ksrunfname = datfname + '.ks_run.m'
+        ksrunfname = datfnamenodots + '_ks_run.m'
         fullksrunfname = os.path.join(path, ksrunfname)
         with open(fullksrunfname, 'w') as ksrunf:
             ksrunf.write(ksrunstr)

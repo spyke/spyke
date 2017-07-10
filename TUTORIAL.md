@@ -139,12 +139,12 @@ them. If you click on a channel again, it's re-enabled.
 hit Open. This exports a concatenated .dat file from all your source files in the current
 `.track` file, as well as the required files to run KiloSort.
 
-5. Open the `.ks_run.m` file, check the first two lines to make sure that the path to wherever
+5. Open the `_ks_run.m` file, check the first two lines to make sure that the path to wherever
 you installed Kilosort and [npy-matlab](https://github.com/kwikteam/npy-matlab) is correct. If
 it isn't correct, you can fix it there, or better yet, fix it permanently for yourself in the
 `templates/kilosort/ks_run.m` template file in the spyke directory.
 
-6. Start MATLAB, cd to the folder where you exported to, and run the `.ks_run.m` file. Kilosort
+6. Start MATLAB, cd to the folder where you exported to, and run the `_ks_run.m` file. Kilosort
 automatically does its own filtering and CAR, but it doesn't resample.
 
 7. When KiloSort is done, with the `.track` still open in spyke, go File->Convert KiloSort .npy
