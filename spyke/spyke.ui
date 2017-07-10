@@ -1905,14 +1905,14 @@ or remove all duplicate spikes from selected neurons
      </widget>
      <widget class="QMenu" name="menuExportLowPass">
       <property name="title">
-       <string>Low-pass data</string>
+       <string>Low-pass Data</string>
       </property>
       <addaction name="actionExportLFPZipFiles"/>
       <addaction name="actionExportLFPCSVFiles"/>
      </widget>
      <widget class="QMenu" name="menuExportHighPass">
       <property name="title">
-       <string>High-pass data</string>
+       <string>High-pass Data</string>
       </property>
       <addaction name="actionExportHighPassDatFiles"/>
       <addaction name="actionExportHighPassEnvelopeDatFiles"/>
@@ -1923,7 +1923,7 @@ or remove all duplicate spikes from selected neurons
        <string/>
       </property>
       <property name="title">
-       <string>Raw data</string>
+       <string>Raw Data</string>
       </property>
       <addaction name="actionExportRawDataDatFiles"/>
      </widget>
@@ -2130,7 +2130,7 @@ or remove all duplicate spikes from selected neurons
      <normaloff>res/document-save.svg</normaloff>res/document-save.svg</iconset>
    </property>
    <property name="text">
-    <string>&amp;Save sort</string>
+    <string>&amp;Save Sort</string>
    </property>
    <property name="toolTip">
     <string>Save sort</string>
@@ -2148,7 +2148,7 @@ or remove all duplicate spikes from selected neurons
      <normaloff>res/document-save.svg</normaloff>res/document-save.svg</iconset>
    </property>
    <property name="text">
-    <string>Save &amp;parse</string>
+    <string>Save &amp;Parse</string>
    </property>
    <property name="toolTip">
     <string>Save parse</string>
@@ -2201,7 +2201,7 @@ or remove all duplicate spikes from selected neurons
      <normaloff>res/window-close.svg</normaloff>res/window-close.svg</iconset>
    </property>
    <property name="text">
-    <string>&amp;Close stream</string>
+    <string>&amp;Close Stream</string>
    </property>
    <property name="toolTip">
     <string>Close stream</string>
@@ -2478,7 +2478,7 @@ or remove all duplicate spikes from selected neurons
      <normaloff>res/document-save-as.svg</normaloff>res/document-save-as.svg</iconset>
    </property>
    <property name="text">
-    <string>Save sort &amp;As...</string>
+    <string>Save Sort &amp;As...</string>
    </property>
    <property name="toolTip">
     <string>Save sort As</string>
@@ -2550,7 +2550,7 @@ or remove all duplicate spikes from selected neurons
   </action>
   <action name="actionCloseSort">
    <property name="text">
-    <string>Close sort</string>
+    <string>Close Sort</string>
    </property>
    <property name="toolTip">
     <string>Close sort</string>
@@ -2606,7 +2606,7 @@ or remove all duplicate spikes from selected neurons
     <bool>true</bool>
    </property>
    <property name="text">
-    <string>Wavelet multi-level decomposition and reconstruction</string>
+    <string>Wavelet Multi-Level Decomposition &amp;&amp; Reconstruction</string>
    </property>
    <property name="toolTip">
     <string>Wavelet multi-level decomposition and reconstruction</string>
@@ -2710,7 +2710,7 @@ or remove all duplicate spikes from selected neurons
      <normaloff>res/document-save.svg</normaloff>res/document-save.svg</iconset>
    </property>
    <property name="text">
-    <string>Save track channels</string>
+    <string>Save Track Channels</string>
    </property>
   </action>
  </widget>
