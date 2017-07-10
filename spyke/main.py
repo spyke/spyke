@@ -301,6 +301,33 @@ class SpykeWindow(QtGui.QMainWindow):
             self.SaveSortFile(tail)
 
     @QtCore.pyqtSlot()
+    def on_actionSaveTrackChans_triggered(self):
+        self.SaveTrackChans()
+
+    def SaveTrackChans(self):
+        """Overwrite existing .track file, potentially saving a new set of enabled chans"""
+        stream = self.hpstream
+        if not stream.is_multi():
+            print("Stream is not a MultiStream, can't save a .track file")
+            return
+        trackfname = os.path.join(self.streampath, stream.fname)
+        if not os.path.isfile(trackfname):
+            raise RuntimeError('somehow the current MultiStream has no existing .track file')
+        trackstr = ''
+        allchans = stream.streams[0].f.fileheader.chans
+        if len(stream.chans) != len(allchans):
+            # some chans are disabled, write them as a comment in .track file
+            trackstr += '# enabledchans = %r\n' % list(stream.chans)
+        else:
+            assert (stream.chans == allchans).all()
+        trackstr += '\n'.join(stream.fnames)
+        with open(trackfname, 'w') as trackf:
+            trackf.write(trackstr)
+            trackf.write('\n') # end the file with a newline
+        print('Wrote track file %r:' % trackfname)
+        print(trackstr)
+
+    @QtCore.pyqtSlot()
     def on_actionSaveParse_triggered(self):
         if self.hpstream.ext == '.srf':
             self.hpstream.pickle()

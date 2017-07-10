@@ -1949,6 +1949,7 @@ or remove all duplicate spikes from selected neurons
     <addaction name="actionSaveSort"/>
     <addaction name="actionSaveSortAs"/>
     <addaction name="actionSaveParse"/>
+    <addaction name="actionSaveTrackChans"/>
     <addaction name="separator"/>
     <addaction name="menuExport"/>
     <addaction name="menuConvert"/>
@@ -2701,6 +2702,15 @@ or remove all duplicate spikes from selected neurons
    </property>
    <property name="toolTip">
     <string>Create .track File based on source data files in chosen folder</string>
+   </property>
+  </action>
+  <action name="actionSaveTrackChans">
+   <property name="icon">
+    <iconset>
+     <normaloff>res/document-save.svg</normaloff>res/document-save.svg</iconset>
+   </property>
+   <property name="text">
+    <string>Save track channels</string>
    </property>
   </action>
  </widget>
