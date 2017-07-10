@@ -264,7 +264,11 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionSaveParse_triggered(self):
-        self.hpstream.pickle()
+        if self.hpstream.ext == '.srf':
+            self.hpstream.pickle()
+        else:
+            print('Only .srf streams have complicated parsings that can be '
+                  'saved to a .parse file')
 
     @QtCore.pyqtSlot()
     def on_actionExportPtcsFiles_triggered(self):
