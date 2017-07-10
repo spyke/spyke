@@ -1943,6 +1943,7 @@ or remove all duplicate spikes from selected neurons
      <addaction name="actionConvertKiloSortNpy2EventsZip"/>
     </widget>
     <addaction name="actionNewSort"/>
+    <addaction name="actionNewTrack"/>
     <addaction name="actionOpen"/>
     <addaction name="separator"/>
     <addaction name="actionSaveSort"/>
@@ -2688,6 +2689,18 @@ or remove all duplicate spikes from selected neurons
    </property>
    <property name="toolTip">
     <string>Export high-pass bipolar reference envelope of ephys data to .envl.dat file(s)</string>
+   </property>
+  </action>
+  <action name="actionNewTrack">
+   <property name="icon">
+    <iconset>
+     <normaloff>res/document-new.svg</normaloff>res/document-new.svg</iconset>
+   </property>
+   <property name="text">
+    <string>New Track</string>
+   </property>
+   <property name="toolTip">
+    <string>Create .track File based on source data files in chosen folder</string>
    </property>
   </action>
  </widget>

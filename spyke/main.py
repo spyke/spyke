@@ -209,6 +209,44 @@ class SpykeWindow(QtGui.QMainWindow):
         self.DeleteSort() # don't create a new one until spikes exist
 
     @QtCore.pyqtSlot()
+    def on_actionNewTrack_triggered(self):
+        self.CreateNewTrack()
+
+    def CreateNewTrack(self):
+        """Create a new .track file"""
+        exts = ['.ns6', '.dat', '.srf']
+        caption = "Create .track file from %s files" % ' '.join(exts)
+        starexts = [ '*%s' % ext for ext in exts ]
+        filter = ('%s files ' % ', '.join(exts) +
+                  '(%s)' % ' '.join(starexts) + ';;All files (*.*)')
+        trackfname = getSaveFileName(self, caption=caption,
+                                     directory=self.streampath,
+                                     filter=filter)
+        trackfname = str(trackfname)
+        if not trackfname:
+            return
+        if not trackfname.endswith('.track'):
+            trackfname += '.track'
+        path = os.path.split(trackfname)[0]
+        ls = os.listdir(path)
+        fnames = {}
+        for ext in exts:
+            fnames = [ fname for fname in os.listdir(path) if fname.endswith(ext) ]
+            if len(fnames) > 0:
+                break
+        if len(fnames) == 0:
+            print("Couldn't find any .ns6, .dat, or .srf files in %r" % path)
+            return
+        fnames = sorted(fnames)
+        trackstr = '\n'.join(fnames)
+        with open(trackfname, 'w') as trackf:
+            trackf.write(trackstr)
+            trackf.write('\n') # end the file with a newline
+        print('Wrote track file %r:' % trackfname)
+        print(trackstr)
+        self.OpenFile(trackfname)
+
+    @QtCore.pyqtSlot()
     def on_actionOpen_triggered(self):
         getOpenFileName = QtGui.QFileDialog.getOpenFileName
         filter = (".dat, .ns6, .srf, .track, .tsf, .mat, .event & .sort files "
