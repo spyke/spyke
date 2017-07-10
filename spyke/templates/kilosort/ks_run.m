@@ -3,8 +3,7 @@
 addpath(genpath('~/src/KiloSort')) % path to kilosort folder
 addpath(genpath('~/src/npy-matlab')) % path to npy-matlab scripts
 
-pathToYourConfigFile = '.'; % path to config file, use StandardConfig.m as template
-run(fullfile(pathToYourConfigFile, '{KSCONFIGFNAME}'))
+run('{KSCONFIGFNAME}')
 
 tic; % start timer
 
