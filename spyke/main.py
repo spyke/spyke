@@ -51,7 +51,7 @@ from collections import OrderedDict as odict
 #sys.path.insert(0, spykepath)
 
 import core
-from core import toiter, tocontig, intround, printflush, lstrip, g, dist, iterable
+from core import toiter, tocontig, intround, intceil, printflush, lstrip, g, dist, iterable
 from core import MICRO, ClusterChange, SpykeToolWindow, DJS
 import stream
 from stream import SimpleStream, MultiStream
@@ -513,6 +513,7 @@ class SpykeWindow(QtGui.QMainWindow):
             fullfname = os.path.join(path, fname)
             fulljsonfname = fullfname + '.json'
             print('Exporting %s data to %r' % (export_msg, fullfname))
+            continue
             with open(fullfname, 'wb') as datf:
                 t0s = np.arange(hps.t0, hps.t1, blocksize)
                 for t0 in t0s:
@@ -712,11 +713,13 @@ class SpykeWindow(QtGui.QMainWindow):
         # write kilosort config .m file:
         with open('./templates/kilosort/ks_config.m') as templateksconfigf:
             ksconfigstr = templateksconfigf.read()
+        # nclusts for kilosort to use: 3x nchans, rounded up to nearest multiple of 32:
+        nclusts = intceil(3 * stream.nchans / 32) * 32
         ksconfigstr = ksconfigstr.format(DATFNAME=datfname,
                                          KSRESULTSFNAME=datfname + '.ks_results',
                                          FS=stream.rawsampfreq,
                                          NCHANS=stream.nchans,
-                                         NCLUSTS=3 * stream.nchans,
+                                         NCLUSTS=nclusts,
                                          CHANMAPFNAME=chanmapfname)
         ksconfigfname = datfnamenodots + '_ks_config.m'
         fullksconfigfname = os.path.join(path, ksconfigfname)

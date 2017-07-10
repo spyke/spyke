@@ -1,3 +1,5 @@
+% adapted from KiloSort's 'StandardConfig_MOVEME' template
+
 ops.GPU = 0; % whether to run this code on an Nvidia GPU (much faster, mexGPUall first)
 ops.parfor = 1; % whether to use parfor to accelerate some parts of the algorithm
 ops.verbose = 1; % whether to print command line progress
@@ -12,7 +14,7 @@ ops.fs = {FS}; % sampling rate (omit if already in chanMap file)
 
 ops.NchanTOT = {NCHANS}; % total number of channels (omit if already in chanMap file)
 ops.Nchan = {NCHANS}; % number of active channels (omit if already in chanMap file)
-ops.Nfilt = {NCLUSTS}; % number of clusters to use (2-4 times more than Nchan, should be a multiple of Nchan)
+ops.Nfilt = {NCLUSTS}; % number of clusters to use (2-4 times more than Nchan, should be a multiple of 32?)
 ops.nNeighPC = 12; % visualization only (Phy): number of channnels to mask the PCs, leave empty to skip (12)
 ops.nNeigh = 16; % visualization only (Phy): number of neighboring templates to retain projections of (16)
 
