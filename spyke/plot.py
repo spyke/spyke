@@ -1019,6 +1019,7 @@ class PlotPanel(FigureCanvas):
                 self.gain = self.gain * (1 + absdi / SCALEX)
             else:
                 self.gain = self.gain / (1 + absdi / SCALEX)
+            print('%s window gain=%g' % (wintype, self.gain))
         elif shift: # scale time
             if sign == 1:
                 tw = tuple([t / (1 + absdi / SCALEX) for t in self.tw])
@@ -1026,12 +1027,11 @@ class PlotPanel(FigureCanvas):
                 tw = tuple([t * (1 + absdi / SCALEX) for t in self.tw])
             self.update_tw(tw) # update Panel display tw
             spw.__dict__[wintype2wintw[wintype]] = tw # update spyke window's data fetch tw
+            print('%s window tw=(%g, %g) ms' % (wintype, self.tw[0]/1000, self.tw[1]/1000))
         else: # step left/right on wheel up/down
             win = self.parent()
             win.step(-di)
         spw.plot(wintypes=[wintype])
-        print('%s window gain=%g, tw=(%g, %g) ms' %
-              (wintype, self.gain, self.tw[0]/1000, self.tw[1]/1000))
 
 
 class SpikePanel(PlotPanel):
