@@ -1,4 +1,4 @@
-Here's a tutorial that goes over the basics:
+### Basic tutorial
 
 1. Run the program from the command line: `python main.py`. Status messages tend to be printed
 back to the command line, so it's a good idea to keep an eye on it, at least initially. In
@@ -6,7 +6,7 @@ Linux, you might want to run python with the `-u` flag (`python -u main.py`) so 
 output is printed immediately to the command line, even before a new line is sent. I do this
 so often that I've aliased `py` to `python -u` in my `.bash_aliases` file.
 
-2. Open a data file, typically a `.srf` file, such as this [sample
+2. Open a data file (typically a `.dat`, `.ns6` or `.srf` file, such as this [sample
 file](http://swindale.ecc.ubc.ca/spyke?action=AttachFile&do=get&target=ptc15_tr7c_r87_spont_20sec.srf).
 
 3. By default, only the spike window opens up. This shows 1 ms of high-pass voltage data on
@@ -112,3 +112,44 @@ Generally, you need not have the original source data file (a `.srf` file in thi
 hand, because all the relevant spike waveforms are already stored in the `.wave` file. This is
 good, because in general the original source file will be at least an order of magnitude
 greater in size, and therefore potentially inconvenient to keep on hand.
+
+### Sorting full tracks with [KiloSort](https://github.com/cortex-lab/KiloSort)
+
+spyke has the concept of a "track": a set of recordings in multiple files that were all done
+in the same position in the brain, for which spike sorting should be done all together.
+spyke can work fairly seamlessly with KiloSort to provide a better initial set of clusters,
+which can then be refined as usual within spyke. To sort a full track with spyke and KiloSort:
+
+1. File->New Track. Navigate to your folder with a series worth of source files (`.ns6` or
+`.dat` or `.srf`), type in the desired track name and hit Save to create a `.track` file.
+
+2. The track file is automatically opened. Open up the chart and LFP windows (View menu or
+toolbar) for a better look at the data. You can scroll through the track by clicking, pressing
+`LEFT`/`RIGHT` or `PGUP`/`PGDOWN`, or by scrolling with the mouse wheel. You might notice some
+blank periods, representing the time in between recordings in the track. You can play around
+with Filtering, CAR (common average reference) and Sampling settings in the menu (although
+these are all ignored during raw data export). Notice how CAR can make quite a difference in
+the noise level. If you use CAR->Median (the default), the noise is reduced without really
+changing any spike amplitudes. Disable any channels you think are faulty by right-clicking on
+them. If you click on a channel again, it's re-enabled.
+
+3. File->Save Track Channels to save any channel selections you may have made.
+
+4. File->Export->Raw Data->.dat & KiloSort files. Choose the desired destination folder and
+hit Open. This exports a concatenated .dat file from all your source files in the current
+`.track` file, as well as the required files to run KiloSort.
+
+5. Open the `.ks_run.m` file, check the first two lines to make sure that the path to wherever
+you installed Kilosort and [npy-matlab](https://github.com/kwikteam/npy-matlab) is correct. If
+it isn't correct, you can fix it there, or better yet, fix it permanently for yourself in the
+`templates/kilosort/ks_run.m` template file in the spyke directory.
+
+6. Start MATLAB, cd to the folder where you exported to, and run the `.ks_run.m` file. Kilosort
+automatically does its own filtering and CAR, but it doesn't resample.
+
+7. When KiloSort is done, with the `.track` still open in spyke, go File->Convert KiloSort .npy
+to events.zip
+
+8. File->Open the `.events.zip` file you just created. This will import the results from
+Kilosort into spyke. This will probably take quite a while as it extracts the waveforms from
+the raw data and performs spatial localization on each spike.
