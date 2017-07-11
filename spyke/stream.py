@@ -327,10 +327,10 @@ class DATStream(Stream):
         specified chans"""
         if chans is None:
             chans = self.chans
-        nchans = len(chans)
         kind = self.kind
         try:
-            chanis = core.argmatch(self.chans, chans) # where to find chans in self.chans
+            # where to find requested chans in enabled self.chans:
+            chanis = core.argmatch(self.chans, chans)
         except ValueError:
             raise IndexError("requested chans %r are not a subset of available enabled "
                              "chans %r in %s stream" % (chans, self.chans, kind))
@@ -373,9 +373,10 @@ class DATStream(Stream):
         tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*rawtres, ntxs)
         #print('t0xs, t1xs, ntxs: %f, %f, %d' % (t0xs, t1xs, ntxs))
 
-        # init dataxs; unlike for .srf files, int32 dataxs array isn't necessary for
+        # Init dataxs, sized to hold all enabled channels.
+        # Unlike for .srf files, int32 dataxs array isn't necessary for
         # int16 .dat or .nsx files, since there's no need to zero or rescale
-        dataxs = np.zeros((nchans, ntxs), dtype=np.int16) # any gaps will have zeros
+        dataxs = np.zeros((self.nchans, ntxs), dtype=np.int16) # any gaps will have zeros
 
         '''
         Load up data+excess. The same raw data is used for high and low pass streams,
@@ -391,7 +392,7 @@ class DATStream(Stream):
         # destination slice indices:
         dt0i = max(t0i - t0xsi, 0)
         dt1i = min(t1i + 1 - t0xsi, ntxs)
-        allchanis = core.argmatch(self.f.fileheader.chans, chans)
+        allchanis = core.argmatch(self.f.fileheader.chans, self.chans)
         dataxs[:, dt0i:dt1i] = self.f.data[allchanis, st0i:st1i]
         #print('data load took %.3f sec' % (time.time()-tload))
 
@@ -457,7 +458,7 @@ class DATStream(Stream):
         # do any resampling if necessary:
         if resample:
             #tresample = time.time()
-            dataxs, tsxs = self.resample(dataxs, tsxs, chans)
+            dataxs, tsxs = self.resample(dataxs, tsxs, self.chans)
             #print('resample took %.3f sec' % (time.time()-tresample))
 
         #nresampletxs = len(tsxs)
@@ -468,12 +469,19 @@ class DATStream(Stream):
         # For trimming time range, work on us integer values to prevent floating point
         # round-off error (when tres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
+
+        # Slice out chanis here, only at the very end, because we want to use all
+        # enabled chans up to this point for CAR, even those that we ultimately don't
+        # need to return, because any extra chans that are enabled but aren't requested
+        # will affect the mean/median:
         lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
         #print('slice:', start, stop, self.tres, data.shape)
         if decimate:
-            data, ts = dataxs[chanis, lo:hi:decimatex], tsxs[lo:hi:decimatex]
+            data = dataxs[chanis, lo:hi:decimatex]
+            ts = tsxs[lo:hi:decimatex]
         else:
-            data, ts = dataxs[chanis, lo:hi], tsxs[lo:hi]
+            data = dataxs[chanis, lo:hi]
+            ts = tsxs[lo:hi]
 
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
@@ -761,17 +769,20 @@ class SurfStream(Stream):
 
         ## TODO: add CAR here, after S+H correction (in self.resample) rather than before it,
         ## because CAR assumes simultaneous timepoints across chans. Also need to slice out
-        ## chans only at the very end, as in DATStream
+        ## chans only at the very end, as in DATStream, and size and maintain dataxs with
+        ## enabled self.chans as rows, not requested chans as rows, which might be only a
+        ## subset of self.chans
         if self.car:
             raise NotImplementedError("SurfStream doesn't support CAR yet")
 
-        # now trim down to just the requested time range, work on us integer values to prevent
-        # floating point round-off error (when tres is non-integer us) that can occasionally
+        # Trim down to just the requested time range.
+        # Work on us integer values to prevent floating point
+        # round-off error (when tres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
         lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
+        #print('slice:', start, stop, self.tres, data.shape)
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
-        #print('SRF:', start, stop, self.tres, data.shape)
 
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
@@ -911,12 +922,15 @@ class SimpleStream(Stream):
 
         ## TODO: add CAR here, after S+H correction (in self.resample) rather than before it,
         ## because CAR assumes simultaneous timepoints across chans. Also need to slice out
-        ## chans only at the very end, as in DATStream
+        ## chans only at the very end, as in DATStream, and size and maintain dataxs with
+        ## enabled self.chans as rows, not requested chans as rows, which might be only a
+        ## subset of self.chans
         if self.car:
             raise NotImplementedError("SimpleStream doesn't support CAR yet")
 
-        # now trim down to just the requested time range, work on us integer values to prevent
-        # floating point round-off error (when tres is non-integer us) that can occasionally
+        # Trim down to just the requested time range.
+        # Work on us integer values to prevent floating point
+        # round-off error (when tres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
         lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
         data = dataxs[:, lo:hi]
