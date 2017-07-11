@@ -1478,6 +1478,13 @@ def rstripnonascii(s):
             return s[:i]
     return s
 
+def matlabize(s):
+    """Make string s suitable for use as a MATLAB function/script name"""
+    s = s.replace(' ', '_')
+    s = s.replace('.', '_')
+    s = s.replace('-', '_')
+    return s
+
 def pad(x, align=8):
     """Pad x with null bytes so it's a multiple of align bytes long"""
     if type(x) == str: # or maybe unicode?

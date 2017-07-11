@@ -51,8 +51,8 @@ from collections import OrderedDict as odict
 #sys.path.insert(0, spykepath)
 
 import core
-from core import toiter, tocontig, intround, intceil, printflush, lstrip, g, dist, iterable
-from core import MICRO, ClusterChange, SpykeToolWindow, DJS
+from core import toiter, tocontig, intround, intceil, printflush, lstrip, matlabize
+from core import g, dist, iterable, MICRO, ClusterChange, SpykeToolWindow, DJS
 import stream
 from stream import SimpleStream, MultiStream
 import dat, nsx, surf
@@ -704,8 +704,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SetSHCorrect(shcorrect)
 
         # write kilosort channel map .mat file, indicate which chans are included in the .dat
-        datfnamenodots = datfname.replace('.', '_') # no dots allowed in MATLAB .m file names
-        chanmapfname = datfnamenodots + '_ks_chanmap.mat'
+        datfnameML = matlabize(datfname) # make suitable for use as MATLAB script name
+        chanmapfname = datfnameML + '_ks_chanmap.mat'
         fullchanpmapfname = os.path.join(path, chanmapfname)
         core.write_ks_chanmap_mat(stream, fullchanpmapfname)
 
@@ -720,7 +720,7 @@ class SpykeWindow(QtGui.QMainWindow):
                                          NCHANS=stream.nchans,
                                          NCLUSTS=nclusts,
                                          CHANMAPFNAME=chanmapfname)
-        ksconfigfname = datfnamenodots + '_ks_config.m'
+        ksconfigfname = datfnameML + '_ks_config.m'
         fullksconfigfname = os.path.join(path, ksconfigfname)
         with open(fullksconfigfname, 'w') as ksconfigf:
             ksconfigf.write(ksconfigstr)
@@ -730,7 +730,7 @@ class SpykeWindow(QtGui.QMainWindow):
         with open('./templates/kilosort/ks_run.m') as templateksrunf:
             ksrunstr = templateksrunf.read()
         ksrunstr = ksrunstr.format(KSCONFIGFNAME=ksconfigfname)
-        ksrunfname = datfnamenodots + '_ks_run.m'
+        ksrunfname = datfnameML + '_ks_run.m'
         fullksrunfname = os.path.join(path, ksrunfname)
         with open(fullksrunfname, 'w') as ksrunf:
             ksrunf.write(ksrunstr)
