@@ -513,7 +513,6 @@ class SpykeWindow(QtGui.QMainWindow):
             fullfname = os.path.join(path, fname)
             fulljsonfname = fullfname + '.json'
             print('Exporting %s data to %r' % (export_msg, fullfname))
-            continue
             with open(fullfname, 'wb') as datf:
                 t0s = np.arange(hps.t0, hps.t1, blocksize)
                 for t0 in t0s:
