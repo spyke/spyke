@@ -1483,6 +1483,7 @@ def matlabize(s):
     s = s.replace(' ', '_')
     s = s.replace('.', '_')
     s = s.replace('-', '_')
+    assert len(s) <= 63 # MATLAB function/script name length limitation
     return s
 
 def pad(x, align=8):
