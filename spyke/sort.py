@@ -1123,10 +1123,10 @@ class Sort(object):
         spikes['aligni'][sids[alignis1]] = 0
 
         # update wavedata for each shifted spike
-        self.reloadSpikes(sids)
+        self.reload_spikes(sids)
         return sids # mark all sids as dirty
 
-    def reloadSpikes(self, sids, usemeanchans=False):
+    def reload_spikes(self, sids, usemeanchans=False):
         """Update wavedata of designated spikes from stream. Optionally fix incorrect
         time values from .sort 0.3 files. Optionally choose new set of channels for all
         sids based on the chans closest to the mean of the sids. It's the caller's
@@ -1172,7 +1172,7 @@ class Sort(object):
         ts = spikes[sids]['t'] # noncontig, not a copy
         # ensure they're in temporal order:
         if not (np.diff(ts) >= 0).all():
-            print("reloadspikes(): sids aren't in temporal order, might slow things down "
+            print("reload_spikes(): sids aren't in temporal order, might slow things down "
                   "or cause indexing problems, sorting by time...")
             tsis = ts.argsort()
             sids = sids[tsis]
@@ -1211,13 +1211,15 @@ class Sort(object):
                 # last spike in this group
                 t0 -= 5000 # -5 ms
                 t1 += 5000 # +5 ms
-            # find union of chans of sids in this group, ask stream for only those
+            # Find union of chans of sids in this group, and ask stream for only those
             # so that no unnecessary resampling on unneeded chans takes place.
+            # Note that this doesn't make a difference when CAR is enabled in the stream,
+            # because the full set of enabled channels have to be maintained in
+            # Stream.__call__ until the very end.
             # Don't bother cutting out the correct nchans for each sid. At worst,
             # chan 0 (the "empty" chans array value) will be unnecessarily added to
-            # unionchans:
-            ## TODO: I should probably do this properly and actually cut out the correct nchans
-            ## for each sid:
+            # unionchans, and we'll be retrieving one extra channel when creating tempwave,
+            # which will then later be discarded:
             unionchans = np.unique(spikes['chans'][group])
             if usemeanchans:
                 # now that we have the original unionchans of this group,
@@ -2726,7 +2728,7 @@ class SortWindow(SpykeToolWindow):
         usemeanchans = False
         if QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
             usemeanchans = True
-        self.sort.reloadSpikes(sids, usemeanchans=usemeanchans)
+        self.sort.reload_spikes(sids, usemeanchans=usemeanchans)
         # add sids to the set of dirtysids to be resaved to .wave file:
         spw.update_dirtysids(sids)
         # update neuron templates:

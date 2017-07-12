@@ -783,7 +783,7 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Updating sort from version 0.3 to 0.4')
         s = self.sort
         sids = np.arange(s.nspikes)
-        s.reloadSpikes(sids)
+        s.reload_spikes(sids)
         # add sids to the set of dirtysids to be resaved to .wave file:
         self.dirtysids.update(sids)
         s.__version__ = '0.4' # update
@@ -3046,7 +3046,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # init wavedata:
         sort.wavedata = np.zeros((nspikes, det.maxnchansperspike, det.maxnt), dtype=np.int16)
         # "re"load spike wavedata based on imported events:
-        sort.reloadSpikes(spikes['id'])
+        sort.reload_spikes(spikes['id'])
 
         sort.update_usids() # required for self.on_plotButton_clicked()
 
