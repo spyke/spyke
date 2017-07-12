@@ -2911,6 +2911,7 @@ class SpykeWindow(QtGui.QMainWindow):
         uVperAD = float(uVperAD)
 
         nevents, maxnchans, nt = wavedata.shape # maxnchans is per event
+        print('wavedata.shape:', wavedata.shape)
 
         # handle optional fields:
         if chanpos is None:
@@ -3045,6 +3046,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # init wavedata:
         sort.wavedata = np.zeros((nspikes, det.maxnchansperspike, det.maxnt), dtype=np.int16)
+        print('wavedata.shape:', wavedata.shape)
         # "re"load spike wavedata based on imported events:
         sort.reload_spikes(spikes['id'])
 

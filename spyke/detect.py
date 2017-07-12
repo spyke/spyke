@@ -301,6 +301,7 @@ class Detector(object):
 
         spikes = concatenate_destroy(spikes)
         wavedata = concatenate_destroy(wavedata) # along sid axis, other dims are identical
+        print('wavedata.shape:', wavedata.shape)
         self.nspikes = len(spikes)
         assert len(wavedata) == self.nspikes
         # default -1 indicates no nid is set as of yet, reserve 0 for actual ids
