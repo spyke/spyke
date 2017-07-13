@@ -3952,8 +3952,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # performance, maybe mpl is already doing something like this?
         if self.t != oldt: # update controls first so they don't lag
             self.ui.filePosLineEdit.setText(str(self.t))
-            if self.t % SLIDERTRES == 0: # only update slider if at a SLIDERTRES tick
-                self.ui.slider.setValue(self.t // SLIDERTRES)
+            self.ui.slider.setValue(self.t // SLIDERTRES)
             self.plot()
     
     def step(self, direction):
