@@ -4,21 +4,15 @@
 
 - BUG: when resampling is enabled (60 kHz), at some time offsets (copied and pasted into the timepoint field), the data displayed in a long .track (many .ns6 files) appears shifted by about 1 data point when viewed in the exported .dat. When there's a difference, the displayed data for the .dat file seems to always appear advanced wrt the .track file.
 
+- test export and concatenated export with different sized blocks, like 30 or 60 seconds instead of 10. Make sure there aren't any indexing errors or missing/extra data in the exported files.
+
 - BUG: when inputting a timepoint to jump to in the timepoint field, the slider position isn't updated
 
-- either reduce default include radius, or add a separate maxnchans param somewhere to limit the number of channels per spike, and therefore keep memory usage under control, especially for sorts with increasingly high spike counts
-    - setting it to 100 um still results in 11 included chans for some reason on a 25 um probe, should only result in 9...
-
 - add zeros to start of all exported .dat files and set offset field to 0 in .json
-    - disable export for .srf files
-
-- test running kilosort on .dat with missing channels (e.g. due to disabling dead channels before export)
-    - chanmap.mat will have to reflect the correct chans
+    - do this only for ns6 files? would be undesireable for .srf files because they can have long periods where timer is running before saving to disk actually starts
 
 - add gui option to export in chan order or spatial order, default to chan order
     - also update "chan_order" field appropriately in .json file
-
-- test export and concatenated export with different sized blocks, like 30 or 60 seconds instead of 10. Make sure there aren't any indexing errors or missing/extra data in the exported files.
 
 - make kilosort check if .dat file size is an integer multiple of ntot chans declared in ks_run.m file, or is that ignored? Shouldn't be, because only ephys chans are defined in the chanmap file!
 
@@ -1430,6 +1424,10 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
     - then the user can open the .track file and export raw to .dat for ks
     - this way the user is also forced to use the GUI and briefly inspect the data before exporting to .dat for ks, and also to see if certain channels should be disabled
 - add "Save track channels" menu item to save enabled chan selection to comment in .track file
+- reduce default include radius to 100 um to limit the number of channels per spike, and therefore keep memory usage under control, especially for sorts with increasingly high spike counts
+- test running kilosort on .dat with missing channels (e.g. due to disabling dead channels before export)
+    - chanmap.mat will have to reflect the correct chans - this is now done on kilosort matlab file export
+
 
 
 end of DONE
