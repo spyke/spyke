@@ -1,15 +1,15 @@
 - BUG: round-trip results in loss of one uninterpolated datapoint, but only when exporting preprocessed data? It seems there's no missing datapoint when exporting .ns6 to raw .dat (no filtering, no CAR, no interpolation).
-    - exporting two files to concatenated output gives a missing datapoint at end of first both files, and therefore an extra datapoint of 0s at the end of the concatenated file, so the multistream is correctly calculating the size of the final file, but when getting data from the individual streams, it gets one datapoint less
+    - exporting two files to concatenated output gives a missing datapoint at end of both files, and therefore an extra datapoint of 0s at the end of the concatenated file, so the multistream is correctly calculating the size of the final file, but when getting data from the individual streams, it gets one datapoint less
     - concatenating to .srf doesn't seem to have this problem, probably because tres is in multiples of 1 us
 
 - BUG: when resampling is enabled (60 kHz), at some time offsets (copied and pasted into the timepoint field), the data displayed in a long .track (many .ns6 files) appears shifted by about 1 data point when viewed in the exported .dat. When there's a difference, the displayed data for the .dat file seems to always appear advanced wrt the .track file.
 
 - test export and concatenated export with different sized blocks, like 30 or 60 seconds instead of 10. Make sure there aren't any indexing errors or missing/extra data in the exported files.
 
-- BUG: when inputting a timepoint to jump to in the timepoint field, the slider position isn't updated
-
 - add zeros to start of all exported .dat files and set offset field to 0 in .json
     - do this only for ns6 files? would be undesireable for .srf files because they can have long periods where timer is running before saving to disk actually starts
+
+- BUG: after opening a .track file with disabled chans, and then opening a .sort file that came from that track, the disabled chans are re-enabled, even though the spike waveforms for detected spikes still show disabled chans (as they should)
 
 - add gui option to export in chan order or spatial order, default to chan order
     - also update "chan_order" field appropriately in .json file
@@ -1427,6 +1427,8 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - reduce default include radius to 100 um to limit the number of channels per spike, and therefore keep memory usage under control, especially for sorts with increasingly high spike counts
 - test running kilosort on .dat with missing channels (e.g. due to disabling dead channels before export)
     - chanmap.mat will have to reflect the correct chans - this is now done on kilosort matlab file export
+- BUG: when inputting a timepoint to jump to in the timepoint field, sometimes the slider position isn't updated
+
 
 
 
