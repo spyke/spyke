@@ -198,7 +198,8 @@ class FileHeader(object):
             jsonext = '%s.json' % ext # e.g. '.ns6.json'
             print('No file named %r, checking for a single %s file of any name'
                   % (jsonbasefname, jsonext))
-            jsonbasefnames = [ fname for fname in os.listdir(path) if fname.endswith(jsonext) ]
+            jsonbasefnames = [ fname for fname in os.listdir(path) if fname.endswith(jsonext)
+                               and not fname.startswith('.') ]
             njsonfiles = len(jsonbasefnames)
             if njsonfiles == 1:
                 jsonbasefname = jsonbasefnames[0]
