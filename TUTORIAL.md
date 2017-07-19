@@ -1,10 +1,7 @@
 ### Basic tutorial
 
 1. Run the program from the command line: `python main.py`. Status messages tend to be printed
-back to the command line, so it's a good idea to keep an eye on it, at least initially. In
-Linux, you might want to run python with the `-u` flag (`python -u main.py`) so that all
-output is printed immediately to the command line, even before a new line is sent. I do this
-so often that I've aliased `py` to `python -u` in my `.bash_aliases` file.
+back to the command line, so it's a good idea to keep an eye on it, at least initially.
 
 2. Open a data file (typically a `.dat`, `.ns6` or `.srf` file, such as this [sample
 file](http://swindale.ecc.ubc.ca/spyke?action=AttachFile&do=get&target=ptc15_tr7c_r87_spont_20sec.srf).
@@ -25,11 +22,12 @@ hide them and tidy up the GUI before we go and detect some spikes. Note that eve
 data windows are hidden, the `.srf` file remains open.
 
 4. Press the `Detect` button in the Detect tab. This will run spike detection on the entire
-file, given the current detection settings.
+file, given the current detection settings. As an alternative to spyke's built-in detection,
+you can use the output of Kilosort (see below).
 
-5. When it's done, three new windows will open up: sort, cluster and matplotlib. The sort
-window shows detected waveforms and cluster means, the cluster window shows each spike as a
-point in some 3D cluster space, and the matplotlib window plots various other things as
+5. When detection is done, three new windows will open up: sort, cluster and matplotlib. The
+sort window shows detected waveforms and cluster means, the cluster window shows each spike as
+a point in some 3D cluster space, and the matplotlib window plots various other things as
 appropriate. You can manipulate the view in the cluster window using the mouse, rotating,
 zooming, and panning. Try using the different mouse buttons and scrollwheel, in tandem with
 `Ctrl` and `Shift`. You can select detected unsorted events in the lower list in the sort
