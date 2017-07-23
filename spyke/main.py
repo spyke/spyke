@@ -2,6 +2,11 @@
 
 from __future__ import division
 from __future__ import print_function
+
+import sys
+if sys.version_info.major != 2:
+    raise RuntimeError('spyke currently only runs in Python 2.7.x')
+
 from __init__ import __version__
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
