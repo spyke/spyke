@@ -874,7 +874,7 @@ class PlotPanel(FigureCanvas):
         AD2uV = sort.converter.AD2uV
         try:
             sid = spw.GetSpike()
-        except RuntimeError err:
+        except RuntimeError as err:
             print(err)
             return
         abort = False
