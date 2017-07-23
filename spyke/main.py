@@ -1434,8 +1434,8 @@ class SpykeWindow(QtGui.QMainWindow):
         dims = self.GetClusterPlotDims()
         try:
             X, sids = self.get_param_matrix(dims=dims)
-        except RuntimeError, errmsg:
-            print(errmsg)
+        except RuntimeError as err:
+            print(err)
             return
 
         nids = s.spikes['nid'][sids] # copy
@@ -1820,8 +1820,8 @@ class SpykeWindow(QtGui.QMainWindow):
         dims = self.GetClusterPlotDims()
         try:
             X, sids = self.get_param_matrix(dims=dims)
-        except RuntimeError, errmsg:
-            print(errmsg)
+        except RuntimeError as err:
+            print(err)
             return
         if len(X) == 0:
             return # nothing to plot
@@ -3658,7 +3658,7 @@ class SpykeWindow(QtGui.QMainWindow):
             try: # try and load saved window geometry and state from sort
                 window.restoreGeometry(self.sort.windowGeometries[wintype])
                 window.restoreState(self.sort.windowStates[wintype])
-            except(AttributeError, KeyError):
+            except (AttributeError, KeyError):
                 pass
         self.ShowWindow(wintype) # just show it
         if new: # do stuff that only works after first show

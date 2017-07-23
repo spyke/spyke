@@ -461,7 +461,7 @@ class PlotPanel(FigureCanvas):
         elif ref == 'Caret':
             self._add_caret()
         else:
-            raise ValueError, 'invalid ref: %r' % ref
+            raise ValueError('invalid ref: %r' % ref)
 
     def show_ref(self, ref, enable=True):
         """Helper method for external use"""
@@ -474,7 +474,7 @@ class PlotPanel(FigureCanvas):
         elif ref == 'Caret':
             self._show_caret(enable)
         else:
-            raise ValueError, 'invalid ref: %r' % ref
+            raise ValueError('invalid ref: %r' % ref)
         self.draw_refs()
 
     def draw_refs(self):
@@ -850,8 +850,8 @@ class PlotPanel(FigureCanvas):
         spikes = spw.sort.spikes
         try:
             sid = spw.GetSpike()
-        except RuntimeError, msg:
-            print(msg)
+        except RuntimeError as err:
+            print(err)
             return
         if peaktype == 'primary':
             spw.primarypeakt = t
@@ -874,8 +874,8 @@ class PlotPanel(FigureCanvas):
         AD2uV = sort.converter.AD2uV
         try:
             sid = spw.GetSpike()
-        except RuntimeError, msg:
-            print(msg)
+        except RuntimeError err:
+            print(err)
             return
         abort = False
         try:

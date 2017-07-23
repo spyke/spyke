@@ -65,8 +65,8 @@ def _eintr_retry_call(func, *args):
     while True:
         try:
             return func(*args)
-        except (OSError, IOError), e:
-            if e.errno == errno.EINTR:
+        except (OSError, IOError) as err:
+            if err.errno == errno.EINTR:
                 continue
             raise
 

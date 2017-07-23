@@ -910,7 +910,7 @@ class StimulusHeader(object):
         self.header = f.read(2).rstrip(NULL) # always 'DS'?
         self.version, = unpack('H', f.read(2))
         if self.version not in (100, 110): # Cat < 15, Cat >= 15
-            raise ValueError, 'Unknown stimulus header version %d' % self.version
+            raise ValueError('Unknown stimulus header version %d' % self.version)
         if self.version == 100: # Cat < 15 has filename field length == 16
             # ends with a NULL followed by spaces for some reason,
             # at least in Cat 13 file 03 - ptumap#751a_track5_m-seq.srf

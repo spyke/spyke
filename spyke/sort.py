@@ -946,7 +946,7 @@ class Sort(object):
             del self.neurons[id] # may already be removed due to recursive call
             del self.clusters[id]
             self.norder.remove(id)
-        except KeyError, ValueError:
+        except (KeyError, ValueError):
             pass
 
     def shift(self, sids, nt):
@@ -2622,8 +2622,8 @@ class SortWindow(SpykeToolWindow):
         spw = self.spykewindow
         try:
             cluster = spw.GetCluster()
-        except RuntimeError, msg:
-            print(msg)
+        except RuntimeError as err:
+            print(err)
             return
         gw = spw.windows['Cluster'].glWidget
         dims = spw.GetClusterPlotDims()
@@ -2636,8 +2636,8 @@ class SortWindow(SpykeToolWindow):
         spw = self.spykewindow
         try:
             sid = spw.GetSpike()
-        except RuntimeError, msg:
-            print(msg)
+        except RuntimeError as err:
+            print(err)
             return
         gw = spw.windows['Cluster'].glWidget
         pointis = gw.sids.searchsorted(sid)
@@ -2785,8 +2785,8 @@ class SortWindow(SpykeToolWindow):
         chans to compare on. Also, use only the timepoint range selected in incltComboBox"""
         try:
             source = self.getClusterComparisonSource()
-        except RuntimeError, errmsg:
-            print(errmsg)
+        except RuntimeError as err:
+            print(err)
             return
         destinations = self.sort.clusters.values()
         destinations.remove(source)
