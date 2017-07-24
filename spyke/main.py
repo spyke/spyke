@@ -3051,7 +3051,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # init wavedata:
         sort.wavedata = np.zeros((nspikes, det.maxnchansperspike, det.maxnt), dtype=np.int16)
-        print('wavedata.shape:', wavedata.shape)
+        print('wavedata.shape:', sort.wavedata.shape)
         # "re"load spike wavedata based on imported events:
         sort.reload_spikes(spikes['id'])
 
