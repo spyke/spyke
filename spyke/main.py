@@ -533,7 +533,8 @@ class SpykeWindow(QtGui.QMainWindow):
                 core.write_dat_json(hps, fulljsonfname)
         print('Done exporting %s data' % export_msg)
 
-        if cat:
+        # only return path and fname if we're only exporting to a single file:
+        if len(hpstreams) == 1:
             return path, fname
 
     @QtCore.pyqtSlot()
