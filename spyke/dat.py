@@ -97,6 +97,7 @@ class File(object):
 
     def get_data(self):
         try:
+            ## TODO: maybe do the channel remapping here, if adapter is not None
             return self.datapacket._data[:self.fileheader.nchans] # return only ephys data
         except AttributeError:
             raise RuntimeError('waveform data not available, file is closed/mmap deleted?')
