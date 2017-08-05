@@ -33,7 +33,6 @@ class FakeStream(object):
 
 class Stream(object):
     """Base class for all (single) streams"""
-
     def is_multi(self):
         """Convenience method to specify if self is a MultiStream"""
         return False

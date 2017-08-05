@@ -120,7 +120,6 @@ class File(dat.File):
 class FileHeader(object):
     """.nsx file header. Takes an open file, parses in from current file
     pointer position, stores header fields as attribs"""
-
     def __len__(self):
         return self.nbytes
 
@@ -233,7 +232,6 @@ class FileHeader(object):
 
 class ChanHeader(object):
     """.nsx header information for a single channel"""
-
     def parse(self, f):
         self.type = f.read(2)
         assert self.type == 'CC' # for "continuous channel"

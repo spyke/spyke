@@ -66,7 +66,7 @@ class Probe(object):
     chan0 = property(get_chan0)
 
     def get_chans(self):
-        """Get all channel IDs, sorted"""
+        """Return all channel IDs, sorted"""
         return sorted(self.SiteLoc.keys())
 
     chans = property(get_chans)

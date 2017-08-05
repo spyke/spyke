@@ -119,7 +119,6 @@ class File(object):
 
 class FileHeader(object):
     """.dat 'file header', derived from metadata file with same basename"""
-
     def parse(self, datfname):
         self.parse_json(datfname)
 
@@ -180,7 +179,6 @@ class FileHeader(object):
 
 class DataPacket(object):
     """.dat data packet"""
-    
     def __init__(self, f, nchans, nt, t0i):
         self.offset = f.tell()
         self.nchans, self.nt, self.t0i = nchans, nt, t0i
