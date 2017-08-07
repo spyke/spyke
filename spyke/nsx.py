@@ -213,13 +213,21 @@ class FileHeader(object):
             with open(jsonfname, 'r') as jf:
                 j = json.load(jf) # should return a dict of key:val pairs
             assert type(j) == dict
-            # exactly one required, allowed field:
-            if not list(j.keys()) == ['chan_layout_name']:
-                raise ValueError("Only 'chan_layout_name' field currently allowed in "
-                                 ".nsx.json metadata files")
-            self.probename = j.pop('chan_layout_name')
-            print('Setting probe name %s from metadata file %r'
-                   % (self.probename, jsonbasefname))
+            # check field validity:
+            validkeys = ['chan_layout_name', # old name
+                         'probe_name', # new name
+                        ]
+            keys = list(j)
+            for key in keys:
+                if key not in validkeys:
+                    raise ValueError("Found invalid field %r in %r\n"
+                                     "Fields currently allowed in .nsx.json files: %r"
+                                     % (key, jsonfname, validkeys))
+            try:
+                self.probename = j['probe_name'] # new name
+            except KeyError:
+                self.probename = j['chan_layout_name'] # old name
+            print('Setting probe name to: %r' % self.probename)
         else: # no .json file, maybe the .nsx comment specifies the probe type?
             self.probename = self.comment.replace(' ', '_')
             if self.probename != '':
@@ -227,7 +235,8 @@ class FileHeader(object):
             else:
                 self.probename = probes.DEFNSXPROBETYPE # A1x32
                 print('WARNING: assuming probe %s was used in this recording' % self.probename)
-        self.probe = probes.getprobe(self.probename) # raises an error if probename is invalid
+        # raises an error if probename is invalid:
+        self.probe = probes.getprobe(self.probename)
 
 
 class ChanHeader(object):

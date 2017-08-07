@@ -1932,7 +1932,7 @@ def write_dat_json(stream, fulljsonfname,
         od['shcorrect'] = stream.shcorrect
     od['dtype'] = 'int16' # hard-coded, only dtype supported for now
     od['uV_per_AD'] = uV_per_AD
-    od['chan_layout_name'] = stream.probe.name
+    od['probe_name'] = stream.probe.name
     od['chans'] = chans
     od['chan_order'] = chan_order # for human reference, 'depth' is other obvious value
     od['aux_chans'] = auxchans

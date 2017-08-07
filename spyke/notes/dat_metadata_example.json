@@ -3,7 +3,7 @@
 "sample_rate": 30000,
 "dtype": "int16",
 "uV_per_AD": 0.25,
-"chan_layout_name": "A1x32_edge",
+"probe_name": "A1x32_edge",
 "chans": [
 1,
 2,

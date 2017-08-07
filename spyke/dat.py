@@ -139,13 +139,16 @@ class FileHeader(object):
         if self.dtype != 'int16':
             raise ValueError('only int16 sample data type is supported, got %r' % dtype)
         self.AD2uVx = j['uV_per_AD']
-        self.probename = j['chan_layout_name']
+        try:
+            self.probename = j['probe_name'] # new name
+        except KeyError:
+            self.probename = j['chan_layout_name'] # old name
         self.probe = probes.getprobe(self.probename) # make sure probename is recognized
         chan0 = self.probe.chan0 # base of channel indices: either 0-based or 1-based
 
         # optional fields:
         # ephys channel indices, ordered by row in the .dat file, can be 0- or 1-based,
-        # depending on how they're defined for the above chan_layout_name:
+        # depending on how they're defined for the above self.probename:
         self.chans = j.get('chans')
         # auxiliary channel indices, e.g. optogenetic/LED channels:
         self.auxchans = j.get('aux_chans')
