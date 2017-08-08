@@ -121,9 +121,12 @@ class Probe(object):
     """self.SiteLoc maps probe chan id to spatial position (x, y) in um.
     Note that y coordinates designate depth from the top site, i.e. increasing y coords
     correspond to positions further down the probe"""
+    def __getitem__(self, chan):
+        return self.SiteLoc[chan]
+
     def siteloc_arr(self):
         """Return site locations in an array, sorted by channel ID"""
-        return np.asarray([ self.SiteLoc[chan] for chan in self.chans ])
+        return np.asarray([ self[chan] for chan in self.chans ])
 
     def unique_coords(self, axis=1):
         """Return sorted unique coords along axis"""
@@ -152,19 +155,43 @@ class Probe(object):
         """Check probe attributes"""
         assert len(self.SiteLoc) == self.nchans <= MAXNCHANS
 
-    def get_chan0(self):
+    @property
+    def chan0(self):
         """Are channel IDs 0-based or 1-based for this probe?"""
-        chan0 = min(self.SiteLoc.keys())
+        chan0 = min(self.SiteLoc)
         assert chan0 in [0, 1]
         return chan0
 
-    chan0 = property(get_chan0)
-
-    def get_chans(self):
+    @property
+    def chans(self):
         """Return all channel IDs, sorted"""
-        return sorted(self.SiteLoc.keys())
+        return np.asarray(sorted(self.SiteLoc.keys()))
 
-    chans = property(get_chans)
+    def chansort(self, axis=0, reverse=False):
+        """Return channels in spatial order.
+        axis=0: sort vertically, top to bottom, then left to right
+        axis=1: sort horizontally, left to right, then top to bottom"""
+        assert axis in [0, 1]
+        chans = self.chans # sorted
+        x, y = zip(*[ self[chan] for chan in chans ]) # x and y coords in chan order
+        if axis == 0: # sort vertically
+            key1 = y # primary key
+            key2 = x # secondary key
+        else: # sort horizontally
+            key1 = x # primary key
+            key2 = y # secondary key
+        chanis = np.lexsort((key2, key1)) # argsorts first by key2, then by key1
+        if reverse:
+            chanis = chanis[::-1]
+        return chans[chanis]
+
+    @property
+    def vchans(self):
+        return self.chansort(axis=0)
+
+    @property
+    def hchans(self):
+        return self.chansort(axis=1)
 
 
 class uMap54_1a(Probe):
