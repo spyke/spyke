@@ -676,6 +676,7 @@ class SpykeWindow(QtGui.QMainWindow):
         filtering, CAR, and resampling, then calling self.export_hpstream(), then restoring
         filtering, CAR, and resampling settings. Also export channel map file in .mat format
         for kilosort"""
+        print('Exporting raw ephys data to .dat file')
 
         # save current hpstream filtering CAR and sampling settings:
         stream = self.hpstream
@@ -700,7 +701,9 @@ class SpykeWindow(QtGui.QMainWindow):
             cat = True # concatenate
         else: # it's a single Stream
             cat = False # nothing to concatenate
-        path, datfname = self.export_hpstream(cat=cat, export_msg='raw', export_ext='.dat')
+        result = self.export_hpstream(cat=cat, export_msg='raw', export_ext='.dat')
+        if result:
+            path, datfname = result
 
         # restore hpstream settings:
         print('Restoring filtering, CAR, and resampling settings')
@@ -708,6 +711,10 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SetCAR(car)
         self.SetSampfreq(sampfreq)
         self.SetSHCorrect(shcorrect)
+
+        if not result:
+            print('Raw data export cancelled')
+            return
 
         # write kilosort channel map .mat file, indicate which chans are included in the .dat
         datfnameML = matlabize(datfname) # make suitable for use as MATLAB script name

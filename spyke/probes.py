@@ -20,28 +20,28 @@ class Adapter(object):
     """Anything that changes the channel mapping from one stage of recording to another,
     such as a plug adapter (say MOLEX to Omnetics)"""
     def __call__(self, probechan):
-        ampchan = self.probe2amp[probechan]
-        return ampchan
+        ADchan = self.probe2AD[probechan]
+        return ADchan
 
     def check(self):
         """Check adapter attributes"""
-        assert len(self.probe2amp) == self.nchans <= MAXNCHANS
+        assert len(self.probe2AD) == self.nchans <= MAXNCHANS
 
     @property
     def probechans(self):
         """Return all probe channel IDs, sorted"""
-        return np.asarray(sorted(self.probe2amp))
+        return np.asarray(sorted(self.probe2AD))
 
     @property
-    def ampchans(self):
-        """Return all amplifier channels, sorted by probe channel ID"""
+    def ADchans(self):
+        """Return all AD (amplifier) channels, sorted by probe channel ID"""
         return np.asarray([ self(probechan) for probechan in self.probechans ])
 
     @property
-    def ampchansortis(self):
-        """Return array that indexes into amplifier channels to return them sorted by
+    def ADchansortis(self):
+        """Return array that indexes into AD (amplifier) channels to return them sorted by
         probe channels"""
-        return np.argsort(self.ampchans)
+        return np.argsort(self.ADchans)
 
 
 class Adpt_A64_OM32x2_sm_CerePlex_Mini(Adapter):
@@ -52,7 +52,7 @@ class Adpt_A64_OM32x2_sm_CerePlex_Mini(Adapter):
     def __init__(self):
         self.name = 'Adpt_A64_OM32x2_sm_CerePlex_Mini'
         self.nchans = 64
-        p2a = {} # probe channel to amplifier channel mapping
+        p2a = {} # probe channel to AD (amplifier) channel mapping
         p2a[1] =  33
         p2a[2] =  37
         p2a[3] =  38
@@ -117,7 +117,7 @@ class Adpt_A64_OM32x2_sm_CerePlex_Mini(Adapter):
         p2a[62] = 60
         p2a[63] = 59
         p2a[64] = 63
-        self.probe2amp = p2a
+        self.probe2AD = p2a
         self.check()
 
 

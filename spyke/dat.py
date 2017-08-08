@@ -81,9 +81,10 @@ class File(object):
         """Load the waveform data. Treat the whole .dat file the same way nsx.File treats a
         single nsx "packet". Need to step over all chans, including aux chans, so pass
         nchanstotal instead of nchans"""
+        fh = self.fileheader
         assert self.filesize % 2 == 0 # 2 bytes per sample, make sure it divides evenly
         nsamples = int(self.filesize / 2) # total number of samples in file
-        nchanstotal, t0i = self.fileheader.nchanstotal, self.fileheader.t0i
+        nchanstotal, t0i = fh.nchanstotal, fh.t0i
         if nsamples % nchanstotal != 0:
             raise ValueError('%d total samples in self.fname is not an integer multiple of '
                              '%d total channels specified in .json file'
@@ -97,10 +98,10 @@ class File(object):
 
     def get_data(self):
         try:
-            ## TODO: maybe do the channel remapping here, if adapter is not None
-            return self.datapacket._data[:self.fileheader.nchans] # return only ephys data
+            _data = self.datapacket._data
         except AttributeError:
             raise RuntimeError('waveform data not available, file is closed/mmap deleted?')
+        return _data[:self.fileheader.nchans] # only ephys data
 
     data = property(get_data)
 
