@@ -23,36 +23,45 @@ class Adapter(object):
         ampchan = self.probe2amp[probechan]
         return ampchan
 
-    def get_probechans(self):
+    def check(self):
+        """Check adapter attributes"""
+        assert len(self.probe2amp) == self.nchans <= MAXNCHANS
+
+    @property
+    def probechans(self):
         """Return all probe channel IDs, sorted"""
-        return sorted(self.probe2amp)
+        return np.asarray(sorted(self.probe2amp))
 
-    probechans = property(get_probechans)
-
-    def get_ampchans(self):
+    @property
+    def ampchans(self):
         """Return all amplifier channels, sorted by probe channel ID"""
         return np.asarray([ self(probechan) for probechan in self.probechans ])
 
-    ampchans = property(get_ampchans)
+    @property
+    def ampchansortis(self):
+        """Return array that indexes into amplifier channels to return them sorted by
+        probe channels"""
+        return np.argsort(self.ampchans)
 
 
 class Adpt_A64_OM32x2_sm_CerePlex_Mini(Adapter):
-    """NeuroNexus Adpt-A64-OM32x2-sm MOLEX to OM32x2-sm adapter, to Blackrock Cereplex Mini
+    """NeuroNexus Adpt-A64-OM32x2-sm (MOLEX to OM32x2-sm) adapter, to Blackrock Cereplex Mini
     64 channel (banks A and B) digital headstage, to Blackrock NSP. This was
-    mapped by hand by Gregory Born by injecting signal into each channel on the MOLEX
-    connectors, one channel at a time, and checking which channel showed signal on the
-    Blackrock NSP"""
+    mapped by hand by Gregory Born by injecting signal into one channel on the MOLEX
+    connectors at a time, and checking which channel showed signal on the Blackrock NSP"""
     def __init__(self):
+        self.name = 'Adpt_A64_OM32x2_sm_CerePlex_Mini'
+        self.nchans = 64
         p2a = {} # probe channel to amplifier channel mapping
-        p2a[1] = 33
-        p2a[2] = 37
-        p2a[3] = 38
-        p2a[4] = 41
-        p2a[5] = 42
-        p2a[6] = 43
-        p2a[7] = 35
-        p2a[8] = 46
-        p2a[9] = 39
+        p2a[1] =  33
+        p2a[2] =  37
+        p2a[3] =  38
+        p2a[4] =  41
+        p2a[5] =  42
+        p2a[6] =  43
+        p2a[7] =  35
+        p2a[8] =  46
+        p2a[9] =  39
         p2a[10] = 48
         p2a[11] = 44
         p2a[12] = 2
@@ -109,6 +118,18 @@ class Adpt_A64_OM32x2_sm_CerePlex_Mini(Adapter):
         p2a[63] = 59
         p2a[64] = 63
         self.probe2amp = p2a
+        self.check()
+
+
+ADAPTERTYPES = [Adpt_A64_OM32x2_sm_CerePlex_Mini]
+
+def getadapter(name):
+    """Get instantiated adapter type by name"""
+    for adaptertype in ADAPTERTYPES:
+        adapter = adaptertype()
+        if adapter.name == name:
+            return adapter
+    raise ValueError("unknown adapter name %r" % name)
 
 
 class Probe(object):
