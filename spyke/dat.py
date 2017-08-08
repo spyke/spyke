@@ -186,18 +186,22 @@ class FileHeader(object):
         """Set probe and optional adapter"""
         print('Setting probe type: %r' % self.probename)
         self.probe = probes.getprobe(self.probename) # check for valid probe name
+        if not self.nchans == self.probe.nchans:
+            raise ValueError("Wrong probe specified? Data has %d chans, "
+                             "probe %r has %d chans"
+                             % (self.nchans, self.probename, self.probe.nchans))
         self.adapter = None
         if self.adaptername:
             print('Setting adapter type: %r' % self.adaptername)
             self.adapter = probes.getadapter(self.adaptername) # checks for valid name
             if not self.nchans == self.adapter.nchans:
                 raise ValueError("Wrong adapter specified? Data has %d chans, "
-                                 "adapter %r requires %d chans"
+                                 "adapter %r has %d chans"
                                  % (self.nchans, self.adaptername, self.adapter.nchans))
         if self.adapter:
             # if an adapter is present, self.chans actually represent ADchans,
             # which are not necessarily equal to probe chans. Since the convention throughout
-            # is that self.chans represents probe chans, rename the ADchans in self.chans
+            # spyke is that self.chans represents probe chans, rename the ADchans in self.chans
             # to be the equivalent probe chans:
             self.chans = self.adapter.probechans[self.adapter.ADchansortis]
 
