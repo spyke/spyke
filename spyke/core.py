@@ -1880,8 +1880,8 @@ def unpickler_find_global_0_7_to_0_8(oldmod, oldcls):
     exec('import %s' % newmod)
     return eval('%s.%s' % (newmod, newcls))
 
-def write_dat_json(stream, fulljsonfname,
-                   sampfreq=None, chans=None, auxchans=None, chan_order=None, envelope=None):
+def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=None,
+                   chan_order=None, envelope=None, adaptername=None):
     """Write .json metadata file as a companion to stream's file. For now, stream should be
     either a DATStream, NSXStream, or SurfStream"""
     ext = stream.ext
@@ -1933,8 +1933,9 @@ def write_dat_json(stream, fulljsonfname,
     od['dtype'] = 'int16' # hard-coded, only dtype supported for now
     od['uV_per_AD'] = uV_per_AD
     od['probe_name'] = stream.probe.name
+    od['adapter_name'] = adaptername
     od['chans'] = chans
-    od['chan_order'] = chan_order # for human reference, 'depth' is other obvious value
+    od['chan_order'] = chan_order # for human reference only, 'depth' & None are obvious values
     od['aux_chans'] = auxchans
     od['nsamples_offset'] = nsamples_offset
     od['datetime'] = datetime

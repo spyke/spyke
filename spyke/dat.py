@@ -144,10 +144,11 @@ class FileHeader(object):
             self.probename = j['probe_name'] # new name
         except KeyError:
             self.probename = j['chan_layout_name'] # old name
-        self.probe = probes.getprobe(self.probename) # make sure probename is recognized
-        chan0 = self.probe.chan0 # base of channel indices: either 0-based or 1-based
 
         # optional fields:
+        self.adaptername = j['adapter_name']
+        self.set_probe_and_adapter() # initialize probe and adapter
+        chan0 = self.probe.chan0 # base of channel indices: either 0-based or 1-based
         # ephys channel indices, ordered by row in the .dat file, can be 0- or 1-based,
         # depending on how they're defined for the above self.probename:
         self.chans = j.get('chans')
@@ -180,6 +181,25 @@ class FileHeader(object):
         self.author = j.get('author') # software that generated the .dat file
         self.version = j.get('version') # version of software that generated the .dat file
         self.notes = j.get('notes') # notes
+
+    def set_probe_and_adapter(self):
+        """Set probe and optional adapter"""
+        print('Setting probe type: %r' % self.probename)
+        self.probe = probes.getprobe(self.probename) # check for valid probe name
+        self.adapter = None
+        if self.adaptername:
+            print('Setting adapter type: %r' % self.adaptername)
+            self.adapter = probes.getadapter(self.adaptername) # checks for valid name
+            if not self.nchans == self.adapter.nchans:
+                raise ValueError("Wrong adapter specified? Data has %d chans, "
+                                 "adapter %r requires %d chans"
+                                 % (self.nchans, self.adaptername, self.adapter.nchans))
+        if self.adapter:
+            # if an adapter is present, self.chans actually represent ADchans,
+            # which are not necessarily equal to probe chans. Since the convention throughout
+            # is that self.chans represents probe chans, rename the ADchans in self.chans
+            # to be the equivalent probe chans:
+            self.chans = self.adapter.probechans[self.adapter.ADchansortis]
 
 
 class DataPacket(object):

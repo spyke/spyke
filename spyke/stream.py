@@ -275,6 +275,7 @@ class DATStream(Stream):
         self.converter = core.DatConverter(f.fileheader.AD2uVx)
 
         self.probe = f.fileheader.probe
+        self.adapter = f.fileheader.adapter
 
         self.rawsampfreq = f.fileheader.sampfreq # Hz
         self.rawtres = 1 / self.rawsampfreq * 1e6 # float us
@@ -291,7 +292,9 @@ class DATStream(Stream):
             # for simplicity, don't allow s+h correction of lowpass data, no reason to anyway:
             assert self.shcorrect == False
 
-        self.chans = f.fileheader.chans
+        # always keep chans sorted, even if they aren't in the underlying data in the file
+        # (such as when using an adapter). Actual data order is handled by self.__call__
+        self.chans = np.sort(f.fileheader.chans)
 
         self.contiguous = f.contiguous
 
@@ -502,6 +505,7 @@ class NSXStream(DATStream):
         self.converter = core.NSXConverter(f.fileheader.AD2uVx)
 
         self.probe = f.fileheader.probe
+        self.adapter = f.fileheader.adapter
 
         self.rawsampfreq = f.fileheader.sampfreq # Hz
         self.rawtres = 1 / self.rawsampfreq * 1e6 # float us
@@ -523,7 +527,9 @@ class NSXStream(DATStream):
         # <support@blackrock.com>
         assert self.shcorrect == False
 
-        self.chans = f.fileheader.chans
+        # always keep chans sorted, even if they aren't in the underlying data in the file
+        # (such as when using an adapter). Actual data order is handled by self.__call__
+        self.chans = np.sort(f.fileheader.chans)
 
         self.contiguous = f.contiguous
 

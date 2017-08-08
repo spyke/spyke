@@ -51,9 +51,6 @@ class File(dat.File):
             self.parse()
         self.load()
 
-    def parse(self):
-        self._parseFileHeader()
-
     def _parseFileHeader(self):
         """Parse the file header"""
         self.fileheader = FileHeader()
@@ -164,6 +161,8 @@ class FileHeader(dat.FileHeader):
         if self.nauxchans > 0: # some chans were aux chans
             print('Excluded %d auxiliary channels' % (self.nauxchans))
         assert len(self) == f.tell() # header should be of expected length
+
+        # if there's no adapter, AD ephys chans == probe chans:
         self.chans = np.asarray(sorted(self.chanheaders)) # sorted array of keys
         self.auxchans = np.asarray(sorted(self.auxchanheaders)) # sorted array of keys
         if len(self.auxchans) > 0:
@@ -183,7 +182,7 @@ class FileHeader(dat.FileHeader):
         self.AD2uVx = (c0.maxaval-c0.minaval) / float(c0.maxdval-c0.mindval)
 
     def parse_json(self, f):
-        """Parse potential .nsx.json file for probe name"""
+        """Parse potential .nsx.json file for probe name and optional adapter name"""
         fname = os.path.realpath(f.name) # make sure we have the full fname with path
         path = os.path.dirname(fname)
         ext = os.path.splitext(fname)[1] # e.g., '.ns6'
@@ -208,7 +207,7 @@ class FileHeader(dat.FileHeader):
                 jsonfname = None
                 print('Found %d %s files, ignoring them' % (njsonfiles, jsonext))
 
-        # now get the probe name and set self.probe:
+        # get probe name and optional adapter name
         if jsonfname:
             with open(jsonfname, 'r') as jf:
                 j = json.load(jf) # should return a dict of key:val pairs
@@ -216,7 +215,7 @@ class FileHeader(dat.FileHeader):
             # check field validity:
             validkeys = ['chan_layout_name', # old name
                          'probe_name', # new name
-                        ]
+                         'adapter_name']
             keys = list(j)
             for key in keys:
                 if key not in validkeys:
@@ -227,16 +226,18 @@ class FileHeader(dat.FileHeader):
                 self.probename = j['probe_name'] # new name
             except KeyError:
                 self.probename = j['chan_layout_name'] # old name
-            print('Setting probe name to: %r' % self.probename)
+            self.adaptername = j.get('adapter_name')
         else: # no .json file, maybe the .nsx comment specifies the probe type?
             self.probename = self.comment.replace(' ', '_')
             if self.probename != '':
-                print('Using %s in .nsx comment as probe name' % self.probename)
+                print('Using %r in .nsx comment as probe name' % self.probename)
             else:
                 self.probename = probes.DEFNSXPROBETYPE # A1x32
                 print('WARNING: assuming probe %s was used in this recording' % self.probename)
-        # raises an error if probename is invalid:
-        self.probe = probes.getprobe(self.probename)
+            self.adaptername = None
+
+        # initialize probe and adapter:
+        self.set_probe_and_adapter()
 
 
 class ChanHeader(object):
@@ -244,7 +245,7 @@ class ChanHeader(object):
     def parse(self, f):
         self.type = f.read(2)
         assert self.type == 'CC' # for "continuous channel"
-        self.id, = unpack('H', f.read(2)) # aka "electrode ID"
+        self.id, = unpack('H', f.read(2)) # AD channel, usually == probe channel if no adapter
         self.label = f.read(16).rstrip(NULL)
         self.connector, self.pin = unpack('BB', f.read(2)) # physical connector and pin
         # max and min digital and analog values:

@@ -4,6 +4,7 @@
 "dtype": "int16",
 "uV_per_AD": 0.25,
 "probe_name": "A1x32_edge",
+"adapter_name": null,
 "chans": [
 1,
 2,
