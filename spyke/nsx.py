@@ -117,7 +117,7 @@ class File(dat.File):
         print('chan layout: %s' % self.hpstream.probe.name)
     '''
 
-class FileHeader(object):
+class FileHeader(dat.FileHeader):
     """.nsx file header. Takes an open file, parses in from current file
     pointer position, stores header fields as attribs"""
     def __len__(self):
