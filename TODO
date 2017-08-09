@@ -1428,6 +1428,7 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - test running kilosort on .dat with missing channels (e.g. due to disabling dead channels before export)
     - chanmap.mat will have to reflect the correct chans - this is now done on kilosort matlab file export
 - BUG: when inputting a timepoint to jump to in the timepoint field, sometimes the slider position isn't updated
+- BUG: for recordings with an adapter, lowpass chans have the wrong colour, and change colour when chans are enabled/disabled
 
 
 

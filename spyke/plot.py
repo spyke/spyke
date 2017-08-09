@@ -1179,15 +1179,12 @@ class LFPPanel(ChartPanel):
 
     def set_chans(self, chans):
         """Reset chans for this LFPPanel, triggering colour update. Take intersection of
-        stream file's channels and chans, conserving order in stream file's channels"""
+        stream file's channels and chans, conserving order in stream file's channels.
+        This overloads ChartPanel.set_chans only to handle the special case of .srf LFP"""
         stream = self.stream
-        if hasattr(stream, 'layout'): # single or MultiStream .srf
-            streamfilechans = stream.layout.chans
-        elif hasattr(stream, 'f'): # single .dat or .nsx file
-            streamfilechans = stream.f.fileheader.chans
-        else: # .dat or .nsx MultiStream
-            streamfilechans = stream.streams[0].f.fileheader.chans
-        chans = [ chan for chan in streamfilechans if chan in chans ]
+        if stream.ext == '.srf': # single or MultiStream .srf
+            streamfilechans = stream.layout.chans # SurfStream should have a layout attrib
+            chans = [ chan for chan in streamfilechans if chan in chans ]
         ChartPanel.set_chans(self, chans)
     '''
     def _zoomx(self, x):
