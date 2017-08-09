@@ -91,8 +91,10 @@ UVPERUM = {'.dat': 5, '.ns6': 5, '.srf': 2, '.tsf': 20}
 # USPERUM affects horizontal channel spacing. Decreasing USPERUM increases horizontal overlap
 # between spike chans. For .srf data, 17 gives roughly no horizontal overlap for
 # self.tw[1] - self.tw[0] == 1000 us:
-# untested for .dat and .ns6, need multicolumn data:
-USPERUM = {'.dat': 17, '.ns6': 17, '.srf': 17, '.tsf': 125}
+# However, this also depends on the horizontal spacing of the probe sites, so really
+# this should be set according to probe type, not file type, or it should be scaled in
+# terms of fraction of the horizontal span of the probe site layout:
+USPERUM = {'.dat': 50, '.ns6': 50, '.srf': 17, '.tsf': 125}
 
 DYNAMICNOISEX = {'.dat': 4.5, '.ns6': 4.5, '.srf': 6, '.tsf': 3} # noise multiplier
 DT = {'.dat': 600, '.ns6': 600, '.srf': 400, '.tsf': 1500} # max time between spike peaks (us)
