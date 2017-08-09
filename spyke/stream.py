@@ -1016,9 +1016,13 @@ class MultiStream(object):
             for fname in fnames:
                 print(fname)
         probe = streams[0].probe
+        adapter = streams[0].adapter
         if not np.all([type(probe) == type(stream.probe) for stream in streams]):
             raise RuntimeError("some files have different probe types")
+        if not np.all([type(adapter) == type(stream.adapter) for stream in streams]):
+            raise RuntimeError("some files have different adapter types")
         self.probe = probe # they're identical
+        self.adapter = adapter # they're identical
 
         # set filtmeth, car, sampfreq, and shcorrect for all streams:
         streamtype = type(streams[0])
