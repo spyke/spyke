@@ -656,16 +656,7 @@ class PlotPanel(FigureCanvas):
         xy_um = np.asarray([ (self.us2um(self.pos[chan][0]), self.uv2um(self.pos[chan][1]))
                                   for chan in self.chans ]).T # x is row0, y is row1
         return xy_um
-    '''
-    def get_spatial_chan_array(self):
-        """build up 2d array of chanis, with cols and rows sorted according to probe layout"""
-        x, y = self.xy_um # in self.chans order
-        # should correspond to unique columns in spike frame, or just single column in chart or lfp frame
-        a = []
-        uniquexs = set(x)
-        for uniquex in uniquexs:
-            x == uniquexs
-    '''
+
     def get_closestchans(self, evt, n=1):
         """Return n channels in column closest to mouse event coords,
         sorted by vertical distance from mouse event"""
@@ -683,9 +674,11 @@ class PlotPanel(FigureCanvas):
         dx = np.abs(xdata - self.colxs) # array of x distances
         coli = dx.argmin() # index of column nearest to mouse click
         colx = self.colxs[coli] # x coord of nearest column
-        i, = (x == colx).nonzero() # indices into self.chans of chans that are in the nearest col
+        # indices into self.chans of chans that are in the nearest col:
+        i, = (x == colx).nonzero()
         colchans = np.asarray(self.chans)[i] # channels in nearest col
-        dy = np.abs(y[i] - ydata) # vertical distances between mouse click and all chans in this col
+        # vertical distances between mouse click and all chans in this col:
+        dy = np.abs(y[i] - ydata)
         i = dy.argsort()[:n] # n indices sorted from smallest to largest y distance
         chans = colchans[i] # index into channels in the nearest column
         if len(chans) == 1:
@@ -947,13 +940,17 @@ class PlotPanel(FigureCanvas):
         """Pop up a tooltip when mouse is within PICKTHRESH of a line"""
         tooltip = self.GetToolTip()
         if evt.mouseevent.inaxes:
-            line = evt.artist # assume it's one of our SpykeLines, since those are the only ones with their .picker attrib enabled
+            # assume it's one of our SpykeLines, since those are the only ones with their
+            # .picker attrib enabled:
+            line = evt.artist
             chan = line.chan
             xpos, ypos = self.pos[chan]
-            t = evt.mouseevent.xdata - xpos + self.qrplt.tref # undo position correction and convert from relative to absolute time
+            # undo position correction and convert from relative to absolute time:
+            t = evt.mouseevent.xdata - xpos + self.qrplt.tref
             v = (evt.mouseevent.ydata - ypos) / self.gain
             if t >= self.stream.t0 and t <= self.stream.t1: # in bounds
-                t = int(round(t / self.stream.tres)) * self.stream.tres # round to nearest (possibly interpolated) sample
+                # round to nearest (possibly interpolated) sample:
+                t = int(round(t / self.stream.tres)) * self.stream.tres
                 tip = 'ch%d\n' % chan + \
                       't=%d %s\n' % (t, MICRO+'s') + \
                       'V=%.1f %s\n' % (v, MICRO+'V') + \
