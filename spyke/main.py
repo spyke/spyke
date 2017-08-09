@@ -787,6 +787,8 @@ class SpykeWindow(QtGui.QMainWindow):
             v = self.update_0_9_to_1_0()
         if v == 1.0:
             v = self.update_1_0_to_1_1()
+        if v == 1.1:
+            v = self.update_1_1_to_1_2()
         print('Now save me!')
             
     def update_0_3_to_0_4(self):
@@ -979,6 +981,22 @@ class SpykeWindow(QtGui.QMainWindow):
             s.car = None
         s.__version__ = '1.1' # update
         print('Done updating sort from version 1.0 to 1.1')
+        return float(s.__version__)
+
+    def update_1_1_to_1_2(self):
+        """Update sort 1.1 to 1.2:
+            - add stream.adapter and fileheader.adapter, fileheader.adaptername, init to None
+        """
+        print('Updating sort from version 1.1 to 1.2')
+        s = self.sort
+        try:
+            s.stream.adapter
+        except AttributeError:
+            s.stream.adapter = None
+            s.stream.f.fileheader.adapter = None
+            s.stream.f.fileheader.adaptername = None
+        s.__version__ = '1.2' # update
+        print('Done updating sort from version 1.1 to 1.2')
         return float(s.__version__)
 
     @QtCore.pyqtSlot()
