@@ -366,8 +366,7 @@ class PlotPanel(FigureCanvas):
             probe = self.stream.probe
         self.probe = probe
         self.SiteLoc = probe.SiteLoc # probe site locations with origin at center top
-        self.chans = probe.SiteLoc.keys()
-        self.chans.sort() # a sorted list of chans, keeps from having to do this over and over
+        self.chans = probe.chans # sorted array of chans
         self.nchans = probe.nchans
         self.chans_selected = [] # for clustering, or potentially other uses as well
 
@@ -625,29 +624,6 @@ class PlotPanel(FigureCanvas):
         """Reset chans for this plot panel, triggering colour update"""
         self.qrplt.chans = chans
         self.qrplt.update_colours()
-
-    def get_spatialchans(self, order='vertical'):
-        """Return channels in spatial order.
-        order='vertical': sort from bottom to top, left to right
-        order='horziontal': sort from left to right, bottom to top
-        TODO: fix code duplication"""
-        if order == 'vertical':
-            # first, sort x coords, then y: (secondary, then primary)
-            xychans = [ (x, y, chan) for chan, (x, y) in self.siteloc.iteritems() ] # list of (x, y, chan) 3-tuples
-            xychans.sort() # stable sort in-place according to x values (first in tuple)
-            yxchans = [ (y, x, chan) for (x, y, chan) in xychans ]
-            yxchans.sort() # stable sort in-place according to y values (first in tuple)
-            chans = [ chan for (y, x, chan) in yxchans ] # unload the chan indices, now sorted bottom to top, left to right
-        elif order == 'horizontal':
-            # first, sort y coords, then x: (secondary, then primary)
-            yxchans = [ (y, x, chan) for chan, (x, y) in self.siteloc.iteritems() ] # list of (y, x, chan) 3-tuples
-            yxchans.sort() # stable sort in-place according to y values (first in tuple)
-            xychans = [ (x, y, chan) for (y, x, chan) in yxchans ] # list of (x, y, chan) 3-tuples
-            xychans.sort() # stable sort in-place according to x values (first in tuple)
-            chans = [ chan for (x, y, chan) in xychans ] # unload the chan indices, now sorted left to right, bottom to top
-        else:
-            raise ValueError
-        return chans
 
     def get_xy_um(self):
         """Pull xy tuples in um out of self.pos, store in (2 x nchans) array,
@@ -1041,19 +1017,19 @@ class SpikePanel(PlotPanel):
         PlotPanel.__init__(self, *args, **kwargs)
 
     def do_layout(self):
-        # ordered left to right, bottom to top:
-        self.hchans = self.get_spatialchans('horizontal')
-        # ordered bottom to top, left to right
-        self.vchans = self.get_spatialchans('vertical')
-        #print('horizontal ordered chans in Spikepanel:\n%r' % self.hchans)
+        # chans ordered bottom to top, then left to right:
+        hchans = self.probe.chans_btlr
+        # chans ordered left to right, then bottom to top
+        vchans = self.probe.chans_lrbt
+        #print('horizontal ordered chans in Spikepanel:\n%r' % hchans)
         # x origin is somewhere in between the xlimits. xlimits are asymmetric
         # if self.tw is asymmetric:
-        self.ax.set_xlim(self.um2us(self.siteloc[self.hchans[0]][0]) + self.tw[0],
-                         self.um2us(self.siteloc[self.hchans[-1]][0]) + self.tw[1])
-        self.ax.set_ylim(self.um2uv(self.siteloc[self.vchans[0]][1]) - CHANVBORDER,
-                         self.um2uv(self.siteloc[self.vchans[-1]][1]) + CHANVBORDER)
+        self.ax.set_xlim(self.um2us(self.siteloc[hchans[0]][0]) + self.tw[0],
+                         self.um2us(self.siteloc[hchans[-1]][0]) + self.tw[1])
+        self.ax.set_ylim(self.um2uv(self.siteloc[vchans[0]][1]) - CHANVBORDER,
+                         self.um2uv(self.siteloc[vchans[-1]][1]) + CHANVBORDER)
         colourgen = itertools.cycle(iter(PLOTCOLOURS))
-        for chan in self.vchans:
+        for chan in vchans:
             # chan order doesn't matter for setting .pos, but it does for setting .colours
             self.pos[chan] = (self.um2us(self.siteloc[chan][0]),
                               self.um2uv(self.siteloc[chan][1]))
@@ -1093,16 +1069,17 @@ class ChartPanel(PlotPanel):
 
     def do_layout(self):
         """Sets axes limits and calculates self.pos"""
-        self.vchans = self.get_spatialchans('vertical') # ordered bottom to top, left to right
+        # chans ordered left to right, then bottom to top:
+        vchans = self.probe.chans_lrbt
         self.ax.set_xlim(0 + self.tw[0], 0 + self.tw[1]) # x origin at center
-        miny = self.um2uv(self.siteloc[self.vchans[0]][1])
-        maxy = self.um2uv(self.siteloc[self.vchans[-1]][1])
+        miny = self.um2uv(self.siteloc[vchans[0]][1])
+        maxy = self.um2uv(self.siteloc[vchans[-1]][1])
         # average vertical spacing between chans, in uV:
         ngaps = max(self.nchans-1, 1) # at least 1
         vspace = (maxy - miny) / ngaps
         self.ax.set_ylim(miny - CHANVBORDER, maxy + CHANVBORDER)
         colourgen = itertools.cycle(iter(PLOTCOLOURS))
-        for chani, chan in enumerate(self.vchans):
+        for chani, chan in enumerate(vchans):
             #self.pos[chan] = (0, self.um2uv(self.siteloc[chan][1])) # x=0 centers horizontally
             # x=0 centers horizontally, equal vertical spacing:
             self.pos[chan] = (0, chani*vspace)
