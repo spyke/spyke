@@ -10,6 +10,8 @@ __authors__ = ['Martin Spacek']
 
 import numpy as np
 
+from core import tolist
+
 DEFNSXPROBETYPE = 'A1x32'
 # SPIKEDTYPE currently uses uint8 for chans, ensure during Probe instantiation that
 # number of chans doesn't exceed this:
@@ -64,33 +66,79 @@ class Probe(object):
     @property
     def chans(self):
         """Return all channel IDs, sorted"""
-        return np.asarray(sorted(self.SiteLoc.keys()))
+        return np.asarray(sorted(self.SiteLoc))
 
-    def chansort(self, axis=0, reverse=False):
-        """Return channels in spatial order.
-        axis=0: sort vertically, top to bottom, then left to right
-        axis=1: sort horizontally, left to right, then top to bottom"""
-        assert axis in [0, 1]
+    def chansort(self, axis=['x', 'y'], reverse=[False, False]):
+        """Return channels in one of many spatial arrangements. y origin is top of probe.
+
+        Examples:
+
+        axis='y'               : top to bottom
+        axis='y', reverse=True : bottom to top
+        axis='x'               : left to right
+        axis='x', reverse=True : right to left
+
+        axis=['x', 'y']                        : sort left to right, then top to bottom
+        axis=['x', 'y'], reverse=[False, True] : sort left to right, then bottom to top
+        axis=['x', 'y'], reverse=[True, False] : sort right to left, then top to bottom
+        axis=['x', 'y'], reverse=[True, True]  : sort right to left, then bottom to top
+
+        axis=['y', 'x']                        : sort top to bottom, then left to right
+        axis=['y', 'x'], reverse=[False, True] : sort top to bottom, then right to left
+        axis=['y', 'x'], reverse=[True, False] : sort bottom to top, then left to right
+        axis=['y', 'x'], reverse=[True, True]  : sort bottom to top, then right to left
+        """
+        ax2col = {'x':0, 'y':1}
+        axis = tolist(axis)
+        reverse = tolist(reverse)
+        assert len(axis) == len(reverse)
+        for rev in reverse:
+            assert rev in [True, False]
+
+        # fancy logic here, this takes some careful thought to understand:
+        if reverse == [False, False]:
+            pass
+        elif reverse == [False, True]:
+            reverse = [True, True] # reverse 1st axis twice
+        elif reverse == [True, False]:
+            pass
+        elif reverse == [True, True]:
+            reverse = [False, True] # reverse 1st and 2nd axes simultaneously at the end
+
         chans = self.chans # sorted
-        x, y = zip(*[ self[chan] for chan in chans ]) # x and y coords in chan order
-        if axis == 0: # sort vertically
-            key1 = y # primary key
-            key2 = x # secondary key
-        else: # sort horizontally
-            key1 = x # primary key
-            key2 = y # secondary key
-        chanis = np.lexsort((key2, key1)) # argsorts first by key2, then by key1
-        if reverse:
-            chanis = chanis[::-1]
-        return chans[chanis]
+        xy = self.siteloc_arr() # chan coords in chan order
+        #print('initial:')
+        #for (x, y), chan in zip(xy, chans):
+        #    print('%3d, %3d, %3d' % (x, y, chan))
+        for ax, rev in zip(axis, reverse):
+            assert ax in ['x', 'y']
+            col = ax2col[ax]
+            # default kind quicksort isn't stable, but mergesort is:
+            chanis = xy[:, col].argsort(kind='mergesort')
+            if rev:
+                chanis = chanis[::-1]
+            chans = chans[chanis]
+            xy = xy[chanis]
+            #print('after axis', ax)
+            #for (x, y), chan in zip(xy, chans):
+            #    print('%3d, %3d, %3d' % (x, y, chan))
+        return chans
 
     @property
-    def vchans(self):
-        return self.chansort(axis=0)
+    def chans_lrtb(self):
+        return self.chansort(axis=['x', 'y'])
 
     @property
-    def hchans(self):
-        return self.chansort(axis=1)
+    def chans_lrbt(self):
+        return self.chansort(axis=['x', 'y'], reverse=[False, True])
+
+    @property
+    def chans_tblr(self):
+        return self.chansort(axis=['y', 'x'])
+
+    @property
+    def chans_btlr(self):
+        return self.chansort(axis=['y', 'x'], reverse=[True, False])
 
 
 class uMap54_1a(Probe):

@@ -985,6 +985,13 @@ def toiter(x):
     else:
         return [x]
 
+def tolist(x):
+    """Convert to list if not already a list"""
+    try:
+        return list(x)
+    except TypeError: # x is not iterable
+        return [x]
+
 def tocontig(x):
     """Return C contiguous copy of array x if it isn't C contiguous already"""
     if not x.flags.c_contiguous:
