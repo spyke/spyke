@@ -1139,17 +1139,14 @@ class LFPPanel(ChartPanel):
         """This is only necessary for SurfStream, which has a .layout attrib, and only to
         prevent plotting vref lines for chans that don't exist in the LFP"""
         ChartPanel.do_layout(self)
-        # Need to get a list of keys, not an iterator, since self.pos dict can change size
-        # during iteration:
         try: self.stream.layout
         except AttributeError: return
-        for chan in list(self.pos):
-            if chan not in self.stream.layout.chans:
-                del self.pos[chan] # remove siteloc chans not in lowpassmultichan record
-                try:
-                    self.chans.remove(chan) # in place
-                except ValueError: # already removed from list on previous do_layout() call
-                    pass
+        newchans, newpos = [], {}
+        for chan in self.stream.layout.chans:
+            newchans.append(chan)
+            newpos[chan] = self.pos[chan]
+        self.chans = newchans
+        self.pos = newpos
 
     def set_chans(self, chans):
         """Reset chans for this LFPPanel, triggering colour update. Take intersection of
