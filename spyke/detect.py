@@ -83,7 +83,7 @@ def initializer(detector):
     
 def calc_SPIKEDTYPE(maxnchansperspike):
     """Create spike array dtype for efficiently storing information about each spike"""
-    ## NOTE: with uint8, the current channel ID limit is 0 to 255
+    ## NOTE: with uint8, the current channel ID limit is 0 to 255, but nchans limit is 255
     ##       with int16, the current neuron ID limit is -32768 to 32767
     dt = [('id', np.int32), ('nid', np.int16),
           ('chan', np.uint8), ('nchans', np.uint8),
@@ -179,8 +179,7 @@ class Detector(object):
         return self._chans
 
     def set_chans(self, chans):
-        chans.sort() # ensure they're always sorted
-        self._chans = np.int8(chans) # ensure they're always int8
+        self._chans = np.sort(chans) # ensure they're always a sorted array
 
     chans = property(get_chans, set_chans)
 
@@ -338,7 +337,7 @@ class Detector(object):
         maxnchansperspike = 0
         for chani, distances in enumerate(self.dm.data): # iterate over rows of distances
             # at what col indices does the returned row fall within inclr?:
-            inclchanis, = np.uint8(np.where(distances <= self.inclr))
+            inclchanis, = np.where(distances <= self.inclr)
             self.inclnbhdi[chani] = inclchanis
             maxnchansperspike = max(maxnchansperspike, len(inclchanis))
         self.maxnchansperspike = maxnchansperspike
