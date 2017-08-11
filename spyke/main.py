@@ -3252,7 +3252,6 @@ class SpykeWindow(QtGui.QMainWindow):
         templatemaxchans = s.chans[templatemaxchanis] # one per template
         maxchans = templatemaxchans[nids] # one per spike
 
-
         # check limits, convert maxchans to uint8:
         assert maxchans.min() >= np.iinfo(np.uint8).min()
         assert maxchans.max() <= np.iinfo(np.uint8).max()
@@ -3554,70 +3553,26 @@ class SpykeWindow(QtGui.QMainWindow):
         gc.collect()
 
     def get_chans_enabled(self):
-        """Return array of enabled chans, in order originally specified in stream file"""
-        # self._chans_enabled is an odict, so we can rely on the order of its keys:
-        return np.asarray([ chan for (chan, enable) in self._chans_enabled.items() if enable ])
+        return self.hpstream.chans
 
-    def set_chans_enabled(self, chans, enable=None):
-        """Updates which chans are enabled in ._chans_enabled dict and in the
-        plot panels, and in the highpass stream. If enable is set, chans specifies
-        which chans should have their enable flag overwritten. Otherwise,
-        chans specifies all the chans we want enabled.
-        The code for the 2nd case is quite elaborate, such that the visibility
-        state of any given plot in all plotpanels isn't needlessly toggled,
-        which slows things down and causes flicker, I think"""
+    def set_chans_enabled(self, chans):
+        """Updates chans in the streams and plot panels"""
+        # update streams:
+        self.hpstream.chans = chans
+        if self.lpstream.ext == '.srf': # a Surf-like lpstream with a .layout attrib
+            # take intersection of lpstream.layout.chans and chans,
+            # conserving ordering in lpstream.layout.chans
+            self.lpstream.chans = np.asarray([ chan for chan in self.lpstream.layout.chans if
+                                               chan in chans ])
+        else: # treat it the same as an hpstream
+            self.lpstream.chans = chans
 
-        # inits and checks
-        if self.hpstream is None: # nothing to do
-            return
-        allchans = self.hpstream.chans # not sure if this needs to be copy()'d or not
-        if chans is None: # None means all chans
-            chans = allchans
-        chans = toiter(chans) # need not be contiguous
-        try:
-            self._chans_enabled
-        except AttributeError:
-            self._chans_enabled = odict([ (chan, True) for chan in allchans ])
-
-        # overwrite enable flag of chans...
-        if enable != None:
-            for chan in chans:
-                self._chans_enabled[chan] = enable
-        # ...or, leave only chans enabled
-        else:
-            enabledchans = [ chan for (chan, enabled) in self._chans_enabled.items()
-                             if enabled==True ]
-            disabledchans = [ chan for (chan, enabled) in self._chans_enabled.items()
-                              if enabled==False ]
-            notchans = set(allchans).difference(chans) # chans we don't want enabled
-            # find difference between currently enabled chans and the chans to enable:
-            chans2disable = set(enabledchans).difference(chans)
-            # find difference between currently disabled chans and the chans to disable:
-            chans2enable = set(disabledchans).difference(notchans)
-            for chan in chans2enable:
-                self._chans_enabled[chan] = True
-            for chan in chans2disable:
-                self._chans_enabled[chan] = False
-
-        # now set chans in plotpanels to reset colours:
+        # set chans in plotpanels to reset colours:
         for wintype in WINDOWUPDATEORDER:
             try:
-                self.windows[wintype].panel.set_chans(self.chans_enabled)
+                self.windows[wintype].panel.set_chans(chans)
             except KeyError: # wintype hasn't been opened yet
                 pass
-
-        # update stream(s):
-        if self.hpstream != None:
-            self.hpstream.chans = self.chans_enabled
-        if self.lpstream != None:
-            try: # is it a Surf-like lpstream with a .layout attrib?
-                # take intersection of lpstream.layout.chans and chans_enabled,
-                # conserving ordering in lpstream.layout.chans
-                self.lpstream.chans = [ chan for chan in self.lpstream.layout.chans if
-                                        chan in self.chans_enabled ]
-            except AttributeError: # treat it the same as an hpstream
-                self.lpstream.chans = self.chans_enabled
-
         self.plot() # replot
 
     chans_enabled = property(get_chans_enabled, set_chans_enabled)
@@ -3634,7 +3589,6 @@ class SpykeWindow(QtGui.QMainWindow):
             if stream: stream.close()
         self.hpstream = None
         self.lpstream = None
-        del self._chans_enabled
         self.t = None
         self.ShowRasters(False) # reset
         self.updateTitle()
@@ -3933,7 +3887,8 @@ class SpykeWindow(QtGui.QMainWindow):
         ui = self.ui
         s = self.sort
         det = s.detector
-        self.chans_enabled = det.chans
+        if self.hpstream:
+            self.chans_enabled = det.chans
         # update detector pane
         meth2widget = {'GlobalFixed': ui.globalFixedRadioButton,
                        'ChanFixed': ui.channelFixedRadioButton,

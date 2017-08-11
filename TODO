@@ -1429,6 +1429,7 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
     - chanmap.mat will have to reflect the correct chans - this is now done on KiloSort matlab file export
 - BUG: when inputting a timepoint to jump to in the timepoint field, sometimes the slider position isn't updated
 - BUG: for recordings with an adapter, lowpass chans have the wrong colour, and change colour when chans are enabled/disabled
+- BUG: loading .track, then .sort re-enables disabled chans?
 
 
 

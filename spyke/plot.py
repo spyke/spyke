@@ -796,12 +796,11 @@ class PlotPanel(FigureCanvas):
             if button == 1: # left click
                 spw.seek(t) # seek to t
             elif button == 3: # right click
-                # toggle closest chan
-                if chan not in self.spykewindow.chans_enabled:
-                    enable = True
-                else:
-                    enable = False
-                self.spykewindow.set_chans_enabled(chan, enable) # this calls self.set_chans()
+                # toggle closest chan:
+                if chan not in spw.chans_enabled: # enable chan
+                    spw.chans_enabled = np.union1d(spw.chans_enabled, [chan])
+                else: # disable chan
+                    spw.chans_enabled = np.setdiff1d(spw.chans_enabled, [chan])
 
     def alignselectedspike(self, peaktype, t, chan=None):
         """Align spike selected in sortwin to t, where t is designated as the
