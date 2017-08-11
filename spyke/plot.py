@@ -716,12 +716,7 @@ class PlotPanel(FigureCanvas):
         """Show/hide all rasters in this panel"""
         if self.rasters != None:
             self.rasters.show(enable)
-    '''
-    def _zoomx(self, x):
-        """Zoom x axis by factor x"""
-        self.spykewindow.usperum /= x
-        self.update_tw(self.tw[0]/x, self.tw[1]/x) # scale time window endpoints
-    '''
+
     def update_tw(self, tw):
         """Update tw and everything that depends on it"""
         self.tw = tw
@@ -775,7 +770,7 @@ class PlotPanel(FigureCanvas):
         Toggle specific chans on right click. On ctrl+left click, reset primary
         peak timepoint and maxchan of currently selected spike. On ctrl+right click,
         reset secondary peak timepoint"""
-        spw = self.topLevelWidget().parent() # spyke window
+        spw = self.spykewindow
         button = evt.button
         modifiers = QtGui.QApplication.keyboardModifiers()
         ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
@@ -792,14 +787,14 @@ class PlotPanel(FigureCanvas):
             if button == 1: # left click
                 # set t as primary peak and align selected spike to it, set maxchan
                 self.alignselectedspike('primary', t, chan)
-                self.spykewindow.seek(t) # seek to t
+                spw.seek(t) # seek to t
             elif button == 3: # right click
                 # designate t as secondary peak of selected spike
                 self.alignselectedspike('secondary', t)
-                self.spykewindow.seek(t) # seek to t
+                spw.seek(t) # seek to t
         else:
             if button == 1: # left click
-                self.spykewindow.seek(t) # seek to t
+                spw.seek(t) # seek to t
             elif button == 3: # right click
                 # toggle closest chan
                 if chan not in self.spykewindow.chans_enabled:
@@ -1035,16 +1030,7 @@ class SpikePanel(PlotPanel):
                               self.um2uv(self.siteloc[chan][1]))
             # assign colours so that they cycle vertically in space:
             self.vcolours[chan] = colourgen.next()
-    '''
-    def _zoomx(self, x):
-        """Zoom x axis by factor x"""
-        PlotPanel._zoomx(self, x)
-        # update main spyke frame so its plot calls send the right amount of data
-        self.spykewindow.spiketw = self.tw
-        self.spykewindow.frames['chart'].panel.cw = self.tw # update caret width
-        self.spykewindow.frames['chart'].panel._update_caret_width()
-        self.spykewindow.plot(frametypes='spike') # replot
-    '''
+
     def _add_caret(self):
         """Disable for SpikePanel"""
         pass
@@ -1085,16 +1071,7 @@ class ChartPanel(PlotPanel):
             self.pos[chan] = (0, chani*vspace)
             # assign colours so that they cycle vertically in space:
             self.vcolours[chan] = colourgen.next()
-    '''
-    def _zoomx(self, x):
-        """Zoom x axis by factor x"""
-        PlotPanel._zoomx(self, x)
-        # update main spyke frame so its plot calls send the right amount of data
-        self.spykewindow.charttw = self.tw
-        self.spykewindow.frames['lfp'].panel.cw = self.tw # update caret width
-        self.spykewindow.frames['lfp'].panel._update_caret_width()
-        self.spykewindow.plot(frametypes='chart') # replot
-    '''
+
     def _add_vref(self):
         """Disable for ChartPanel"""
         pass
@@ -1157,14 +1134,7 @@ class LFPPanel(ChartPanel):
             streamfilechans = stream.layout.chans # SurfStream should have a layout attrib
             chans = [ chan for chan in streamfilechans if chan in chans ]
         ChartPanel.set_chans(self, chans)
-    '''
-    def _zoomx(self, x):
-        """Zoom x axis by factor x"""
-        PlotPanel._zoomx(self, x)
-        # update main spyke frame so its plot calls send the right amount of data
-        self.spykewindow.lfptw = self.tw
-        self.spykewindow.plot(frametypes='lfp') # replot
-    '''
+
     def _add_vref(self):
         """Override ChartPanel"""
         PlotPanel._add_vref(self)
