@@ -14,7 +14,7 @@
 - add gui option to export in chan order or spatial order, default to chan order
     - also update "chan_order" field appropriately in .json file
 
-- make kilosort check if .dat file size is an integer multiple of ntot chans declared in ks_run.m file, or is that ignored? Shouldn't be, because only ephys chans are defined in the chanmap file!
+- make KiloSort check if .dat file size is an integer multiple of ntot chans declared in ks_run.m file, or is that ignored? Shouldn't be, because only ephys chans are defined in the chanmap file!
 
 - BUG: on osx, it seems that glwidget.paintgl is called immediately during initialization of the glwidget, which fails because certain properties (.colours, .points, etc) haven't been set yet. Maybe there's some flag that needs to be set in osx to prevent auto painting on init? Or maybe somehow those properties (set in .plot()) need to be set sooner? Maybe do a blank .plot() call early on?
 
@@ -1402,7 +1402,7 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - add "common average referencing" cited in Kilosort paper, ref: Ludwig...Kipke, 2009, J Neurophysiol
 - on delete key press in cluster and sort windows, if any spikes are explicitly selected, remove only them, otherwise remove selected neuron(s)
 - on ESC, if one of the selected clusters is cluster 0, deselect that one first
-- subtract about 100 us from all spike times imported from kilosort (during import of the .events.zip file, not during its creation) to make up for essentially all spikes being centered too far to the left initially, until manually shifted. This would save on waveform reload time after manual shift
+- subtract about 100 us from all spike times imported from KiloSort (during import of the .events.zip file, not during its creation) to make up for essentially all spikes being centered too far to the left initially, until manually shifted. This would save on waveform reload time after manual shift
 - do proper low pass filtering (not just decimation) to get LFP data from wideband data
     - when exporting to lfp.zip, do slicing and filtering and decimation in the same 10 sec chunks of wideband data as spike detection, to avoid memory errors
 - exporting from .track file to .dat file results in unsupported error
@@ -1414,19 +1414,19 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
     - for data exported to .dat, should files be named e.g. .ns6.dat, to help indicate that they came from an .ns6 file instead of being directly recorded to .dat? This would be in addition to the note in the .json file. This would also mean the json file would be named .ns6.dat.json.
 - Nope, not necessary: add support for .series file? would be identical to .track file
 - add progress indication to spatial fit step during import of spike times
-- spikes rejected on import should get a raster line anyway (they currently do not), so we can fairly evaluate which spikes kilosort missed.
-- kilosort fails to run when nchans is less than the full set, as exported by spyke in the chanmap .mat file
+- spikes rejected on import should get a raster line anyway (they currently do not), so we can fairly evaluate which spikes KiloSort missed.
+- KiloSort fails to run when nchans is less than the full set, as exported by spyke in the chanmap .mat file
     - I think the chanMap variable needs to be contiguous from 1 to nchans, and then the xcoords/ycoords/kcoords vars need to be just the right ones, i.e. leave out the coords of the excluded chans
-- make kilosort always export to datfilename.ks or datfilename.kilosort or datfilename.ks_results folder in same folder as the source data, so that kilosort results from different source files in the same folder don't conflict with each other
+- make KiloSort always export to datfilename.ks or datfilename.kilosort or datfilename.ks_results folder in same folder as the source data, so that KiloSort results from different source files in the same folder don't conflict with each other
 - in export_raw_dat, also write ks_run and ks_config files, with appropriate values filled in
-- NOPE: add menu option to only export the 3 kilosort files
+- NOPE: add menu option to only export the 3 KiloSort files
 - add menu option "New track" which asks for a folder, looks for all .ns6 files in that folder (or failing that, all .dat files), and takes those names and generates a .track file using them
     - then the user can open the .track file and export raw to .dat for ks
     - this way the user is also forced to use the GUI and briefly inspect the data before exporting to .dat for ks, and also to see if certain channels should be disabled
 - add "Save track channels" menu item to save enabled chan selection to comment in .track file
 - reduce default include radius to 100 um to limit the number of channels per spike, and therefore keep memory usage under control, especially for sorts with increasingly high spike counts
-- test running kilosort on .dat with missing channels (e.g. due to disabling dead channels before export)
-    - chanmap.mat will have to reflect the correct chans - this is now done on kilosort matlab file export
+- test running KiloSort on .dat with missing channels (e.g. due to disabling dead channels before export)
+    - chanmap.mat will have to reflect the correct chans - this is now done on KiloSort matlab file export
 - BUG: when inputting a timepoint to jump to in the timepoint field, sometimes the slider position isn't updated
 - BUG: for recordings with an adapter, lowpass chans have the wrong colour, and change colour when chans are enabled/disabled
 

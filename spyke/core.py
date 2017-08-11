@@ -1965,7 +1965,7 @@ def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=No
     print('Wrote metadata file %r' % fulljsonfname)
 
 def write_ks_chanmap_mat(stream, fname):
-    """Write stream's channel map information to .mat file for use by kilosort"""
+    """Write stream's channel map information to .mat file for use by KiloSort"""
     nchans = stream.nchans # number of enabled chans
     # mask to tell ks which chans in .dat to use for sorting?:
     connected = np.tile(True, (nchans, 1)) # column vector
@@ -1981,7 +1981,7 @@ def write_ks_chanmap_mat(stream, fname):
     kcoords = np.tile(1, (nchans, 1)) # column vector, something to do with shanks?
     fs = stream.rawsampfreq
     """
-    Export to .mat file with exactly the same dtypes (doubles) that kilosort's chanmap
+    Export to .mat file with exactly the same dtypes (doubles) that KiloSort's chanmap
     creation script (see .m files in templates/ks) does. Note that this saves to a MATLAB 5
     (to version 7.2) .mat file, while by default contemporary MATLAB saves to the newer HDF5
     version, which is unsupported by scipy.io. Both seem to load identically in MATLAB 2015a,
@@ -1995,4 +1995,4 @@ def write_ks_chanmap_mat(stream, fname):
             'kcoords': np.float64(kcoords),
             'fs': np.float64(fs)}
     scipy.io.savemat(fname, matd)
-    print('Wrote kilosort chanmap file %r' % fname)
+    print('Wrote KiloSort chanmap file %r' % fname)

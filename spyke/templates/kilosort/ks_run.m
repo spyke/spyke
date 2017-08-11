@@ -1,6 +1,6 @@
 % adapted from KiloSort's 'master_file_example_MOVEME.m' template
 
-addpath(genpath('~/src/KiloSort')) % path to kilosort folder
+addpath(genpath('~/src/KiloSort')) % path to KiloSort folder
 addpath(genpath('~/src/npy-matlab')) % path to npy-matlab scripts
 
 run('{KSCONFIGFNAME}')

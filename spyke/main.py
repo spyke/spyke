@@ -81,7 +81,7 @@ CHARTTW = {'.dat': (-25000, 25000),
 # LFP window temporal window (us)
 LFPTW = -500000, 500000
 
-# shift kilosort spike times by this much for better positioning in sort window:
+# shift KiloSort spike times by this much for better positioning in sort window:
 KILOSORTSHIFTCORRECT = -100 # us
 
 # spatial channel layout:
@@ -677,7 +677,7 @@ class SpykeWindow(QtGui.QMainWindow):
         track, to .dat file in user-designated path. This works by first turning off all
         filtering, CAR, and resampling, then calling self.export_hpstream(), then restoring
         filtering, CAR, and resampling settings. Also export channel map file in .mat format
-        for kilosort"""
+        for KiloSort"""
         print('Exporting raw ephys data to .dat file')
 
         # save current hpstream filtering CAR and sampling settings:
@@ -718,16 +718,16 @@ class SpykeWindow(QtGui.QMainWindow):
             print('Raw data export cancelled')
             return
 
-        # write kilosort channel map .mat file, indicate which chans are included in the .dat
+        # write KiloSort channel map .mat file, indicate which chans are included in the .dat
         datfnameML = matlabize(datfname) # make suitable for use as MATLAB script name
         chanmapfname = datfnameML + '_ks_chanmap.mat'
         fullchanpmapfname = os.path.join(path, chanmapfname)
         core.write_ks_chanmap_mat(stream, fullchanpmapfname)
 
-        # write kilosort config .m file:
+        # write KiloSort config .m file:
         with open('./templates/kilosort/ks_config.m') as templateksconfigf:
             ksconfigstr = templateksconfigf.read()
-        # nclusts for kilosort to use: 3x nchans, rounded up to nearest multiple of 32:
+        # nclusts for KiloSort to use: 3x nchans, rounded up to nearest multiple of 32:
         nclusts = intceil(3 * stream.nchans / 32) * 32
         ksconfigstr = ksconfigstr.format(DATFNAME=datfname,
                                          KSRESULTSFNAME=datfname + '.ks_results',
@@ -739,9 +739,9 @@ class SpykeWindow(QtGui.QMainWindow):
         fullksconfigfname = os.path.join(path, ksconfigfname)
         with open(fullksconfigfname, 'w') as ksconfigf:
             ksconfigf.write(ksconfigstr)
-        print('Wrote kilosort config file %r' % fullksconfigfname)
+        print('Wrote KiloSort config file %r' % fullksconfigfname)
 
-        # write kilosort run .m file:
+        # write KiloSort run .m file:
         with open('./templates/kilosort/ks_run.m') as templateksrunf:
             ksrunstr = templateksrunf.read()
         ksrunstr = ksrunstr.format(KSCONFIGFNAME=ksconfigfname)
@@ -749,7 +749,7 @@ class SpykeWindow(QtGui.QMainWindow):
         fullksrunfname = os.path.join(path, ksrunfname)
         with open(fullksrunfname, 'w') as ksrunf:
             ksrunf.write(ksrunstr)
-        print('Wrote kilosort run file %r' % fullksrunfname)
+        print('Wrote KiloSort run file %r' % fullksrunfname)
 
     @QtCore.pyqtSlot()
     def on_actionConvertKiloSortNpy2EventsZip_triggered(self):
@@ -3236,8 +3236,8 @@ class SpykeWindow(QtGui.QMainWindow):
         # raw uninterpolated data:
         spikets = intround(s.t0 + spiketis / s.rawsampfreq * 1e6) # us
 
-        # shift kilosort spike times:
-        print('Shifting kilosort spike times by %d us for better positioning in sort window'
+        # shift KiloSort spike times:
+        print('Shifting KiloSort spike times by %d us for better positioning in sort window'
               % KILOSORTSHIFTCORRECT)
         spikets = spikets + KILOSORTSHIFTCORRECT
 
