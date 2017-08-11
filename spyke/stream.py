@@ -584,6 +584,7 @@ class SurfStream(Stream):
         probename = self.layout.electrode_name
         probename = probename.replace(MU, 'u') # replace any 'micro' symbols with 'u'
         self.probe = probes.getprobe(probename)
+        self.adapter = None
 
         rts = self.records['TimeStamp'] # array of record timestamps
         NumSamples = np.unique(self.records['NumSamples'])
