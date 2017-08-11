@@ -698,7 +698,8 @@ class Detector(object):
                 lockchaniis = ylockchaniis.copy()
                 for ylockchanii in ylockchaniis:
                     if dist((x[ylockchanii], y[ylockchanii]), (x0, y0)) > lockr:
-                        lockchaniis = np.delete(lockchaniis, ylockchanii) # dist is too great
+                        # Euclidean distance is too great, remove ylockchanii from lockchaniis:
+                        lockchaniis = lockchaniis[lockchaniis != ylockchanii]
                 lockchans = inclchans[lockchaniis]
                 lockchanis = inclchanis[lockchaniis]
                 nlockchans = len(lockchans)

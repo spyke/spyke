@@ -3173,7 +3173,9 @@ class SpykeWindow(QtGui.QMainWindow):
                 params = x0, y0, 0, 0
                 nreject += 1
             # Save spatial fit params, and "lockout" only the channels within lockrx*sx
-            # of the fit spatial location of the spike, up to a max of self.inclr.
+            # of the fit spatial location of the spike, up to a max of inclr. "Lockout"
+            # in this case only refers to which channels are highlighted with a raster tick
+            # for each spike:
             s['x0'], s['y0'], s['sx'], s['sy'] = params
             x0, y0 = s['x0'], s['y0']
             # lockout radius for this spike:
@@ -3186,7 +3188,8 @@ class SpykeWindow(QtGui.QMainWindow):
             lockchaniis = ylockchaniis.copy()
             for ylockchanii in ylockchaniis:
                 if dist((x[ylockchanii], y[ylockchanii]), (x0, y0)) > lockr:
-                    lockchaniis = np.delete(lockchaniis, ylockchanii) # dist is too great
+                    # Euclidean distance is too great, remove ylockchanii from lockchaniis:
+                    lockchaniis = lockchaniis[lockchaniis != ylockchanii]
             lockchans = chans[lockchaniis]
             nlockchans = len(lockchans)
             s['lockchans'][:nlockchans], s['nlockchans'] = lockchans, nlockchans
