@@ -2644,6 +2644,13 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.dynamicNoiseXSpinBox.setValue(DYNAMICNOISEX[ext])
         self.ui.dtSpinBox.setValue(DT[ext])
 
+        # if a .sort file is already open, enable only those channels that were used
+        # by the sort's Detector:
+        try:
+            enabledchans = self.sort.detector.chans
+        except AttributeError:
+            pass
+
         if enabledchans is None:
             self.chans_enabled = self.hpstream.chans
         else:
