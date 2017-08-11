@@ -998,8 +998,9 @@ class SpykeWindow(QtGui.QMainWindow):
             streams = [s.stream]
         for stream in streams: # iterate over all single streams
             stream.adapter = None
-            stream.f.fileheader.adapter = None
-            stream.f.fileheader.adaptername = None
+            if stream.ext in ['.ns6', '.dat']:
+                stream.f.fileheader.adapter = None
+                stream.f.fileheader.adaptername = None
         s.__version__ = '1.2' # update
         print('Done updating sort from version 1.1 to 1.2')
         return float(s.__version__)
