@@ -813,7 +813,9 @@ class Adpt_A64_OM32x2_sm_CerePlex_Mini(Adapter):
     """NeuroNexus Adpt-A64-OM32x2-sm (MOLEX to OM32x2-sm) adapter, to Blackrock Cereplex Mini
     64 channel (banks A and B) digital headstage, to Blackrock NSP. This was
     mapped by hand by Gregory Born by injecting signal into one channel on the MOLEX
-    connectors at a time, and checking which channel showed signal on the Blackrock NSP"""
+    connectors at a time, and checking which channel showed signal on the Blackrock NSP.
+    This was then confirmed by Martin Spacek by examining the pinout in the Cereplex Mini
+    spec sheet."""
     def __init__(self):
         self.name = 'Adpt_A64_OM32x2_sm_CerePlex_Mini'
         self.nchans = 64
