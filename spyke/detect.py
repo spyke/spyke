@@ -143,10 +143,10 @@ class DistanceMatrix(object):
     .chans and .coords"""
     def __init__(self, SiteLoc):
         """SiteLoc is a dictionary of (x, y) tuples, with chans as the keys. See probes.py"""
-        chans_coords = SiteLoc.items() # list of (chan, coords) tuples
+        chans_coords = list(SiteLoc.items()) # list of (chan, coords) tuples
         chans_coords.sort() # sort by chan
         # pull out the sorted chans:
-        self.chans = np.uint8([ chan_coord[0] for chan_coord in chans_coords ])
+        self.chans = np.asarray([ chan_coord[0] for chan_coord in chans_coords ])
         # pull out the coords, now in chan order:
         self.coords = [ chan_coord[1] for chan_coord in chans_coords ]
         self.data = eucd(self.coords)
