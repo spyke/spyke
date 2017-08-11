@@ -987,16 +987,19 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def update_1_1_to_1_2(self):
         """Update sort 1.1 to 1.2:
-            - add stream.adapter and fileheader.adapter, fileheader.adaptername, init to None
+            - add stream.adapter, fileheader.adapter & fileheader.adaptername, init to None
         """
         print('Updating sort from version 1.1 to 1.2')
         s = self.sort
-        try:
-            s.stream.adapter
-        except AttributeError:
+        if s.stream.is_multi():
             s.stream.adapter = None
-            s.stream.f.fileheader.adapter = None
-            s.stream.f.fileheader.adaptername = None
+            streams = s.stream.streams
+        else: # it's a single stream
+            streams = [s.stream]
+        for stream in streams: # iterate over all single streams
+            stream.adapter = None
+            stream.f.fileheader.adapter = None
+            stream.f.fileheader.adaptername = None
         s.__version__ = '1.2' # update
         print('Done updating sort from version 1.1 to 1.2')
         return float(s.__version__)
