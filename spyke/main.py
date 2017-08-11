@@ -321,7 +321,7 @@ class SpykeWindow(QtGui.QMainWindow):
         if not os.path.isfile(trackfname):
             raise RuntimeError('somehow the current MultiStream has no existing .track file')
         trackstr = ''
-        allchans = stream.streams[0].f.fileheader.chans
+        allchans = np.sort(stream.streams[0].f.fileheader.chans)
         if len(stream.chans) != len(allchans):
             # some chans are disabled, write them as a comment in .track file
             trackstr += '# enabledchans = %r\n' % list(stream.chans)
@@ -2585,7 +2585,7 @@ class SpykeWindow(QtGui.QMainWindow):
                         if line.startswith('enabledchans='):
                             # it's a comment line describing which chans have been set to
                             # enabled for this track
-                            enabledchans = list(eval(lstrip(line, 'enabledchans=')))
+                            enabledchans = np.asarray(eval(lstrip(line, 'enabledchans=')))
                             assert iterable(enabledchans)
                         continue # to next line
                     fn = line
