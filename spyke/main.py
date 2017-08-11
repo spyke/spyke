@@ -3328,6 +3328,15 @@ class SpykeWindow(QtGui.QMainWindow):
         self.update_gui_from_sort()
         self.EnableSortWidgets(True)
 
+    @property
+    def has_sort(self):
+        """Convenient way of checking if sort exists"""
+        try:
+            self.sort
+            return True
+        except AttributeError:
+            return False
+
     def restore_clustering_selections(self):
         """Restore state of last user-selected clustering parameters, specifically those
         that are otherwise not bound to the sort outside of saving it to file. Performs
