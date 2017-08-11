@@ -292,7 +292,7 @@ class DATStream(Stream):
             # for simplicity, don't allow s+h correction of lowpass data, no reason to anyway:
             assert self.shcorrect == False
 
-        # always keep chans sorted, even if they aren't in the underlying data in the file
+        # always keep probe chans sorted, even if they aren't sorted in the data file
         # (such as when using an adapter). Actual data order is handled by self.__call__
         self.chans = np.sort(f.fileheader.chans)
 
@@ -580,6 +580,7 @@ class SurfStream(Stream):
             self.chans = self.layout.chans
             self.sampfreq = sampfreq or self.rawsampfreq # don't resample by default
             self.shcorrect = shcorrect or False # don't s+h correct by default
+
         probename = self.layout.electrode_name
         probename = probename.replace(MU, 'u') # replace any 'micro' symbols with 'u'
         self.probe = probes.getprobe(probename)
