@@ -144,10 +144,11 @@ class FileHeader(object):
             self.probename = j['probe_name'] # new name
         except KeyError:
             self.probename = j['chan_layout_name'] # old name
+        self.set_probe() # initialize probe
 
         # optional fields:
         self.adaptername = j.get('adapter_name')
-        self.set_probe_and_adapter() # initialize probe and adapter
+        self.set_adapter() # initialize adapter
         chan0 = self.probe.chan0 # base of channel indices: either 0-based or 1-based
         # ephys channel indices, ordered by row in the .dat file, can be 0- or 1-based,
         # depending on how they're defined for the above self.probename:
@@ -170,6 +171,11 @@ class FileHeader(object):
             self.auxchans = np.array([])
             self.nauxchans = 0
         assert self.nchans + self.nauxchans == self.nchanstotal
+
+        # now that all the chan fields are done, check probe and adapter:
+        self.check_probe()
+        self.check_adapter()
+
         # offset of first timepoint wrt t=0, in number of samples:
         self.t0i = j.get('nsamples_offset', 0)
         assert type(self.t0i) == int
@@ -182,23 +188,30 @@ class FileHeader(object):
         self.version = j.get('version') # version of software that generated the .dat file
         self.notes = j.get('notes') # notes
 
-    def set_probe_and_adapter(self):
-        """Set probe and optional adapter"""
+    def set_probe(self):
+        """Set probe from self.probename"""
         print('Setting probe type: %r' % self.probename)
         self.probe = probes.getprobe(self.probename) # check for valid probe name
-        if not self.nchans == self.probe.nchans:
-            raise ValueError("Wrong probe specified? Data has %d chans, "
-                             "probe %r has %d chans"
-                             % (self.nchans, self.probename, self.probe.nchans))
+
+    def set_adapter(self):
+        """Set adapter from self.adaptername, if any"""
         self.adapter = None
         if self.adaptername:
             print('Setting adapter type: %r' % self.adaptername)
             self.adapter = probes.getadapter(self.adaptername) # checks for valid name
+
+    def check_probe(self):
+        if not self.nchans == self.probe.nchans:
+            raise ValueError("Wrong probe specified? Data has %d chans, "
+                             "probe %r has %d chans"
+                             % (self.nchans, self.probename, self.probe.nchans))
+
+    def check_adapter(self):
+        if self.adapter:
             if not self.nchans == self.adapter.nchans:
                 raise ValueError("Wrong adapter specified? Data has %d chans, "
                                  "adapter %r has %d chans"
                                  % (self.nchans, self.adaptername, self.adapter.nchans))
-        if self.adapter:
             # if an adapter is present, self.chans actually represent ADchans,
             # which are not necessarily equal to probe chans. Since the convention throughout
             # spyke is that self.chans represents probe chans, rename the ADchans in self.chans
