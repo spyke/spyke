@@ -146,7 +146,7 @@ class FileHeader(object):
             self.probename = j['chan_layout_name'] # old name
 
         # optional fields:
-        self.adaptername = j['adapter_name']
+        self.adaptername = j.get('adapter_name')
         self.set_probe_and_adapter() # initialize probe and adapter
         chan0 = self.probe.chan0 # base of channel indices: either 0-based or 1-based
         # ephys channel indices, ordered by row in the .dat file, can be 0- or 1-based,
