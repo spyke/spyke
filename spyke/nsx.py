@@ -237,7 +237,10 @@ class FileHeader(dat.FileHeader):
             self.adaptername = None
 
         # initialize probe and adapter:
-        self.set_probe_and_adapter()
+        self.set_probe()
+        self.set_adapter()
+        self.check_probe()
+        self.check_adapter()
 
 
 class ChanHeader(object):
