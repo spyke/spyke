@@ -111,15 +111,21 @@ hand, because all the relevant spike waveforms are already stored in the `.wave`
 good, because in general the original source file will be at least an order of magnitude
 greater in size, and therefore potentially inconvenient to keep on hand.
 
-### Sorting full tracks with [KiloSort](https://github.com/cortex-lab/KiloSort)
+### Sorting full tracks/series with [KiloSort](https://github.com/cortex-lab/KiloSort)
 
-spyke has the concept of a "track": a set of recordings in multiple files that were all done
-in the same position in the brain, for which spike sorting should be done all together.
-spyke can work fairly seamlessly with KiloSort to provide a better initial set of clusters,
-which can then be refined as usual within spyke. To sort a full track with spyke and KiloSort:
+spyke has the concept of a "track": a set of recordings in multiple files that were all
+recorded in the same position in the brain, for which spike sorting should be done all
+together. This is completely synonymous with the alternative term "series". spyke can work
+fairly seamlessly with KiloSort to provide a better initial set of clusters, which can then be
+refined as usual within spyke. To sort a full track with spyke and KiloSort:
 
-1. File->New Track. Navigate to your folder with a series worth of source files (`.ns6` or
-`.dat` or `.srf`), type in the desired track name and hit Save to create a `.track` file.
+1. File->New Track. Navigate to your folder with a track/series worth of source files (`.ns6`
+or `.dat` or `.srf`), type in the desired track/series name and hit Save to create a `.track`
+file. If you're using `.ns6` source files that don't already have at least one `.json`
+metadata file describing their probe and adapter type, and if the probe and adapter type are
+anything other than `A1x32` and `null`, then you need to create a `.json` metadata file that
+names the probe and adapter used in that recording. Otherwise, spyke will (hopefully) raise an
+error. For example `.json` files, see `templates/json` in the spyke code directory.
 
 2. The track file is automatically opened. Open up the chart and LFP windows (View menu or
 toolbar) for a better look at the data. You can scroll through the track by clicking, pressing
@@ -140,7 +146,7 @@ hit Open. This exports a concatenated .dat file from all your source files in th
 5. Open the `_ks_run.m` file, check the first two lines to make sure that the path to wherever
 you installed Kilosort and [npy-matlab](https://github.com/kwikteam/npy-matlab) is correct. If
 it isn't correct, you can fix it there, or better yet, fix it permanently for yourself in the
-`templates/kilosort/ks_run.m` template file in the spyke directory.
+`templates/kilosort/ks_run.m` template file in the spyke code directory.
 
 6. Start MATLAB, cd to the folder where you exported to, and run the `_ks_run.m` file. Kilosort
 automatically does its own filtering and CAR, but it doesn't resample.
