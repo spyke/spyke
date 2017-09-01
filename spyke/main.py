@@ -3261,8 +3261,8 @@ class SpykeWindow(QtGui.QMainWindow):
         maxchans = templatemaxchans[nids] # one per spike
 
         # check limits, convert maxchans to uint8:
-        assert maxchans.min() >= np.iinfo(np.uint8).min()
-        assert maxchans.max() <= np.iinfo(np.uint8).max()
+        assert maxchans.min() >= np.iinfo(np.uint8).min
+        assert maxchans.max() <= np.iinfo(np.uint8).max
         maxchans = np.uint8(maxchans) # save space, use same dtype as in SPIKEDTYPE
 
         # convert to 1-based neuron IDs, reserve 0 for unclustered spikes. Note that
@@ -3270,8 +3270,8 @@ class SpykeWindow(QtGui.QMainWindow):
         # the range 0..nneurons-1:
         nids += 1
         # check limits, convert nids to int16:
-        assert nids.min() >= np.iinfo(np.int16).min()
-        assert nids.max() <= np.iinfo(np.int16).max()
+        assert nids.min() >= np.iinfo(np.int16).min
+        assert nids.max() <= np.iinfo(np.int16).max
         nids = np.int16(nids) # save space, use same dtype as in SPIKEDTYPE
 
         assert len(spikets) == len(maxchans) == len(nids)
