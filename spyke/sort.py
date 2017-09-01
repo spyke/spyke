@@ -905,7 +905,7 @@ class Sort(object):
         chanslist = [ cs[:ncs] for cs, ncs in zip(chanss, nchanss) ] # list of arrays
         #print('Building chanslist took %.3f sec' % (time.time()-t0))
         commonchans = util.intersect1d_uint8(chanslist) # find intersection
-        if chans != None and len(chans) > 0:
+        if chans is not None and len(chans) > 0:
             # values in chans but not in commonchans:
             diffchans = np.setdiff1d(chans, commonchans)
             commonchans = np.intersect1d(chans, commonchans) # values in both

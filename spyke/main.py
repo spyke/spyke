@@ -3521,7 +3521,7 @@ class SpykeWindow(QtGui.QMainWindow):
             fname = fname + '.wave'
         print('Saving wave file %r' % fname)
         t0 = time.time()
-        if sids != None and len(sids) >= NDIRTYSIDSTHRESH:
+        if sids is not None and len(sids) >= NDIRTYSIDSTHRESH:
             sids = None # resave all of them for speed
         if sids is None: # write the whole file
             print('Updating all %d spikes in wave file %r' % (s.nspikes, fname))
