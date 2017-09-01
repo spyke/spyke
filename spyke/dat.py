@@ -201,22 +201,27 @@ class FileHeader(object):
             self.adapter = probes.getadapter(self.adaptername) # checks for valid name
 
     def check_probe(self):
-        if not self.nchans == self.probe.nchans:
-            raise ValueError("Wrong probe specified? Data has %d chans, "
-                             "probe %r has %d chans"
-                             % (self.nchans, self.probename, self.probe.nchans))
+        if not np.isin(self.chans, self.probe.chans).all():
+            raise ValueError("Data chans are not a subset of probe chans. Wrong probe "
+                             "specified in .json file?\n"
+                             "Data chans:\n%s\n"
+                             "Probe %r chans:\n%s"
+                             % (self.chans, self.probename, self.probe.chans))
 
     def check_adapter(self):
-        if self.adapter:
-            if not self.nchans == self.adapter.nchans:
-                raise ValueError("Wrong adapter specified? Data has %d chans, "
-                                 "adapter %r has %d chans"
-                                 % (self.nchans, self.adaptername, self.adapter.nchans))
-            # if an adapter is present, self.chans actually represent ADchans,
-            # which are not necessarily equal to probe chans. Since the convention throughout
-            # spyke is that self.chans represents probe chans, rename the ADchans in self.chans
-            # to be the equivalent probe chans:
-            self.chans = self.adapter.probechans[self.adapter.ADchansortis]
+        if not self.adapter:
+            return
+        if not np.isin(self.chans, self.adapter.ADchans).all():
+            raise ValueError("Data chans are not a subset of adapter ADchans. Wrong adapter "
+                             "specified in .json file?\n"
+                             "Data chans:\n%s\n"
+                             "Adapter %r ADchans:\n%s"
+                             % (self.chans, self.adaptername, self.adapter.ADchans))
+        # if an adapter is present, self.chans actually represent ADchans,
+        # which are not necessarily equal to probe chans. Since the convention throughout
+        # spyke is that self.chans represent probe chans, replace the ADchans in self.chans
+        # to be the equivalent probe chans:
+        self.chans = self.adapter.probechans[self.adapter.ADchansortis]
 
 
 class DataPacket(object):
