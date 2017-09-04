@@ -661,29 +661,38 @@ class PlotPanel(FigureCanvas):
             chans = chans[0] # pull it out, return a single value
         return chans
 
-    def get_closestline(self, evt):
-        """Return line that's closest to mouse event coords"""
-        d2s = [] # sum squared distances
-        hitlines = []
-        closestchans = self.get_closestchans(evt, n=NCLOSESTCHANSTOSEARCH)
-        for chan in closestchans:
-            line = self.qrplt.lines[chan]
-            if line.get_visible(): # only consider lines that are visible
-                hit, tisdict = line.contains(evt)
-                if hit:
-                    tis = tisdict['ind'] # pull them out of the dict
-                    xs = line.get_xdata()[tis]
-                    ys = line.get_ydata()[tis]
-                    d2 = (xs-evt.xdata)**2 + (ys-evt.ydata)**2
-                    d2 = d2.min() # point on line closest to mouse
-                    hitlines.append(line)
-                    d2s.append(d2)
-        d2s = np.asarray(d2s)
-        if d2s.size != 0:
-            linei = d2s.argmin() # index of line with smallest d2
-            return hitlines[linei]
-        else:
-            return None
+    def get_closestchans(self, evt, n=1):
+        """Return n closest channels to mouse event coords"""
+        xdata = self.us2um(evt.xdata) # convert mouse event to um
+        ydata = self.uv2um(evt.ydata)
+        x, y = self.xy_um
+
+        # minimize Euclidean distance:
+        d2 = (x-xdata)**2 + (y-ydata)**2
+        i = d2.argsort()[:n] # n indices sorted from smallest squared distance to largest
+        chans = self.chans[i] # index into channels
+
+        # Alternate strategy: Return n channels in column closest to mouse event coords,
+        # sorted by vertical distance from mouse event:
+        # what column is this event closest to? pick that column,
+        # and then the n vertically closest chans within it
+        '''
+        # find nearest column
+        dx = np.abs(xdata - self.colxs) # array of x distances
+        coli = dx.argmin() # index of column nearest to mouse click
+        colx = self.colxs[coli] # x coord of nearest column
+        # indices into self.chans of chans that are in the nearest col:
+        i, = (x == colx).nonzero()
+        colchans = np.asarray(self.chans)[i] # channels in nearest col
+        # vertical distances between mouse click and all chans in this col:
+        dy = np.abs(y[i] - ydata)
+        i = dy.argsort()[:n] # n indices sorted from smallest to largest y distance
+        chans = colchans[i] # index into channels in the nearest column
+        '''
+
+        if len(chans) == 1:
+            chans = chans[0] # pull it out, return a single value
+        return chans
 
     def plot(self, wave, tref=None):
         """Plot waveforms and optionally rasters wrt a reference time point"""
