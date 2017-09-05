@@ -634,34 +634,6 @@ class PlotPanel(FigureCanvas):
         return xy_um
 
     def get_closestchans(self, evt, n=1):
-        """Return n channels in column closest to mouse event coords,
-        sorted by vertical distance from mouse event"""
-
-        # sum of squared distances
-        #d2 = (x-xdata)**2 + (y-ydata)**2
-        #i = d2.argsort()[:n] # n indices sorted from smallest squared distance to largest
-
-        # what column is this event closest to? pick that column,
-        # and then the n vertically closest chans within it
-        xdata = self.us2um(evt.xdata) # convert mouse event to um
-        ydata = self.uv2um(evt.ydata)
-        x, y = self.xy_um
-        # find nearest column
-        dx = np.abs(xdata - self.colxs) # array of x distances
-        coli = dx.argmin() # index of column nearest to mouse click
-        colx = self.colxs[coli] # x coord of nearest column
-        # indices into self.chans of chans that are in the nearest col:
-        i, = (x == colx).nonzero()
-        colchans = np.asarray(self.chans)[i] # channels in nearest col
-        # vertical distances between mouse click and all chans in this col:
-        dy = np.abs(y[i] - ydata)
-        i = dy.argsort()[:n] # n indices sorted from smallest to largest y distance
-        chans = colchans[i] # index into channels in the nearest column
-        if len(chans) == 1:
-            chans = chans[0] # pull it out, return a single value
-        return chans
-
-    def get_closestchans(self, evt, n=1):
         """Return n closest channels to mouse event coords"""
         xdata = self.us2um(evt.xdata) # convert mouse event to um
         ydata = self.uv2um(evt.ydata)
