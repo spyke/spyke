@@ -759,8 +759,86 @@ class A1x64_Poly2_6mm_23s_160(Probe):
         self.check()
 
 
+class H3(Probe):
+    """Cambridge Neurotech H3 probe, 20 um spacing, single column single shaft,
+    1-based channel IDs"""
+    def __init__(self):
+        self.layout = 'H3'
+        self.name = 'H3'
+        self.nchans = 64
+        self.ncols = 1
+        sl = {}
+        sl[1] =  0, 320,
+        sl[2] =  0, 620,
+        sl[3] =  0, 340,
+        sl[4] =  0, 600,
+        sl[5] =  0, 360,
+        sl[6] =  0, 580,
+        sl[7] =  0, 380,
+        sl[8] =  0, 560,
+        sl[9] =  0, 400,
+        sl[10] = 0, 540,
+        sl[11] = 0, 420,
+        sl[12] = 0, 520,
+        sl[13] = 0, 440,
+        sl[14] = 0, 500,
+        sl[15] = 0, 460,
+        sl[16] = 0, 100,
+        sl[17] = 0, 200,
+        sl[18] = 0, 120,
+        sl[19] = 0, 180,
+        sl[20] = 0, 140,
+        sl[21] = 0, 0,
+        sl[22] = 0, 300,
+        sl[23] = 0, 20,
+        sl[24] = 0, 40,
+        sl[25] = 0, 220,
+        sl[26] = 0, 240,
+        sl[27] = 0, 160,
+        sl[28] = 0, 280,
+        sl[29] = 0, 80,
+        sl[30] = 0, 60,
+        sl[31] = 0, 480,
+        sl[32] = 0, 260,
+        sl[33] = 0, 1220,
+        sl[34] = 0, 800,
+        sl[35] = 0, 1020,
+        sl[36] = 0, 1040,
+        sl[37] = 0, 1240,
+        sl[38] = 0, 1120,
+        sl[39] = 0, 1200,
+        sl[40] = 0, 1180,
+        sl[41] = 0, 1000,
+        sl[42] = 0, 980,
+        sl[43] = 0, 1260,
+        sl[44] = 0, 960,
+        sl[45] = 0, 1100,
+        sl[46] = 0, 1140,
+        sl[47] = 0, 1080,
+        sl[48] = 0, 1160,
+        sl[49] = 0, 1060,
+        sl[50] = 0, 780,
+        sl[51] = 0, 820,
+        sl[52] = 0, 760,
+        sl[53] = 0, 840,
+        sl[54] = 0, 740,
+        sl[55] = 0, 860,
+        sl[56] = 0, 720,
+        sl[57] = 0, 880,
+        sl[58] = 0, 700,
+        sl[59] = 0, 900,
+        sl[60] = 0, 680,
+        sl[61] = 0, 920,
+        sl[62] = 0, 660,
+        sl[63] = 0, 940,
+        sl[64] = 0, 640
+        self.SiteLoc = sl
+        self.check()
+
+
+
 PROBETYPES = [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b, pt16a_HS27, pt16b_HS27,
-              single, IMEC30, A1x32, A1x32_edge, A1x64_Poly2_6mm_23s_160]
+              single, IMEC30, A1x32, A1x32_edge, A1x64_Poly2_6mm_23s_160, H3]
 
 
 def getprobe(name):
@@ -888,7 +966,85 @@ class Adpt_A64_OM32x2_sm_CerePlex_Mini(Adapter):
         self.check()
 
 
-ADAPTERTYPES = [Adpt_A64_OM32x2_sm_CerePlex_Mini]
+class CN_Adpt_A64_OM32x2_sm_CerePlex_Mini(Adapter):
+    """Cambridge Neurotech dual MOLEX, to NeuroNexus Adpt-A64-OM32x2-sm (MOLEX to OM32x2-sm)
+    adapter, to Blackrock Cereplex Mini 64 channel (banks A and B) digital headstage, to
+    Blackrock NSP. This takes into account the fact that the dual MOLEX connectors on
+    Cambridge Neurotech probes have a different channel mapping than those on NeuroNexus
+    probes."""
+    def __init__(self):
+        self.name = 'CN_Adpt_A64_OM32x2_sm_CerePlex_Mini'
+        self.nchans = 64
+        p2a = {} # probe channel to AD (amplifier) channel mapping
+        p2a[1] =  15
+        p2a[2] =  16
+        p2a[3] =  13
+        p2a[4] =  14
+        p2a[5] =  12
+        p2a[6] =  11
+        p2a[7] =  10
+        p2a[8] =  9
+        p2a[9] =  8
+        p2a[10] = 7
+        p2a[11] = 6
+        p2a[12] = 5
+        p2a[13] = 4
+        p2a[14] = 3
+        p2a[15] = 2
+        p2a[16] = 1
+        p2a[17] = 48
+        p2a[18] = 47
+        p2a[19] = 46
+        p2a[20] = 45
+        p2a[21] = 43
+        p2a[22] = 44
+        p2a[23] = 41
+        p2a[24] = 39
+        p2a[25] = 37
+        p2a[26] = 35
+        p2a[27] = 33
+        p2a[28] = 42
+        p2a[29] = 38
+        p2a[30] = 36
+        p2a[31] = 34
+        p2a[32] = 40
+        p2a[33] = 58
+        p2a[34] = 64
+        p2a[35] = 62
+        p2a[36] = 60
+        p2a[37] = 56
+        p2a[38] = 63
+        p2a[39] = 61
+        p2a[40] = 59
+        p2a[41] = 57
+        p2a[42] = 55
+        p2a[43] = 54
+        p2a[44] = 53
+        p2a[45] = 51
+        p2a[46] = 52
+        p2a[47] = 49
+        p2a[48] = 50
+        p2a[49] = 31
+        p2a[50] = 32
+        p2a[51] = 29
+        p2a[52] = 30
+        p2a[53] = 27
+        p2a[54] = 28
+        p2a[55] = 25
+        p2a[56] = 26
+        p2a[57] = 23
+        p2a[58] = 24
+        p2a[59] = 21
+        p2a[60] = 22
+        p2a[61] = 20
+        p2a[62] = 19
+        p2a[63] = 18
+        p2a[64] = 17
+        self.probe2AD = p2a
+        self.check()
+
+
+ADAPTERTYPES = [Adpt_A64_OM32x2_sm_CerePlex_Mini, CN_Adpt_A64_OM32x2_sm_CerePlex_Mini]
 
 def getadapter(name):
     """Get instantiated adapter type by name"""
