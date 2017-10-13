@@ -120,7 +120,7 @@ class File(object):
             # misleading TimeStamp of 0
             # There should always be at least 2 SurfMessageRecords, so no need to check
             # for StopIteration:
-            rec = msgreciter.next()
+            rec = next(msgreciter)
             if type(rec) == UserMessageRecord:
                 continue
             break

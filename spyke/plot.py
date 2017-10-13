@@ -95,7 +95,7 @@ RASTERZORDER = 6
 class ColourDict(dict):
     """Just an easy way to cycle through colours given some index,
     like say a chan id or a neuron id. Better than using a generator,
-    cuz you don't need to keep calling .next(). This is like a dict
+    because you don't need to keep calling next(). This is like a dict
     of infinite length"""
     def __init__(self, colours=None, nocolour=None):
         self.colours = colours
@@ -1012,7 +1012,7 @@ class SpikePanel(PlotPanel):
             self.pos[chan] = (self.um2us(self.siteloc[chan][0]),
                               self.um2uv(self.siteloc[chan][1]))
             # assign colours so that they cycle vertically in space:
-            self.vcolours[chan] = colourgen.next()
+            self.vcolours[chan] = next(colourgen)
 
     def _add_caret(self):
         """Disable for SpikePanel"""
@@ -1053,7 +1053,7 @@ class ChartPanel(PlotPanel):
             # x=0 centers horizontally, equal vertical spacing:
             self.pos[chan] = (0, chani*vspace)
             # assign colours so that they cycle vertically in space:
-            self.vcolours[chan] = colourgen.next()
+            self.vcolours[chan] = next(colourgen)
 
     def _add_vref(self):
         """Disable for ChartPanel"""
