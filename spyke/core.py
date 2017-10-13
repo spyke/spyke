@@ -40,9 +40,9 @@ np.seterr(all='raise')
 
 UNIXEPOCH = datetime.datetime(1970, 1, 1, 0, 0, 0) # UNIX epoch: Jan 1, 1970
 
-NULL = '\x00'
+NULL = b'\x00'
 
-MU = '\xb5' # greek mu symbol
+MU = b'\xb5' # greek mu symbol
 MICRO = 'u'
 
 DEFDATFILTMETH = 'BW' # default .dat filter method: None, 'BW', 'WMLDR'
@@ -1474,8 +1474,11 @@ def lrstrip(s, lstr, rstr):
 
 def isascii(c):
     """Check if character c is a printable character, TAB, LF, or CR"""
-    d = ord(c) # decimal representation
-    return 32 <= d <= 127 or d in [9, 10, 13]
+    try:
+        c = ord(c) # convert string character to decimal representation
+    except TypeError: # it's already an int? (Py3)
+        pass
+    return 32 <= c <= 127 or c in [9, 10, 13]
 
 def rstripnonascii(s):
     """Return a new string with all characters after the first non-ASCII character

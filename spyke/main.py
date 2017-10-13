@@ -2767,7 +2767,7 @@ class SpykeWindow(QtGui.QMainWindow):
     
         """
         with open(join(self.streampath, fname), 'rb') as f:
-            header = f.read(16)
+            header = f.read(16).decode()
             assert header == 'Test spike file '
             version, = unpack('i', f.read(4))
 
@@ -2785,7 +2785,7 @@ class SpykeWindow(QtGui.QMainWindow):
         except IOError:
             print("Can't find file %r" % fname)
             return
-        header = f.read(16)
+        header = f.read(16).decode()
         assert header == 'Test spike file '
         version, = unpack('i', f.read(4))
         assert version == 1002
@@ -2837,7 +2837,7 @@ class SpykeWindow(QtGui.QMainWindow):
         except IOError:
             print("Can't find file %r" % fname)
             return
-        header = f.read(16)
+        header = f.read(16).decode()
         assert header == 'Test spike file '
         version, = unpack('i', f.read(4))
         assert version == 1000
@@ -2862,7 +2862,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # not all .tsf files have ground truth data at end:
         pos = f.tell()
         groundtruth = f.read()
-        if groundtruth == '': # reached EOF
+        if groundtruth == b'': # reached EOF
             nbytes = f.tell()
             f.close()
             print('Read %d bytes, %s is %d bytes long' % (pos, fname, nbytes))

@@ -123,12 +123,13 @@ class FileHeader(dat.FileHeader):
     def parse(self, f):
         # "basic" header:
         self.offset = f.tell()
-        self.filetype = f.read(8)
+        self.filetype = f.read(8).decode()
         assert self.filetype == 'NEURALCD'
         self.version = unpack('BB', f.read(2)) # aka "File Spec", major and minor versions
         self.nbytes, = unpack('I', f.read(4)) # length of full header, in bytes
-        self.label = f.read(16).rstrip(NULL) # sampling group label, null terminated
-        self.comment = rstripnonascii(f.read(256)) # null terminated, trailing junk bytes (bug)
+        self.label = f.read(16).rstrip(NULL).decode() # sampling group label, null terminated
+        # null terminated, trailing junk bytes (bug):
+        self.comment = rstripnonascii(f.read(256)).decode()
         # "Period" wrt sampling freq; sampling freq in Hz:
         self.decimation, self.sampfreq = unpack('II', f.read(8))
         assert self.decimation == 1 # doesn't have to be, but probably should for neural data
@@ -246,14 +247,14 @@ class FileHeader(dat.FileHeader):
 class ChanHeader(object):
     """.nsx header information for a single channel"""
     def parse(self, f):
-        self.type = f.read(2)
+        self.type = f.read(2).decode()
         assert self.type == 'CC' # for "continuous channel"
         self.id, = unpack('H', f.read(2)) # AD channel, usually == probe channel if no adapter
-        self.label = f.read(16).rstrip(NULL)
+        self.label = f.read(16).rstrip(NULL).decode()
         self.connector, self.pin = unpack('BB', f.read(2)) # physical connector and pin
         # max and min digital and analog values:
         self.mindval, self.maxdval, self.minaval, self.maxaval = unpack('hhhh', f.read(8))
-        self.units = f.read(16).rstrip(NULL) # analog value units: "mV" or "uV"
+        self.units = f.read(16).rstrip(NULL).decode() # analog value units: "mV" or "uV"
         # high and low pass hardware filter settings? Blackrock docs are a bit vague:
         # corner freq (mHz); filt order (0=None); filter type (0=None, 1=Butterworth)
         self.hpcorner, self.hporder, self.hpfilttype = unpack("IIH", f.read(10))
