@@ -838,7 +838,7 @@ class NListDelegate(QtGui.QStyledItemDelegate):
                 painter.setPen(self.unselectedgoodpen)
             else: # use default background pen
                 painter.setPen(self.unselectedpen)
-        text = value.toString()
+        text = qvar2str(value)
         painter.drawText(option.rect, Qt.AlignCenter, text)
         painter.restore()
 
@@ -1996,3 +1996,17 @@ def write_ks_chanmap_mat(stream, fname):
             'fs': np.float64(fs)}
     scipy.io.savemat(fname, matd)
     print('Wrote KiloSort chanmap file %r' % fname)
+
+def qvar2list(qvar):
+    """Deal with Qt4 QVariant in Python 2 vs 3"""
+    try:
+        return qvar.toList() # Py2
+    except AttributeError:
+        return qvar # Py3
+
+def qvar2str(qvar):
+    """Deal with Qt4 QVariant in Python 2 vs 3"""
+    try:
+        return str(qvar.toString()) # Py2
+    except AttributeError:
+        return qvar # Py3

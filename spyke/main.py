@@ -56,8 +56,9 @@ from collections import OrderedDict as odict
 #sys.path.insert(0, spykepath)
 
 import core
-from core import toiter, tocontig, intround, intceil, printflush, lstrip, matlabize
-from core import g, dist, iterable, MICRO, ClusterChange, SpykeToolWindow, DJS
+from core import (toiter, tocontig, intround, intceil, printflush, lstrip, matlabize,
+                  g, dist, iterable, MICRO, ClusterChange, SpykeToolWindow, DJS,
+                  qvar2list, qvar2str)
 import stream
 from stream import SimpleStream, MultiStream
 import dat, nsx, surf
@@ -2497,7 +2498,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Open a filename from the clicked recent file in the File menu"""
         action = self.sender()
         if action:
-            fullfname = str(action.data().toString())
+            fullfname = qvar2str(action.data())
             self.OpenFile(fullfname)
 
     def updateRecentFiles(self, fullfname=None):
@@ -2505,9 +2506,9 @@ class SpykeWindow(QtGui.QMainWindow):
         last fname opened or closed, which should hence go to the top of the list.
         Some of this code is taken from PySide's examples/mainwindows/recentfiles.py"""
         settings = QtCore.QSettings('spyke', 'spyke') # retrieve setting
-        fullfnames = settings.value('recentFileList').toList()
-        for i in range(len(fullfnames)): # convert each entry from QVariant to QString
-            fullfnames[i] = fullfnames[i].toString()
+        fullfnames = qvar2list(settings.value('recentFileList'))
+        for i in range(len(fullfnames)): # Py2: convert each entry from QVariant to QString
+            fullfnames[i] = qvar2str(fullfnames[i])
         if fullfname:
             try:
                 fullfnames.remove(fullfname)
