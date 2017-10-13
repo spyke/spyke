@@ -499,7 +499,7 @@ class SpykeListView(QtGui.QListView):
         stop = min(self.nrows, stop)
         nrows = stop - start
         nsamples = min(nsamples, nrows)
-        rows = random.sample(xrange(start, stop), nsamples)
+        rows = random.sample(range(start, stop), nsamples)
         self.selectRows(rows, scrollTo=False)
 
 
@@ -1098,7 +1098,7 @@ def eucd(coords):
     coords = np.asarray(coords)
     n, m = coords.shape
     delta = np.zeros((n, n), dtype=np.float64)
-    for d in xrange(m):
+    for d in range(m):
         data = coords[:, d]
         delta += (data - data[:, np.newaxis]) ** 2
     return np.sqrt(delta)

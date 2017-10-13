@@ -316,7 +316,7 @@ class Extractor(object):
         ICs = np.matrix(np.load('ptc15.87.2000_waveform_ICs.npy'))
         invICs = ICs.I # not a square matrix, think it must do pseudoinverse
 
-        for sid in xrange(nspikes):
+        for sid in range(nspikes):
             maxchanwavedata = wavedata[maxchani]
             ## TODO: maybe normalize amplitude of spike to match that of the ICs (maybe keep
             ## everything normalized to 1). That way, You're really just looking at spike

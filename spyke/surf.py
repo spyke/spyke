@@ -667,7 +667,7 @@ class DRDB(object):
         #self.DR_pad = unpack('B'*self.UFF_DRDB_PAD_LEN, f.read(self.UFF_DRDB_PAD_LEN))
         f.seek(self.UFF_DRDB_PAD_LEN, 1)
         # sub fields desc. RSFD = Record Subfield Descriptor
-        for rsfdi in xrange(self.UFF_RSFD_PER_DRDB):
+        for rsfdi in range(self.UFF_RSFD_PER_DRDB):
             rsfd = RSFD()
             rsfd.parse(f)
             self.DR_subfields.append(rsfd)

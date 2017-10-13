@@ -245,7 +245,7 @@ class Stream(object):
         kernels = {} # dict of array of kernels, indexed by [chan][resample point]
         for chan, d in zip(chans, ds): # chans and corresponding delays
             kernelrow = []
-            for point in xrange(resamplex): # iterate over resampled points per raw point
+            for point in range(resamplex): # iterate over resampled points per raw point
                 t0 = point/resamplex # some fraction of 1
                 tstart = -N/2 - t0 - d
                 tend = tstart + (N+1)

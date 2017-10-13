@@ -70,7 +70,7 @@ class Pool(object):
         self._workq   = Queue.Queue()
         self._closed  = False
         self._workers = []
-        for idx in xrange(nworkers):
+        for idx in range(nworkers):
             thr = PoolWorker(self._workq, name="Worker-%s-%d" % (name, idx))
             try:
                 thr.start()
@@ -232,7 +232,7 @@ class Pool(object):
         exit_loop = False
         while not exit_loop:
             seq = []
-            for i in xrange(chunksize or 1):
+            for i in range(chunksize or 1):
                 try:
                     arg = it_.next()
                 except StopIteration:
@@ -656,15 +656,15 @@ def _test():
         print "Result ready: %s" % s
 
     # Test imap()
-    for res in pool.imap(work, xrange(10, 3, -1), chunksize=4):
+    for res in pool.imap(work, range(10, 3, -1), chunksize=4):
         print "Item:", res
 
     # Test imap_unordered()
-    for res in pool.imap_unordered(work, xrange(10, 3, -1)):
+    for res in pool.imap_unordered(work, range(10, 3, -1)):
         print "Item:", res
 
     # Test map_async()
-    result = pool.map_async(work, xrange(10), callback=cb)
+    result = pool.map_async(work, range(10), callback=cb)
     try:
         print result.get(timeout=1)           # raises `TimeoutError`
     except TimeoutError:
@@ -674,7 +674,7 @@ def _test():
     print result.get()
 
     # Test imap_async()
-    result = pool.imap_async(work, xrange(3, 10), callback=cb)
+    result = pool.imap_async(work, range(3, 10), callback=cb)
     try:
         print result.get(timeout=1)           # raises `TimeoutError`
     except TimeoutError:
@@ -688,7 +688,7 @@ def _test():
         print "Item2:", i
 
     # Test imap_unordered_async()
-    result = pool.imap_unordered_async(work, xrange(10, 3, -1), callback=cb)
+    result = pool.imap_unordered_async(work, range(10, 3, -1), callback=cb)
     try:
         print result.get(timeout=1)           # raises `TimeoutError`
     except TimeoutError:
@@ -712,7 +712,7 @@ def _test():
     #
 
     # Exceptions in imap_unordered_async()
-    result = pool.imap_unordered_async(work, xrange(2, -10, -1), callback=cb)
+    result = pool.imap_unordered_async(work, range(2, -10, -1), callback=cb)
     time.sleep(3)
     try:
         for i in result.get():
@@ -722,7 +722,7 @@ def _test():
         traceback.print_exc()
 
     # Exceptions in imap_async()
-    result = pool.imap_async(work, xrange(2, -10, -1), callback=cb)
+    result = pool.imap_async(work, range(2, -10, -1), callback=cb)
     time.sleep(3)
     try:
         for i in result.get():
