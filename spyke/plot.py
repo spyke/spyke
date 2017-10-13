@@ -374,7 +374,7 @@ class PlotPanel(FigureCanvas):
         siteloc = copy(self.SiteLoc) # lowercase means bottom origin
         ys = [ y for x, y in siteloc.values() ]
         maxy = max(ys)
-        for key, (x, y) in siteloc.iteritems():
+        for key, (x, y) in siteloc.items():
             y = maxy - y
             siteloc[key] = (x, y) # update
         self.siteloc = siteloc # center bottom origin
@@ -479,14 +479,14 @@ class PlotPanel(FigureCanvas):
     def draw_refs(self):
         """Redraws all enabled reflines, resaves reflines_background"""
         plotvisibility = {} # mapping of currently shown plots to their visibility status
-        for pltid, plt in self.used_plots.iteritems():
+        for pltid, plt in self.used_plots.items():
             plotvisibility[pltid] = plt.visible()
             plt.hide()
         self.show_rasters(False)
         self.draw() # only draw all enabled refs - defined in FigureCanvas
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # update
         self.background = None # no longer valid
-        for pltid, plt in self.used_plots.iteritems():
+        for pltid, plt in self.used_plots.items():
             visible = plotvisibility[pltid]
             plt.show(visible) # re-show just the plots that were previously visible
             plt.draw()

@@ -3719,7 +3719,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def ShowRasters(self, enable=True):
         """Show/hide rasters for all applicable windows. Force menu states to correspond"""
         self.ui.actionRasters.setChecked(enable)
-        for wintype, window in self.windows.iteritems():
+        for wintype, window in self.windows.items():
             if wintype in ['Spike', 'Chart', 'LFP']:
                 window.panel.show_rasters(enable=enable)
                 self.plot(wintype)
