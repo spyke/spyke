@@ -63,7 +63,7 @@ from collections import OrderedDict as odict
 
 import core
 from core import (toiter, tocontig, intround, intceil, printflush, lstrip, matlabize,
-                  g, dist, iterable, MICRO, ClusterChange, SpykeToolWindow, DJS,
+                  g, dist, iterable, ClusterChange, SpykeToolWindow, DJS,
                   qvar2list, qvar2str)
 import stream
 from stream import SimpleStream, MultiStream

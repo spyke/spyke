@@ -14,7 +14,7 @@ from collections import OrderedDict as odict
 import numpy as np
 
 import core
-from core import (WaveForm, EmptyClass, intround, lrstrip, MU,
+from core import (WaveForm, EmptyClass, intround, lrstrip,
                   hamming, filterord, WMLDR, td2fusec)
 from core import (DEFHPRESAMPLEX, DEFLPSAMPLFREQ, DEFHPSRFSHCORRECT,
                   DEFHPDATSHCORRECT, DEFDATFILTMETH, DEFHPNSXSHCORRECT, DEFNSXFILTMETH, DEFCAR,
@@ -582,7 +582,6 @@ class SurfStream(Stream):
             self.shcorrect = shcorrect or False # don't s+h correct by default
 
         probename = self.layout.electrode_name
-        probename = probename.replace(MU, 'u') # replace any 'micro' symbols with 'u'
         self.probe = probes.getprobe(probename)
         self.adapter = None
 

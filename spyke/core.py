@@ -42,9 +42,6 @@ UNIXEPOCH = datetime.datetime(1970, 1, 1, 0, 0, 0) # UNIX epoch: Jan 1, 1970
 
 NULL = b'\x00'
 
-MU = b'\xb5' # greek mu symbol
-MICRO = 'u'
-
 DEFDATFILTMETH = 'BW' # default .dat filter method: None, 'BW', 'WMLDR'
 DEFNSXFILTMETH = 'BW' # default .nsx filter method: None, 'BW', 'WMLDR'
 BWHPF0 = 300 # butterworth high-pass filter low-frequency cutoff, Hz

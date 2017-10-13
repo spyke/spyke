@@ -461,7 +461,7 @@ class File(object):
         leading 0s ('ch08') work around this bug. But for those that didn't, this is a
         mapping from known incorrect LFP chan lists to their manually corrected versions"""
         chans = list(chans)
-        if electrode_name == '\xb5Map54_2b':
+        if electrode_name == 'uMap54_2b':
             if chans == [20, 17, 14, 11, 81, 51, 22, 22, 24, 25]:
                 return  [20, 17, 14, 11, 8,  5,  22, 2,  24, 25]
         # there are undoubtedly more that need to be filled in...
@@ -704,8 +704,8 @@ class RSFD(object):
 
     def parse(self, f):
         self.offset = f.tell()
-        # DRDB subfield name
-        self.subfield_name = f.read(self.UFF_DRDB_RSFD_NAME_LEN).rstrip(NULL).decode()
+        # DRDB subfield name, this has weird bytes, don't decode:
+        self.subfield_name = f.read(self.UFF_DRDB_RSFD_NAME_LEN).rstrip(NULL)
         # underlying data type
         self.subfield_data_type, = unpack('H', f.read(2))
         # sub field size in bytes, signed
@@ -797,8 +797,9 @@ class LayoutRecord(object):
         self.probe_descrip = f.read(255).rstrip(NULL).decode()
         # hack to skip next byte
         f.seek(1, 1)
-        # ShortString (uMap54_2a)
-        self.electrode_name = f.read(255).rstrip(NULL).decode()
+        # ShortString (uMap54_2a), replace any greek mu symbols with 'u'
+        electrode_name_bytes = f.read(255).rstrip(NULL).replace(b'\xb5', b'u')
+        self.electrode_name = electrode_name_bytes.decode()
         # hack to skip next 2 bytes
         f.seek(2, 1)
         # MOVE BELOW ADCHANLIST FOR CAT 9

@@ -26,7 +26,7 @@ from matplotlib.patches import Rectangle
 from matplotlib.collections import LineCollection, PolyCollection
 from matplotlib.mlab import poly_between
 
-from core import MICRO, hex2rgb, toiter, intround
+from core import hex2rgb, toiter, intround
 
 RED = '#ff0000'
 ORANGE = '#ff7f00'
@@ -906,8 +906,8 @@ class PlotPanel(FigureCanvas):
                 # round to nearest (possibly interpolated) sample:
                 t = int(round(t / self.stream.tres)) * self.stream.tres
                 tip = 'ch%d\n' % chan + \
-                      't=%d %s\n' % (t, MICRO+'s') + \
-                      'V=%.1f %s\n' % (v, MICRO+'V') + \
+                      't=%d %s\n' % (t, 'us') + \
+                      'V=%.1f %s\n' % (v, 'uV') + \
                       'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
                 tooltip.SetTip(tip)
                 tooltip.Enable(True)
@@ -945,9 +945,9 @@ class PlotPanel(FigureCanvas):
                 return
             tres = self.stream.tres
         t = int(round(t / tres)) * tres # nearest sample
-        tip = 'ch%d @ %r %s\n' % (chan, self.SiteLoc[chan], MICRO+'m') + \
-              't=%d %s\n' % (t, MICRO+'s') + \
-              'V=%.1f %s\n' % (v, MICRO+'V') + \
+        tip = 'ch%d @ %r %s\n' % (chan, self.SiteLoc[chan], 'um') + \
+              't=%d %s\n' % (t, 'us') + \
+              'V=%.1f %s\n' % (v, 'uV') + \
               'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
         self.setToolTip(tip)
 
