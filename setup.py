@@ -1,11 +1,15 @@
 """spyke installation script
 
+to do a "developer" install, such that you can work on the code where it is on your system,
+while still being able to call `import spyke` and use it as a library. This creates an
+egg-link in your system site-packages or dist-packages folder:
+>> sudo python setup.py develop
+
 to do a normal installation:
 >> python setup.py install
 
 to build extensions in-place for development:
 >>> python setup.py build_ext --inplace
-(you might need to add --compiler=mingw32 if you're in win32 and mingw isn't your default compiler in Python)
 
 to create source distribution and force tar.gz file:
 >>> python setup.py sdist --formats=gztar
@@ -17,59 +21,21 @@ NOTE: Make sure there's a MANIFEST.in that includes all the files you want to pl
 in the tarball. See http://wiki.python.org/moin/DistUtilsTutorial
 """
 
-from distutils.core import setup#, Extension
+from setuptools import setup # setuptools adds develop option that distutils lacks?
 from spyke.__init__ import __version__
 
-#import sys
-#from Cython.Distutils import build_ext
-
-'''
-
-# modify this to point to your numpy/core/include
-if sys.platform == 'win32':
-    include_dirs=['/bin/Python25/Lib/site-packages/numpy/core/include']
-elif sys.platform == 'linux2':
-    include_dirs=['/usr/lib/python2.5/site-packages/numpy/core/include']
-else:
-    raise RuntimeError
-simple_detect_cy = Extension('spyke.simple_detect_cy',
-                             sources=['spyke/simple_detect_cy.pyx'],
-                             include_dirs=include_dirs,
-                             #extra_compile_args=["-g"], # debug
-                             #extra_link_args=["-g"],
-                             )
-detect_cy = Extension('spyke.detect_cy',
-                      sources=['spyke/detect_cy.pyx'],
-                      include_dirs=include_dirs,
-                      #extra_compile_args=["-g"], # debug
-                      #extra_link_args=["-g"],
-                      )
-
-cython_test = Extension('demo.cython_test',
-                        sources=['demo/cython_test.pyx'],
-                        include_dirs=include_dirs,
-                        #extra_compile_args=["-g"], # debug
-                        #extra_link_args=["-g"],
-                        )
-
-cy_thread_test = Extension('demo.cy_thread_test',
-                        sources=['demo/cy_thread_test.pyx'],
-                        include_dirs=include_dirs,
-                        #extra_compile_args=["-g"], # debug
-                        #extra_link_args=["-g"],
-                        )
-'''
 spyke_files = ["res/*.png"] # list of extra (non .py) files required by the spyke package, relative to its path
 
 setup(name='spyke',
       version=__version__,
       license='BSD',
-      description='Multichannel spike viewer and sorter for Swindale Lab .srf files',
+      description='Visualization, navigation, and spike sorting of extracellular '
+                  'waveform data',
       author='Martin Spacek, Reza Lotun',
       author_email='git at mspacek mm st',
       url='http://spyke.github.io',
-      #long_description='',
-      packages=['spyke'], # have to explicitly include subfolders with code as additional packages
+      # have to explicitly include subfolders with code as additional packages
+      packages=['spyke'],
       package_data={'spyke' : spyke_files},
       #cmdclass={'build_ext': build_ext},
       #ext_modules=[#simple_detect_cy,

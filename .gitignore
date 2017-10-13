@@ -1,6 +1,7 @@
 *.pyc
 *.pyxbldc
 *.so
+/spyke.egg-info
 /MANIFEST
 /demo/doublevsint.c
 /demo/doublevsint.html
