@@ -1105,7 +1105,7 @@ class LFPPanel(ChartPanel):
         for chan in self.stream.layout.chans:
             newchans.append(chan)
             newpos[chan] = self.pos[chan]
-        self.chans = newchans
+        self.chans = np.asarray(newchans)
         self.pos = newpos
 
     def set_chans(self, chans):
