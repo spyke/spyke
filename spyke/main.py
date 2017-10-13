@@ -5,7 +5,10 @@ from __future__ import print_function
 
 import sys
 if sys.version_info.major != 2:
-    raise RuntimeError('spyke currently only runs in Python 2.7.x')
+    print
+    print("WARNING!!!: You're running in Python 3.x., currently unsupported.\n"
+          "            spyke only saves and loads .sort files correctly in Python 2.7.x,\n"
+          "            don't attempt to do so in Python 3.x!")
 
 from __init__ import __version__
 
