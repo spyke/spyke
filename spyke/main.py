@@ -3606,7 +3606,7 @@ class SpykeWindow(QtGui.QMainWindow):
         Caller should first check if there are any streams to close"""
         # need to specifically get a list of keys, not an iterator,
         # since self.windows dict changes size during iteration
-        for wintype in self.windows.keys():
+        for wintype in list(self.windows): # get keys as list before modifying dict
             if wintype in ['Spike', 'Chart', 'LFP']:
                 self.CloseWindow(wintype) # deletes from dict
         for stream in [self.hpstream, self.lpstream]:
