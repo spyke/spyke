@@ -45,7 +45,10 @@ import platform
 import time
 import datetime
 import gc
-import cPickle
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 import random
 from copy import copy
 from struct import unpack
@@ -3287,7 +3290,7 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Opening sort file %r' % fname)
         t0 = time.time()
         f = open(join(self.sortpath, fname), 'rb')
-        unpickler = cPickle.Unpickler(f)
+        unpickler = pickle.Unpickler(f)
         unpickler.find_global = core.unpickler_find_global_0_7_to_0_8
         sort = unpickler.load()
         print('Done opening sort file, took %.3f sec' % (time.time()-t0))
@@ -3454,7 +3457,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.save_window_states()
         s.fname = fname # bind it now that it's about to be saved
         f = open(join(self.sortpath, fname), 'wb')
-        cPickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
+        pickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
         f.close()
         print('Done saving sort file, took %.3f sec' % (time.time()-t0))
         self.updateTitle()

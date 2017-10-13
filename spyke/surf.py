@@ -9,7 +9,10 @@ __authors__ = ['Martin Spacek', 'Reza Lotun']
 
 import numpy as np
 import os
-import cPickle
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
 #import cProfile
 from struct import Struct, unpack
 from copy import copy
@@ -473,7 +476,7 @@ class File(object):
         if wasopen:
             self.close()
         # pickle self to .parse file, use most efficient (least human readable) protocol:
-        cPickle.dump(self, pf, protocol=-1)
+        pickle.dump(self, pf, protocol=-1)
         pf.close()
         if wasopen:
             self.open() # reopen it
@@ -484,8 +487,8 @@ class File(object):
         """Unpickle self from a .parse file"""
         print('Trying to recover parse info from %r' % self.parsefname)
         pf = open(self.join(self.parsefname), 'rb') # can also uncompress pickle with gzip
-        #self = cPickle.load(pf) # NOTE: this doesn't work as intended
-        other = cPickle.load(pf)
+        #self = pickle.load(pf) # NOTE: this doesn't work as intended
+        other = pickle.load(pf)
         pf.close()
         for thisstream in [other.hpstream, other.lpstream]: # can't use module name `stream`
             if thisstream:
