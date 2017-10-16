@@ -3,9 +3,7 @@ waveform data. Some of its functionality is inherited from Tim Blanche's Delphi 
 "SurfBawd".
 """
 
-__authors__ = 'Martin Spacek, Reza Lotun'
-__version__ = '1.2'
+__authors__ = ['Martin Spacek, Reza Lotun']
 
-
-import core
-import surf
+from . import (cluster, core, dat, detect, extract, gac, nsx, plot, probes,
+               sort, stream, surf, util)

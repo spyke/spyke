@@ -26,7 +26,7 @@ from matplotlib.patches import Rectangle
 from matplotlib.collections import LineCollection, PolyCollection
 from matplotlib.mlab import poly_between
 
-from core import hex2rgb, toiter, intround
+from .core import hex2rgb, toiter, intround
 
 RED = '#ff0000'
 ORANGE = '#ff7f00'

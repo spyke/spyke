@@ -17,10 +17,10 @@ from struct import unpack
 import datetime
 import json
 
-from core import NULL, rstripnonascii, intround, write_dat_json
-import dat # for inheritance
-from stream import NSXStream
-import probes
+from .core import NULL, rstripnonascii, intround, write_dat_json
+from . import dat # for inheritance
+from .stream import NSXStream
+from . import probes
 
 
 class File(dat.File):

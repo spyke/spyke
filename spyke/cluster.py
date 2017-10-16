@@ -15,8 +15,8 @@ from PyQt4.QtCore import Qt
 getSaveFileName = QtGui.QFileDialog.getSaveFileName
 from OpenGL import GL, GLU
 
-from core import SpykeToolWindow, lstrip, lst2shrtstr, tocontig
-from plot import CLUSTERCOLOURSRGB, GREYRGB, CLUSTERCOLOURRGBDICT
+from .core import SpykeToolWindow, lstrip, lst2shrtstr, tocontig
+from .plot import CLUSTERCOLOURSRGB, GREYRGB, CLUSTERCOLOURRGBDICT
 
 CLUSTERPARAMMAXSAMPLES = 2000
 VIEWDISTANCE = 50

@@ -5,12 +5,6 @@ from __future__ import print_function
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
-# this stuff needs to be near the top apparently
-import numpy as np
-import pyximport
-pyximport.install(build_in_temp=False, inplace=True)
-import util # .pyx file
-
 import sys
 import time
 import logging
@@ -42,8 +36,14 @@ IOError: [Errno 4] Interrupted system call
 
 which has to be caught and retried using _eintr_retry_call.
 '''
-from core import eucd, dist, unsortedis, concatenate_destroy, intround
-import stream
+import numpy as np
+
+import pyximport
+pyximport.install(build_in_temp=False, inplace=True)
+from . import util # .pyx file
+
+from . import stream
+from .core import eucd, dist, unsortedis, concatenate_destroy, intround
 
 #DMURANGE = 0, 500 # allowed time difference between peaks of modelled spike
 

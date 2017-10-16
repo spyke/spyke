@@ -18,7 +18,7 @@ import scipy.stats
 
 import pylab as pl
 
-from core import g, g2, cauchy2
+from .core import g, g2, cauchy2
 
 
 DEFSX = 50 # default spatial decay along x axis, in um

@@ -2,14 +2,8 @@
 
 from __future__ import division
 from __future__ import print_function
-from __init__ import __version__
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
-
-import numpy as np
-import pyximport
-pyximport.install(build_in_temp=False, inplace=True)
-import util # .pyx file
 
 import os
 import sys
@@ -27,19 +21,22 @@ from PyQt4.QtCore import Qt
 from PyQt4.QtGui import QAction, QIcon, QApplication
 
 import numpy as np
-from numpy import sqrt
 import scipy
 #from scipy.cluster.hierarchy import fclusterdata
 
 import pylab as pl
 
-import core
-from core import WaveForm, Gaussian, MAXLONGLONG, R
-from core import toiter, intround, printflush, lstrip, rstrip, lrstrip, pad, td2usec, td2days
-from core import SpykeToolWindow, NList, NSList, USList, ClusterChange, SpikeSelectionSlider
-from core import lrrep2Darrstripis, rollwin2D
-from surf import EPOCH
-from plot import SpikeSortPanel, CLUSTERCOLOURDICT, WHITE
+import pyximport
+pyximport.install(build_in_temp=False, inplace=True)
+from . import util # .pyx file
+
+from . import core
+from .core import (WaveForm, Gaussian, MAXLONGLONG, R, toiter, intround, printflush, lstrip,
+                   rstrip, lrstrip, pad, td2usec, td2days, SpykeToolWindow, NList, NSList,
+                   USList, ClusterChange, SpikeSelectionSlider, lrrep2Darrstripis, rollwin2D)
+from .surf import EPOCH
+from .plot import SpikeSortPanel, CLUSTERCOLOURDICT, WHITE
+from .__version__ import __version__
 
 #MAXCHANTOLERANCE = 100 # um
 
@@ -760,7 +757,7 @@ class Sort(object):
             X = nmf.fit_transform(data) # do both the fit and the transform
         elif kind == 'ICA': # independent components analysis
             # ensure nspikes >= ndims**2 for good ICA convergence
-            maxncomp = intround(sqrt(nspikes))
+            maxncomp = intround(np.sqrt(nspikes))
             if maxncomp < minncomp:
                 raise RuntimeError("can't satisfy minncomp=%d request" % minncomp)
             if data.shape[0] <= data.shape[1]:

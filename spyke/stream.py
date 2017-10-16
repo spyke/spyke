@@ -13,14 +13,13 @@ from collections import OrderedDict as odict
 
 import numpy as np
 
-import core
-from core import (WaveForm, EmptyClass, intround, lrstrip,
-                  hamming, filterord, WMLDR, td2fusec)
-from core import (DEFHPRESAMPLEX, DEFLPSAMPLFREQ, DEFHPSRFSHCORRECT,
-                  DEFHPDATSHCORRECT, DEFDATFILTMETH, DEFHPNSXSHCORRECT, DEFNSXFILTMETH, DEFCAR,
-                  BWHPF0, BWLPF1, BWHPORDER, BWLPORDER, LOWPASSFILTERLPSTREAM,
-                  SRFNCHANSPERBOARD, KERNELSIZE, XSWIDEBANDPOINTS)
-import probes
+from . import core, probes
+from .core import (WaveForm, EmptyClass, intround, lrstrip,
+                   hamming, filterord, WMLDR, td2fusec)
+from .core import (DEFHPRESAMPLEX, DEFLPSAMPLFREQ, DEFHPSRFSHCORRECT,
+                   DEFHPDATSHCORRECT, DEFDATFILTMETH, DEFHPNSXSHCORRECT, DEFNSXFILTMETH,
+                   DEFCAR, BWHPF0, BWLPF1, BWHPORDER, BWLPORDER, LOWPASSFILTERLPSTREAM,
+                   SRFNCHANSPERBOARD, KERNELSIZE, XSWIDEBANDPOINTS)
 
 
 class FakeStream(object):

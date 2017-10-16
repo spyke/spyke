@@ -10,7 +10,7 @@ __authors__ = ['Martin Spacek']
 
 import numpy as np
 
-from core import tolist
+from .core import tolist
 
 DEFNSXPROBETYPE = 'A1x32'
 # SPIKEDTYPE currently uses uint8 for chans, ensure during Probe instantiation that

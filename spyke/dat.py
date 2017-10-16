@@ -11,8 +11,8 @@ import os
 import datetime
 import json
 
-import probes
-from stream import DATStream
+from . import probes
+from .stream import DATStream
 
 
 class File(object):

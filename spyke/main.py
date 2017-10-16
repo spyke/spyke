@@ -4,21 +4,31 @@ from __future__ import division
 from __future__ import print_function
 
 import sys
-if sys.version_info.major != 2:
+if sys.version_info.major > 2:
     print
-    print("WARNING!!!: You're running in Python 3.x., currently unsupported.\n"
+    print("WARNING!!!: You're running spyke in Python 3.x., currently unsupported.\n"
           "            spyke only saves and loads .sort files correctly in Python 2.7.x,\n"
           "            don't attempt to do so in Python 3.x!")
-
-from __init__ import __version__
+    input('Hit ENTER to continue...')
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
+import sys
+import platform
+import time
+import datetime
+import gc
+try:
+    import cPickle as pickle
+except ImportError:
+    import pickle
+import random
+from copy import copy
+from struct import unpack
+from collections import OrderedDict as odict
+
 import numpy as np
-import pyximport
-pyximport.install(build_in_temp=False, inplace=True)
-from gac import gac # .pyx file
-import util # .pyx file
+import scipy.stats
 
 # instantiate an IPython embedded shell which shows up in the terminal on demand
 # and on every exception:
@@ -40,40 +50,23 @@ from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt4agg import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.figure import Figure
 
-import scipy.stats
-import os
-from os.path import join
-import sys
-import platform
-import time
-import datetime
-import gc
-try:
-    import cPickle as pickle
-except ImportError:
-    import pickle
-import random
-from copy import copy
-from struct import unpack
-from collections import OrderedDict as odict
+import pyximport
+pyximport.install(build_in_temp=False, inplace=True)
+from . import util # .pyx file
+from .gac import gac # .pyx file
 
-# seems unnecessary: automatically add spyke to path
-#spykepath = os.path.split(os.getcwd())[0] # parent dir of cwd
-#sys.path.insert(0, spykepath)
-
-import core
-from core import (toiter, tocontig, intround, intceil, printflush, lstrip, matlabize,
-                  g, dist, iterable, ClusterChange, SpykeToolWindow, DJS,
-                  qvar2list, qvar2str)
-import stream
-from stream import SimpleStream, MultiStream
-import dat, nsx, surf
-from sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES, NPCSPERCHAN
-from plot import SpikePanel, ChartPanel, LFPPanel
-from detect import Detector, calc_SPIKEDTYPE, DEBUG
-from extract import Extractor
-from cluster import Cluster, ClusterWindow
-import probes
+from . import core
+from .core import (toiter, tocontig, intround, intceil, printflush, lstrip, matlabize,
+                   g, dist, iterable, ClusterChange, SpykeToolWindow, DJS,
+                   qvar2list, qvar2str)
+from . import dat, nsx, surf, stream, probes
+from .stream import SimpleStream, MultiStream
+from .sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES, NPCSPERCHAN
+from .plot import SpikePanel, ChartPanel, LFPPanel
+from .detect import Detector, calc_SPIKEDTYPE, DEBUG
+from .extract import Extractor
+from .cluster import Cluster, ClusterWindow
+from .__version__ import __version__
 
 # spike window temporal window (us)
 SPIKETW = {'.dat': (-500, 1500),
@@ -2581,7 +2574,7 @@ class SpykeWindow(QtGui.QMainWindow):
             self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
         elif ext == '.track':
             fs = []
-            with open(join(self.streampath, fname), 'r') as trackfile:
+            with open(os.path.join(self.streampath, fname), 'r') as trackfile:
                 for line in trackfile: # one filename per line
                     line = line.strip() # remove leading and trailing whitespace
                     print('%s' % line)
@@ -2630,7 +2623,7 @@ class SpykeWindow(QtGui.QMainWindow):
             raise RuntimeError("Open stream doesn't match the one specified in sort")
 
         self.updateTitle()
-        self.updateRecentFiles(join(self.streampath, fname))
+        self.updateRecentFiles(os.path.join(self.streampath, fname))
 
         self.ui.__dict__['actionFiltmeth%s' % self.hpstream.filtmeth ].setChecked(True)
         self.ui.__dict__['actionCAR%s' % self.hpstream.car ].setChecked(True)
@@ -2690,7 +2683,7 @@ class SpykeWindow(QtGui.QMainWindow):
         Return a SimpleStream. Assume no sample-and-hold correction is required, and no
         highpass filtering is required"""
         import scipy.io
-        fname = join(self.streampath, fname)
+        fname = os.path.join(self.streampath, fname)
         d = scipy.io.loadmat(fname, squeeze_me=True)
         #chan = d['chan'] # this field isn't always present
         #assert chan == 1
@@ -2772,7 +2765,7 @@ class SpykeWindow(QtGui.QMainWindow):
               and still be detected and clustered correctly
     
         """
-        with open(join(self.streampath, fname), 'rb') as f:
+        with open(os.path.join(self.streampath, fname), 'rb') as f:
             header = f.read(16).decode()
             assert header == 'Test spike file '
             version, = unpack('i', f.read(4))
@@ -2787,7 +2780,7 @@ class SpykeWindow(QtGui.QMainWindow):
         assume wavedata already has the correct 0 voltage offset (i.e., is signed), assume no
         bitshift is required (data is 16 bit, not 12). Assume wavedata is wideband, containing
         both spike and LFP data"""
-        try: f = open(join(self.streampath, fname), 'rb')
+        try: f = open(os.path.join(self.streampath, fname), 'rb')
         except IOError:
             print("Can't find file %r" % fname)
             return
@@ -2839,7 +2832,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def OpenTSFFile_1000(self, fname):
         """Open TSF file, version 1000. Assume wavedata is highpass spike data only"""
-        try: f = open(join(self.streampath, fname), 'rb')
+        try: f = open(os.path.join(self.streampath, fname), 'rb')
         except IOError:
             print("Can't find file %r" % fname)
             return
@@ -3292,7 +3285,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.DeleteSort() # delete any existing Sort
         print('Opening sort file %r' % fname)
         t0 = time.time()
-        f = open(join(self.sortpath, fname), 'rb')
+        f = open(os.path.join(self.sortpath, fname), 'rb')
         unpickler = pickle.Unpickler(f)
         unpickler.find_global = core.unpickler_find_global_0_7_to_0_8
         sort = unpickler.load()
@@ -3338,7 +3331,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.restore_clustering_selections()
         self.RestoreClusters2GUI()
         self.updateTitle()
-        self.updateRecentFiles(join(self.sortpath, fname))
+        self.updateRecentFiles(os.path.join(self.sortpath, fname))
         self.update_gui_from_sort()
         self.EnableSortWidgets(True)
 
@@ -3395,7 +3388,7 @@ class SpykeWindow(QtGui.QMainWindow):
         sort = self.sort
         print('Loading spike file %r' % fname)
         t0 = time.time()
-        f = open(join(self.sortpath, fname), 'rb')
+        f = open(os.path.join(self.sortpath, fname), 'rb')
         spikes = np.load(f)
         print('Done opening spike file, took %.3f sec' % (time.time()-t0))
         print('Spike file was %d bytes long' % f.tell())
@@ -3415,7 +3408,7 @@ class SpykeWindow(QtGui.QMainWindow):
         sort = self.sort
         print('Opening wave file %r' % fname)
         t0 = time.time()
-        try: f = open(join(self.sortpath, fname), 'rb')
+        try: f = open(os.path.join(self.sortpath, fname), 'rb')
         except IOError:
             print("Can't find file %r" % fname)
             return
@@ -3459,12 +3452,12 @@ class SpykeWindow(QtGui.QMainWindow):
         self.save_clustering_selections()
         self.save_window_states()
         s.fname = fname # bind it now that it's about to be saved
-        f = open(join(self.sortpath, fname), 'wb')
+        f = open(os.path.join(self.sortpath, fname), 'wb')
         pickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
         f.close()
         print('Done saving sort file, took %.3f sec' % (time.time()-t0))
         self.updateTitle()
-        self.updateRecentFiles(join(self.sortpath, fname))
+        self.updateRecentFiles(os.path.join(self.sortpath, fname))
 
     def save_clustering_selections(self):
         """Save state of last user-selected clustering parameters. Unlike parameters such as
@@ -3512,7 +3505,7 @@ class SpykeWindow(QtGui.QMainWindow):
             self.dirtysids.clear() # no longer dirty
         print('Saving spike file %r' % fname)
         t0 = time.time()
-        f = open(join(self.sortpath, fname), 'wb')
+        f = open(os.path.join(self.sortpath, fname), 'wb')
         np.save(f, s.spikes)
         f.close()
         print('Done saving spike file, took %.3f sec' % (time.time()-t0))
@@ -3532,12 +3525,12 @@ class SpykeWindow(QtGui.QMainWindow):
             sids = None # resave all of them for speed
         if sids is None: # write the whole file
             print('Updating all %d spikes in wave file %r' % (s.nspikes, fname))
-            f = open(join(self.sortpath, fname), 'wb')
+            f = open(os.path.join(self.sortpath, fname), 'wb')
             np.save(f, s.wavedata)
             f.close()
         else: # write only sids
             print('Updating %d spikes in wave file %r' % (len(sids), fname))
-            core.updatenpyfilerows(join(self.sortpath, fname), sids, s.wavedata)
+            core.updatenpyfilerows(os.path.join(self.sortpath, fname), sids, s.wavedata)
         print('Done saving wave file, took %.3f sec' % (time.time()-t0))
         s.wavefname = fname
 
