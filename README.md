@@ -1,3 +1,5 @@
+### spyke
+
 [spyke](http://spyke.github.io) is a Python application for visualizing, navigating, and spike
 sorting high-density multichannel extracellular neuronal waveform data.
 
@@ -10,10 +12,13 @@ and conquer approach](http://dx.doi.org/10.3389/fnsys.2014.00006) is a paper des
 overall approach. spyke is described in greater detail in Chapter 3 and Appendix C.2 of this
 [thesis](http://mspacek.github.io/mspacek_thesis.pdf).
 
+A much older version is described in the paper
+[Python for large-scale electrophysiology](http://www.frontiersin.org/Neuroinformatics/10.3389/neuro.11.009.2008/abstract).
+
 Some functionality was inherited from Tim Blanche's Delphi program "SurfBawd". Some icons were
 copied from Ubuntu's [Humanity](http://launchpad.net/humanity) icon theme.
 
-Dependencies:
+### Dependencies
 
 spyke requires recent versions of the following to be installed:
 
@@ -33,17 +38,42 @@ spyke requires recent versions of the following to be installed:
 spyke is developed in [Xubuntu](http://xubuntu.org) 16.04. It should work in other Linux
 distributions, and is known to work in OSX. In principle, it should also work in Windows.
 
-A much older version is described in the paper
-[Python for large-scale electrophysiology](http://www.frontiersin.org/Neuroinformatics/10.3389/neuro.11.009.2008/abstract).
+### Installation
 
-To run:
+Most often, you'll want to install spyke in-place in "[development
+mode](http://setuptools.readthedocs.io/en/latest/setuptools.html#development-mode)", allowing
+you to launch it or import it from any path on your system, while still being able to update
+from git or work on the code wherever you cloned it:
+
 ```
-$ python main.py # in the spyke folder
+$ sudo python setup.py develop
 ```
-To install for use as a library (TODO: doesn't currently work):
+
+This also installs a startup script in your system path that allows you to launch spyke from
+anywhere on your system by simply typing:
+
 ```
-$ python setup.py install
+$ spyke
 ```
+
+Alternatively, you can launch spyke with:
+
+```
+$ python -m spyke.main
+```
+
+which gives you some more flexibility, such as allowing you to specify what version of python
+you want to use.
+
+Instead of development mode, you can also install by copying the code to your system python
+installation:
+
+```
+$ sudo python setup.py install
+```
+
+However, unlike in developer mode, every time you update from git, you'll have to re-run the
+above installation command.
 
 Plotting of spike waveforms in the Sort window can be slow and generate flicker. This seems to
 be a problem with matplotlib, and can be fixed by applying the following diff to matplotlib:
@@ -57,6 +87,8 @@ index 5b8e111..55fdb4f 100644
 +        self.update(l, self.renderer.height-t, w, h)
 
 ```
+
+### Documentation
 
 See [TUTORIAL.md](TUTORIAL.md) for a fairly brief tutorial.
 

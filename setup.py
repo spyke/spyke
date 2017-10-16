@@ -28,6 +28,8 @@ NOTE: Make sure there's a MANIFEST.in that includes all the files you want to pl
 in the tarball. See http://wiki.python.org/moin/DistUtilsTutorial
 """
 
+## TODO: for automatic dependency resolution, add `install_requires` kwarg to setup()
+
 from setuptools import setup
 from spyke.__version__ import __version__
 
