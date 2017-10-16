@@ -13,6 +13,12 @@ if sys.version_info.major > 2:
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
+# set working directory to path of this module instead of path of script that launched python,
+# otherwise Qt4 has problems finding the spyke.ui file:
+from . import __path__
+import os
+os.chdir(__path__[0])
+
 import sys
 import platform
 import time

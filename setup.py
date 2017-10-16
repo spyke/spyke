@@ -1,30 +1,38 @@
 """spyke installation script
 
-to do a "developer" install, such that you can work on the code where it is on your system,
-while still being able to call `import spyke` and use it as a library. This creates an
-egg-link in your system site-packages or dist-packages folder:
+A "developer" install lets you work on or otherwise update spyke in-place, in whatever
+folder you cloned it into with git, while still being able to call `import spyke` and use it
+as a library system-wide. This creates an egg-link in your system site-packages or
+dist-packages folder to the source code:
+
 >> sudo python setup.py develop
 
-to do a normal installation:
->> python setup.py install
+This will also install a bash script on your system so that you can simply type `spyke` at the
+command line to launch it from anywhere.
 
-to build extensions in-place for development:
+Other setup.py commands:
+
+For a normal installation (copies files to system site-packages or dist-packages folder):
+>>> sudo python setup.py install
+
+Build extensions in-place for development:
 >>> python setup.py build_ext --inplace
 
-to create source distribution and force tar.gz file:
+Create a source distribution and force tar.gz file:
 >>> python setup.py sdist --formats=gztar
 
-to create binary distribution:
+Create a binary distribution:
 >>> python setup.py bdist_wininst
 
 NOTE: Make sure there's a MANIFEST.in that includes all the files you want to place
 in the tarball. See http://wiki.python.org/moin/DistUtilsTutorial
 """
 
-from setuptools import setup # setuptools adds develop option that distutils lacks?
-from spyke.__init__ import __version__
+from setuptools import setup
+from spyke.__version__ import __version__
 
-spyke_files = ["res/*.png"] # list of extra (non .py) files required by the spyke package, relative to its path
+# list of extra (non .py) files required by the spyke package, relative to its path:
+spyke_files = ["res/*.png"]
 
 setup(name='spyke',
       version=__version__,
@@ -34,13 +42,8 @@ setup(name='spyke',
       author='Martin Spacek, Reza Lotun',
       author_email='git at mspacek mm st',
       url='http://spyke.github.io',
-      # have to explicitly include subfolders with code as additional packages
+      # include subfolders with code as additional packages
       packages=['spyke'],
       package_data={'spyke' : spyke_files},
-      #cmdclass={'build_ext': build_ext},
-      #ext_modules=[#simple_detect_cy,
-      #             detect_cy,
-      #             cython_test,
-      #             cy_thread_test
-      #             ],
+      scripts=['bin/spyke'],
       )
