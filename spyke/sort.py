@@ -129,12 +129,21 @@ class Sort(object):
         shcorrect to stream when binding/modifying stream to self"""
         oldstream = self.stream
         if stream != None and oldstream != None:
-            # does new stream type match old stream type?
-            assert type(stream) == type(oldstream)
-            # does new stream fname match old stream fname?
-            assert stream.fname == oldstream.fname
-            # does new stream probe type match old stream probe type?
-            assert type(stream.probe) == type(oldstream.probe)
+            # do stream types match?
+            if type(stream) != type(oldstream):
+                raise ValueError("Stream types don't match: %s, %s"
+                                 % (type(oldstream), type(stream)))
+            # do stream probe types match?
+            if type(stream.probe) != type(oldstream.probe):
+                raise ValueError("Stream probe types don't match: %s, %s"
+                                 % (type(oldstream.probe), type(stream.probe)))
+            # is one stream fname a superset of the other?
+            if (stream.fname not in oldstream.fname) and (oldstream.fname not in stream.fname):
+                raise ValueError("Stream file names are not supersets of each other: %s, %s"
+                                 % (oldstream.fname, stream.fname))
+            else:
+                print('Stream file names are similar enough to proceed: %s, %s'
+                      % (stream.fname, oldstream.fname))
             try:
                 stream.filtmeth = self.filtmeth
                 stream.car = self.car

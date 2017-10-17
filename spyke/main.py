@@ -2624,9 +2624,10 @@ class SpykeWindow(QtGui.QMainWindow):
             self.sort.stream = self.hpstream # restore newly opened stream to sort
         except AttributeError: # no sort yet
             pass
-        except AssertionError: # from sort.set_stream()
-            self.CloseStream() # abort opening of the stream
-            raise RuntimeError("Open stream doesn't match the one specified in sort")
+        except ValueError: # from sort.set_stream()
+            print('Aborting opening of the stream')
+            self.CloseStream()
+            raise # re-raise the ValueError from sort.set_stream()
 
         self.updateTitle()
         self.updateRecentFiles(os.path.join(self.streampath, fname))
