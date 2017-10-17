@@ -1,7 +1,7 @@
 ### Basic tutorial
 
-1. Run the program from the command line: `python main.py`. Status messages tend to be printed
-back to the command line, so it's a good idea to keep an eye on it, at least initially.
+1. Run the program from the command line by typing `spyke`. Status messages tend to be printed
+back to the command line, so it's a good idea to keep an eye on it.
 
 2. Open a data file (typically a `.dat`, `.ns6` or `.srf` file), such as this [sample
 file](http://swindale.ecc.ubc.ca/spyke?action=AttachFile&do=get&target=ptc15_tr7c_r87_spont_20sec.srf).

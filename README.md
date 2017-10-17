@@ -62,10 +62,10 @@ Alternatively, you can launch spyke with:
 $ python -m spyke.main
 ```
 
-which gives you some more flexibility, such as allowing you to specify what version of python
+which gives you some more flexibility, such as allowing you to specify what version of Python
 you want to use.
 
-Instead of development mode, you can also install by copying the code to your system python
+Instead of development mode, you can also install by copying the code to your system Python
 installation:
 
 ```

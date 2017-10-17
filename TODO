@@ -2,6 +2,8 @@
     - the smoothest ramp of all would be from the last sample of the previous recording to the first sample of the next recording
     - KiloSort seems to ignore the first and last filtering artifacts, that must be hard-coded
 
+- parallelize spatial fit when importing from events.zip, which is what happens automatically during spyke's built-in detection
+
 - BUG: round-trip results in loss of one uninterpolated datapoint, but only when exporting preprocessed data? It seems there's no missing datapoint when exporting .ns6 to raw .dat (no filtering, no CAR, no interpolation).
     - exporting two files to concatenated output gives a missing datapoint at end of both files, and therefore an extra datapoint of 0s at the end of the concatenated file, so the multistream is correctly calculating the size of the final file, but when getting data from the individual streams, it gets one datapoint less
     - concatenating to .srf doesn't seem to have this problem, probably because tres is in multiples of 1 us
