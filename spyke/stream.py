@@ -335,7 +335,7 @@ class DATStream(Stream):
         except ValueError:
             raise IndexError("requested chans %r are not a subset of available enabled "
                              "chans %r in %s stream" % (chans, self.chans, kind))
-        # NOTE: because CAR needs to average across as many channels as possible, work on
+        # NOTE: because CAR needs to average across as many channels as possible, keep
         # the full self.chans (which are the chans enabled in the stream) until the very end,
         # and only then slice out what is potentially a subset of self.chans using `chans`
         rawtres = self.rawtres
@@ -467,16 +467,17 @@ class DATStream(Stream):
         #assert ntxs == len(tsxs)
 
         # Trim down to just the requested time range and chans, and optionally decimate.
-        # For trimming time range, work on us integer values to prevent floating point
+        # For trimming time range, use integer multiple of tres to prevent floating point
         # round-off error (when tres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
+        tsxsi = intround(tsxs / self.tres)
+        starti_stopi = intround([start/self.tres, stop/self.tres])
+        lo, hi = tsxsi.searchsorted(starti_stopi)
 
-        # Slice out chanis here, only at the very end, because we want to use all
+        # Slice out chanis here only at the very end, because we want to use all
         # enabled chans up to this point for CAR, even those that we ultimately don't
         # need to return, because any extra chans that are enabled but aren't requested
-        # will affect the mean/median:
-        lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
-        #print('slice:', start, stop, self.tres, data.shape)
+        # will nevertheless affect the mean/median:
         if decimate:
             data = dataxs[chanis, lo:hi:decimatex]
             ts = tsxs[lo:hi:decimatex]
@@ -484,6 +485,7 @@ class DATStream(Stream):
             data = dataxs[chanis, lo:hi]
             ts = tsxs[lo:hi]
 
+        #print('slice:', start, stop, self.tres, data.shape)
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
         return WaveForm(data=data, ts=ts, chans=chans)
@@ -781,14 +783,17 @@ class SurfStream(Stream):
             raise NotImplementedError("SurfStream doesn't support CAR yet")
 
         # Trim down to just the requested time range.
-        # Work on us integer values to prevent floating point
+        # For trimming time range, use integer multiple of tres to prevent floating point
         # round-off error (when tres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
-        lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
-        #print('slice:', start, stop, self.tres, data.shape)
+        tsxsi = intround(tsxs / self.tres)
+        starti_stopi = intround([start/self.tres, stop/self.tres])
+        lo, hi = tsxsi.searchsorted(starti_stopi)
+
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
 
+        #print('slice:', start, stop, self.tres, data.shape)
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
         return WaveForm(data=data, ts=ts, chans=chans)
@@ -934,14 +939,17 @@ class SimpleStream(Stream):
             raise NotImplementedError("SimpleStream doesn't support CAR yet")
 
         # Trim down to just the requested time range.
-        # Work on us integer values to prevent floating point
+        # For trimming time range, use integer multiple of tres to prevent floating point
         # round-off error (when tres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
-        lo, hi = intround(tsxs).searchsorted(intround([start, stop]))
+        tsxsi = intround(tsxs / self.tres)
+        starti_stopi = intround([start/self.tres, stop/self.tres])
+        lo, hi = tsxsi.searchsorted(starti_stopi)
+
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
-        #print('SIM:', start, stop, self.tres, data.shape)
 
+        #print('slice:', start, stop, self.tres, data.shape)
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
         return WaveForm(data=data, ts=ts, chans=chans)
