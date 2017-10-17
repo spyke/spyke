@@ -28,15 +28,15 @@ import scipy.signal, scipy.io
 
 import matplotlib as mpl
 
-# set some numpy options - these should hold for all modules in spyke
+# set some numpy options - these hold for all modules in spyke:
 np.set_printoptions(precision=3)
 np.set_printoptions(threshold=1000)
 np.set_printoptions(edgeitems=5)
 np.set_printoptions(linewidth=150)
 np.set_printoptions(suppress=True)
-# make overflow, underflow, div by zero, and invalid all raise errors
-# this really should be the default in numpy...
-np.seterr(all='raise')
+# make overflow, div by zero, and invalid raise errors, and underflow just raise a warning,
+# so that program doesn't halt on underflow during gaussian fit in extract module:
+np.seterr(over='raise', divide='raise', invalid='raise', under='warn')
 
 UNIXEPOCH = datetime.datetime(1970, 1, 1, 0, 0, 0) # UNIX epoch: Jan 1, 1970
 
