@@ -444,51 +444,6 @@ class Sort(object):
         np.savetxt(fullfname, idts, '%d') # default delimiter is ' '
         print(fullfname)
     
-    def exportspkfiles(self, basepath):
-        """Export spike data to binary .spk files under basepath, one file per neuron"""
-        raise NotImplementedError("this hasn't been updated or tested in a long time and "
-                                  "is likely buggy")
-        '''
-        spikes = self.spikes
-        dt = str(datetime.datetime.now()) # get an export datetime stamp
-        dt = dt.split('.')[0] # ditch the us
-        dt = dt.replace(' ', '_')
-        dt = dt.replace(':', '.')
-        spikefoldername = dt + '.best.sort'
-        srffnames = self.stream.srffnames
-        try: # self.stream is a TrackStream?
-            streamtranges = self.stream.streamtranges # includes offsets
-        except AttributeError: # self.stream is a normal Stream
-            streamtranges = np.int64([[self.stream.t0, self.stream.t1]])
-        print('Exporting clustered spikes to:')
-        # do a separate export for each recording
-        for srffname, streamtrange in zip(srffnames, streamtranges):
-            srffnameroot = lrstrip(srffname, '../', '.srf')
-            srffnameroot = self.process_srcfnameroot(srffnameroot)
-            path = os.path.join(basepath, srffnameroot)
-            try: os.mkdir(path)
-            except OSError: pass # path already exists?
-            # if any existing folders in srffname path end with the name '.best.sort',
-            # then remove the '.best' from their name
-            for name in os.listdir(path):
-                fullname = os.path.join(path, name)
-                if os.path.isdir(fullname) and fullname.endswith('.best.sort'):
-                    #os.rename(fullname, rstrip(fullname, '.best.sort') + '.sort')
-                    shutil.rmtree(fullname) # aw hell, just delete them to minimize junk
-            path = os.path.join(path, spikefoldername)
-            os.mkdir(path)
-            for nid, neuron in self.neurons.items():
-                spikets = spikes['t'][neuron.sids] # should be sorted
-                # limit to spikes within streamtrange
-                lo, hi = spikets.searchsorted(streamtrange)
-                spikets = spikets[lo:hi]
-                if len(spikets) == 0:
-                    continue # don't generate 0 byte files
-                # pad filename with leading zeros to always make template ID 3 digits long
-                neuronfname = '%s_t%03d.spk' % (dt, nid)
-                spikets.tofile(os.path.join(path, neuronfname)) # save it
-            print(path)
-        '''
     def exporttschid(self, basepath):
         """Export int64 (timestamp, channel, neuron id) 3 tuples to binary file"""
         raise NotImplementedError('needs to be redone to work with multiple streams')
