@@ -12,7 +12,7 @@ ps = mp.current_process
 import numpy as np
 from scipy.optimize import leastsq
 from scipy.interpolate import UnivariateSpline
-#import pywt
+import pywt
 import scipy.stats
 
 import pylab as pl

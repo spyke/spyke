@@ -61,6 +61,8 @@ DEFHPDATSHCORRECT = False ## TODO: this may not hold for open-ephys and Intan ch
 DEFHPNSXSHCORRECT = False # no need for .nsx files, s+h delay is only 1 ns between chans
 DEFHPSRFSHCORRECT = True
 
+SRFNCHANSPERBOARD = 32 # used for s+h delay correction in .srf files
+
 # Apparently KERNELSIZE == number of kernel zero crossings, but that seems to depend on
 # the phase of the kernel, some have one less, depending on the channel (when doing sample
 # and hold correction). Anyway, total number of points in the kernel is KERNELSIZE plus 1
@@ -74,7 +76,6 @@ assert KERNELSIZE % 2 == 0
 # number of excess raw datapoints to include on either side of each wideband Stream
 # (such as a DATStream or NSXStream) during a slice call. Due to the lack of analog filtering,
 # a greater excess is needed than e.g. SurfStream because it's already analog filtered
-SRFNCHANSPERBOARD = 32 # TODO: would be better to not hard-code this
 XSWIDEBANDPOINTS = 200
 
 MAXLONGLONG = 2**63-1

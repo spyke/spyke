@@ -233,7 +233,7 @@ class Fill(object):
             x = []
             y = []
         else:
-            x = wave.ts-tref
+            x = wave.ts - tref
             lower = self.panel.gain * (data - err)
             upper = self.panel.gain * (data + err)
             for chani, chan in enumerate(wave.chans):
@@ -904,7 +904,7 @@ class PlotPanel(FigureCanvas):
             v = (evt.mouseevent.ydata - ypos) / self.gain
             if t >= self.stream.t0 and t <= self.stream.t1: # in bounds
                 # round to nearest (possibly interpolated) sample:
-                t = int(round(t / self.stream.tres)) * self.stream.tres
+                t = intround(t / self.stream.tres) * self.stream.tres
                 tip = 'ch%d\n' % chan + \
                       't=%d %s\n' % (t, 'us') + \
                       'V=%.1f %s\n' % (v, 'uV') + \
@@ -944,7 +944,7 @@ class PlotPanel(FigureCanvas):
                 self.setToolTip('')
                 return
             tres = self.stream.tres
-        t = int(round(t / tres)) * tres # nearest sample
+        t = intround(t / tres) * tres # nearest sample
         tip = 'ch%d @ %r %s\n' % (chan, self.SiteLoc[chan], 'um') + \
               't=%d %s\n' % (t, 'us') + \
               'V=%.1f %s\n' % (v, 'uV') + \

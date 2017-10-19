@@ -1211,9 +1211,10 @@ class MultiStream(object):
         for streami in streamis:
             stream = self.streams[streami]
             abst0 = self.streamtranges[streami, 0] # absolute start time of stream
-            # find start and end offsets relative to abst0:
-            relt0 = max(start - abst0, 0) # stay within stream's lower limit
-            relt1 = min(stop - abst0, stream.t1 - stream.t0) # stay within stream's upper limit
+            # find start and end offsets relative to abst0, while observing lower and upper
+            # stream limits:
+            relt0 = max(start - abst0, 0)
+            relt1 = min(stop - abst0, stream.t1 - stream.t0)
             # source slice times:
             st0 = relt0 + stream.t0
             st1 = relt1 + stream.t0
