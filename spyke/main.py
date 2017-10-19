@@ -105,8 +105,6 @@ USPERUM = {'.dat': 50, '.ns6': 50, '.srf': 17, '.tsf': 125}
 DYNAMICNOISEX = {'.dat': 4.5, '.ns6': 4.5, '.srf': 6, '.tsf': 3} # noise multiplier
 DT = {'.dat': 600, '.ns6': 600, '.srf': 400, '.tsf': 1500} # max time between spike peaks (us)
 
-SLIDERTRES = 100 # slider temporal resoluion (us), slider is limited to 2**32 ticks
-
 SCREENWIDTH = 1920 # TODO: this should be found programmatically
 #SCREENHEIGHT = 1080 # TODO: this should be found programmatically
 WINDOWTITLEHEIGHT = 26 # TODO: this should be found programmatically
@@ -1260,8 +1258,18 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot(int)
     def on_slider_valueChanged(self, slideri):
-        t = slideri * SLIDERTRES
+        t = slideri * self.hpstream.tres
         self.seek(t)
+
+    def update_slider(self):
+        """Update slider limits and step sizes. Slider ticks are multiples of tres"""
+        tres = self.hpstream.tres
+        self.ui.slider.setRange(intround(self.trange[0] / tres),
+                                intround(self.trange[1] / tres))
+        self.ui.slider.setValue(intround(self.t / tres))
+        self.ui.slider.setSingleStep(1)
+        self.ui.slider.setPageStep(intround((self.spiketw[1]-self.spiketw[0]) / tres))
+        self.ui.slider.setInvertedControls(True)
 
     @QtCore.pyqtSlot()
     def on_detectButton_clicked(self):
@@ -2652,25 +2660,20 @@ class SpykeWindow(QtGui.QMainWindow):
         else:
             print('setting enabled chans = %s' % enabledchans)
             self.chans_enabled = enabledchans
-        self.t = self.hpstream.t0 # set current timepoint (us)
+
+        self.trange = self.hpstream.t0, self.hpstream.t1 # us
+        self.t = self.trange[0] # init current timepoint (us)
+        self.str2t = {'start': self.trange[0],
+                      'now'  : self.t,
+                      'end'  : self.trange[1]}
 
         self.SPIKEWINDOWWIDTH = self.hpstream.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
         self.OpenWindow('Spike')
 
-        self.str2t = {'start': self.hpstream.t0,
-                      'now': self.t, # FIXME: this won't track self.t automatically
-                      'end': self.hpstream.t1}
-        self.range = (self.hpstream.t0, self.hpstream.t1) # us
         self.ui.filePosLineEdit.setText(str(self.t))
         self.ui.filePosStartButton.setText(str(self.hpstream.t0))
         self.ui.filePosEndButton.setText(str(self.hpstream.t1))
-        # set all slider values in multiples of SLIDERTRES
-        self.ui.slider.setRange(self.range[0] // SLIDERTRES,
-                                self.range[1] // SLIDERTRES) # no need to round
-        self.ui.slider.setValue(self.t // SLIDERTRES)
-        self.ui.slider.setSingleStep(1)
-        self.ui.slider.setPageStep((self.spiketw[1]-self.spiketw[0]) // SLIDERTRES)
-        self.ui.slider.setInvertedControls(True)
+        self.update_slider() # set slider limits and step sizes
 
         self.EnableStreamWidgets(True)
 
@@ -3751,7 +3754,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Set highpass stream sampling frequency, update widgets"""
         if self.hpstream != None:
             self.hpstream.sampfreq = sampfreq
-            # since slider is in multiples of SLIDERTRES, doesn't need to be updated
+            self.update_slider() # update slider to account for new tres
             self.plot()
         self.ui.__dict__['action%dkHz' % (sampfreq / 1000)].setChecked(True)
 
@@ -3943,7 +3946,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def get_nearest_timepoint(self, t):
         """Round t to nearest (possibly interpolated) sample timepoint"""
         t = intround(t / self.hpstream.tres) * self.hpstream.tres
-        t = min(max(t, self.range[0]), self.range[1]) # constrain to within .range
+        t = min(max(t, self.trange[0]), self.trange[1]) # constrain to within self.trange
         return t
 
     def seek(self, t=0):
@@ -3959,7 +3962,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # performance, maybe mpl is already doing something like this?
         if self.t != oldt: # update controls first so they don't lag
             self.ui.filePosLineEdit.setText(str(self.t))
-            self.ui.slider.setValue(self.t // SLIDERTRES)
+            self.ui.slider.setValue(intround(self.t / self.hpstream.tres))
             self.plot()
     
     def step(self, direction):
