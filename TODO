@@ -4,9 +4,6 @@
 
 - parallelize spatial fit when importing from events.zip, which is what happens automatically during spyke's built-in detection
 
-- BUG: round-trip results in loss of one uninterpolated datapoint, but only when exporting preprocessed data? It seems there's no missing datapoint when exporting .ns6 to raw .dat (no filtering, no CAR, no interpolation).
-    - exporting two files to concatenated output gives a missing datapoint at end of both files, and therefore an extra datapoint of 0s at the end of the concatenated file, so the multistream is correctly calculating the size of the final file, but when getting data from the individual streams, it gets one datapoint less
-    - concatenating to .srf doesn't seem to have this problem, probably because tres is in multiples of 1 us
 
 - BUG: when resampling is enabled (60 kHz), at some time offsets (copied and pasted into the timepoint field), the data displayed in a long .track (many .ns6 files) appears shifted by about 1 data point when viewed in the exported .dat. When there's a difference, the displayed data for the .dat file seems to always appear advanced wrt the .track file.
 
@@ -1437,7 +1434,9 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - BUG: for recordings with an adapter, lowpass chans have the wrong colour, and change colour when chans are enabled/disabled
 - BUG: loading .track, then .sort re-enables disabled chans?
 - disable ability to toggle channels in raw data panels when an existing sort is open
-
+- BUG: round-trip results in loss of one uninterpolated datapoint
+    - exporting two files to concatenated output gives a missing datapoint at end of both files, and therefore an extra datapoint of 0s at the end of the concatenated file, so the multistream is correctly calculating the size of the final file, but when getting data from the individual streams, it gets one datapoint less
+    - concatenating .srf files to .dat doesn't seem to have this problem, probably because tres is in multiples of 1 us
 
 
 

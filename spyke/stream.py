@@ -1192,12 +1192,6 @@ class MultiStream(object):
 
         #print('*** new MultiStream.__call__()')
         #print('multi start, stop: %f, %f' % (start, stop))
-        ## BUG: The last datapoint of each stream within self is missing, replaced by zeros.
-        ## This is especially apparent when exporting self to .dat. Something to do with
-        ## floating point roundoff
-        ##     - might be from using tres instead rawtres, like in single streams,
-        ##     - most likely it's from working on times instead of indices!
-
         nchans = len(chans)
         tres = self.tres
         start = intround(start / tres) * tres # round to nearest mult of tres
@@ -1225,7 +1219,7 @@ class MultiStream(object):
             st1 = relt1 + stream.t0
             sdata = stream(st0, st1, chans).data # source data
             # destination slice indices:
-            dt0i = int((abst0 + relt0 - start) // tres) # absolute index, trunc to int
+            dt0i = intround((abst0 + relt0 - start) / tres) # absolute index
             dt1i = dt0i + sdata.shape[1]
             data[:, dt0i:dt1i] = sdata
             #print('dt0i, dt1i', dt0i, dt1i)

@@ -502,7 +502,6 @@ class SpykeWindow(QtGui.QMainWindow):
         resampling are set appropriately. Use export_msg and export_ext to communicate this.
         cat controls whether to concatenate all the exported data into a single
         .dat file"""
-        ## TODO: round-trip results in loss of one uninterpolated datapoint?
         if self.hpstream.is_multi(): # self.hpstream is a MultiStream
             hpstreams = self.hpstream.streams
             defaultpath = hpstreams[0].f.path # get path of first stream
@@ -612,7 +611,6 @@ class SpykeWindow(QtGui.QMainWindow):
         output to get sampfreq. Export chans in order of depth, superficial to deep.
         bipolarref: optionally take each channel's raw data to be the difference of the two
         immediately spatially adjacent channels, before calculating the envelope"""
-        ## TODO: round-trip results in loss of one uninterpolated datapoint?
         if self.hpstream.is_multi(): # self.hpstream is a MultiStream
             hpstreams = self.hpstream.streams
         else: # self.hpstream is a single Stream
