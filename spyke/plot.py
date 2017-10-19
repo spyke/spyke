@@ -946,7 +946,7 @@ class PlotPanel(FigureCanvas):
             tres = self.stream.tres
         t = intround(t / tres) * tres # nearest sample
         tip = 'ch%d @ %r %s\n' % (chan, self.SiteLoc[chan], 'um') + \
-              't=%d %s\n' % (t, 'us') + \
+              't=%.1f %s\n' % (t, 'us') + \
               'V=%.1f %s\n' % (v, 'uV') + \
               'window=(%.3f, %.3f) ms' % (self.tw[0]/1000, self.tw[1]/1000)
         self.setToolTip(tip)

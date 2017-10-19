@@ -2670,9 +2670,9 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SPIKEWINDOWWIDTH = self.hpstream.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
         self.OpenWindow('Spike')
 
-        self.ui.filePosLineEdit.setText(str(self.t))
-        self.ui.filePosStartButton.setText(str(self.hpstream.t0))
-        self.ui.filePosEndButton.setText(str(self.hpstream.t1))
+        self.ui.filePosLineEdit.setText('%.1f' % self.t)
+        self.ui.filePosStartButton.setText('%.1f' % self.trange[0])
+        self.ui.filePosEndButton.setText('%.1f' % self.trange[1])
         self.update_slider() # set slider limits and step sizes
 
         self.EnableStreamWidgets(True)
@@ -3961,7 +3961,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # only plot if t has actually changed, though this doesn't seem to improve
         # performance, maybe mpl is already doing something like this?
         if self.t != oldt: # update controls first so they don't lag
-            self.ui.filePosLineEdit.setText(str(self.t))
+            self.ui.filePosLineEdit.setText('%.1f' % self.t)
             self.ui.slider.setValue(intround(self.t / self.hpstream.tres))
             self.plot()
     
