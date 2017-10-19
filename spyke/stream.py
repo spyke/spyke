@@ -980,24 +980,6 @@ class MultiStream(object):
         if not (np.diff(datetimes) >= timedelta(0)).all():
             raise RuntimeError("files aren't in temporal order")
 
-        """Generate tranges, an array of all the contiguous data ranges in all the
-        streams in self. These are relative to the start of acquisition (t=0) in the first
-        stream. Also generate streamtranges, an array of each stream's t0 and t1"""
-        tranges, streamtranges = [], []
-        for stream in streams:
-            td = stream.datetime - datetimes[0] # time delta between stream i and stream 0
-            for trange in stream.tranges:
-                t0 = td2fusec(td + timedelta(microseconds=trange[0]))
-                t1 = td2fusec(td + timedelta(microseconds=trange[1]))
-                tranges.append([t0, t1])
-            streamt0 = td2fusec(td + timedelta(microseconds=stream.t0))
-            streamt1 = td2fusec(td + timedelta(microseconds=stream.t1))
-            streamtranges.append([streamt0, streamt1])
-        self.tranges = np.asarray(tranges)
-        self.streamtranges = np.asarray(streamtranges)
-        self.t0 = self.streamtranges[0, 0]
-        self.t1 = self.streamtranges[-1, 1]
-
         try: self.layout = streams[0].layout # assume they're identical
         except AttributeError: pass
         try:
@@ -1031,6 +1013,22 @@ class MultiStream(object):
             raise RuntimeError("some files have different adapter types")
         self.probe = probe # they're identical
         self.adapter = adapter # they're identical
+
+        """Generate tranges, an array of all the contiguous data ranges in all the
+        streams in self. These are relative to the start of acquisition (t=0) in the first
+        stream"""
+        tranges = []
+        for stream in streams:
+            # time delta between stream i and stream 0:
+            dt = td2fusec(stream.datetime - datetimes[0]) # float us
+            dt = intround(dt / self.rawtres) * self.rawtres # round to nearest raw timepoint
+            for trange in stream.tranges:
+                t0 = dt + trange[0] # float us
+                t1 = dt + trange[1] # float us
+                tranges.append([t0, t1])
+        self.tranges = np.asarray(tranges)
+        self.t0 = self.tranges[0, 0] # float us
+        self.t1 = self.tranges[-1, 1] # float us
 
         # set filtmeth, car, sampfreq, and shcorrect for all streams:
         streamtype = type(streams[0])
@@ -1199,7 +1197,7 @@ class MultiStream(object):
         start, stop = max(start, self.t0), min(stop, self.t1) # stay within stream limits
         streamis = []
         ## TODO: this could probably be more efficient by not iterating over all streams:
-        for streami, trange in enumerate(self.streamtranges):
+        for streami, trange in enumerate(self.tranges):
             if (trange[0] <= start < trange[1]) or (trange[0] <= stop < trange[1]):
                 streamis.append(streami)
         nt = intround((stop - start) / tres)
@@ -1210,7 +1208,7 @@ class MultiStream(object):
         data = np.zeros((nchans, nt), dtype=np.int16) # any gaps will have zeros
         for streami in streamis:
             stream = self.streams[streami]
-            abst0 = self.streamtranges[streami, 0] # absolute start time of stream
+            abst0 = self.tranges[streami, 0] # absolute start time of stream
             # find start and end offsets relative to abst0, while observing lower and upper
             # stream limits:
             relt0 = max(start - abst0, 0)
