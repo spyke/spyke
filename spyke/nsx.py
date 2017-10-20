@@ -68,51 +68,7 @@ class File(dat.File):
             raise NotImplementedError("Can't handle pauses in recording yet")
         self.datapacket = datapacket
         self.contiguous = True
-    '''
-    def export_raw_dat(self, path, dt=None):
-        """Export raw contiguous data packet to .dat file, in the original (ti, chani) order
-        using same base file name in the same folder. Also export companion .json metadata
-        file. dt is duration to export from start of recording, in sec"""
-        assert path != ''
-        if dt == None:
-            nt = self.nt
-            dtstr = ''
-        else:
-            nt = intround(dt * self.fileheader.sampfreq)
-            dtstr = str(dt)
-        assert self.is_open()
-        fh = self.fileheader
-        nbytes = nt * fh.nchanstotal * 2 # number of bytes requested, 2 bytes per datapoint
-        offset = self.datapacket.dataoffset
-        self.f.seek(offset)
-        basefname = os.path.splitext(self.fname)[0]
-        if dtstr:
-            basefname = '%s_%ss' % (basefname, dtstr)
-        datfname = basefname + '.dat'
-        jsonfname = datfname + '.json'
-        fulldatfname = os.path.join(path, datfname)
-        fulljsonfname = os.path.join(path, jsonfname)
 
-        # export .dat file:
-        print('writing raw ephys data to %r' % fulldatfname)
-        print('starting from dataoffset at %d bytes' % offset)
-        with open(fulldatfname, 'wb') as datf:
-            datf.write(self.f.read(nbytes))
-        nbyteswritten = self.f.tell() - offset
-        print('%d bytes written' % nbyteswritten)
-        print('%d attempted, %d actual timepoints written'
-              % (nt, nbyteswritten / fh.nchanstotal / 2))
-
-        # export companion .json metadata file:
-        write_dat_json(self.hpstream, fulljsonfname, raw=True)
-
-        # print the important metadata:
-        print('total chans: %d' % fh.nchanstotal)
-        print('ephys chans: %d' % fh.nchans)
-        print('sample rate: %d Hz' % fh.sampfreq)
-        print('voltage gain: %g uV/AD' % fh.AD2uVx)
-        print('chan layout: %s' % self.hpstream.probe.name)
-    '''
 
 class FileHeader(dat.FileHeader):
     """.nsx file header. Takes an open file, parses in from current file
