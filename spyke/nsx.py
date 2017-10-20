@@ -69,6 +69,53 @@ class File(dat.File):
         self.datapacket = datapacket
         self.contiguous = True
 
+    def chan2datarowi(self, chan):
+        """Find row in self.datapacket._data corresponding to chan.
+        chan can be either an integer id or a string label"""
+        allchansrowis, = np.where(chan == self.fileheader.allchans)
+        alllabelrowis, = np.where(chan == self.fileheader.alllabels)
+        datarowis = np.concatenate([allchansrowis, alllabelrowis])
+        if len(datarowis) == 0:
+            raise ValueError("Can't find chan %r" % chan)
+        elif len(datarowis) > 1:
+            raise ValueError("Found multiple occurences of chan %r at data rows %r"
+                             % (chan, datarowis))
+        return datarowis[0]
+
+    def getchantype(self, chan):
+        """Return the type ('ephys' or 'aux') of chan. chan can be either an integer id
+        or a string label."""
+        chantypes = []
+        fh = self.fileheader
+        if chan in fh.chans or chan in fh.ephyschanlabels:
+            chantypes.append('ephys')
+        if chan in fh.auxchans or chan in fh.auxchanlabels:
+            chantypes.append('aux')
+        if len(chantypes) == 0:
+            raise ValueError("Can't find chan %r" % chan)
+        elif len(chantypes) > 1:
+            raise ValueError("Found mutliple types for chan %r: %r" % (chan, chantypes))
+        return chantypes[0]
+
+    def getchanAD(self, chan):
+        """Return AD data for a single chan. chan can be either an integer id
+        or a string label. To convert to voltage, use the appropriate multiplier
+        (AD2uVx for ephys chans, AD2mVx for aux chans)"""
+        datarowi = self.chan2datarowi(chan)
+        return self.datapacket._data[datarowi]
+
+    def getchanV(self, chan):
+        """Return data for a single chan, in volts. chan can be either an integer id
+        or a string label"""
+        AD = self.getchanAD(chan)
+        chantype = self.getchantype(chan)
+        if chantype == 'ephys':
+            return AD * self.fileheader.AD2uVx / 1000000 # convert uV to V
+        elif chantype == 'aux':
+            return AD * self.fileheader.AD2mVx / 1000 # convert mV to V
+        else:
+            raise ValueError('Unknown chantype %r' % chantype)
+
 
 class FileHeader(dat.FileHeader):
     """.nsx file header. Takes an open file, parses in from current file
@@ -109,7 +156,7 @@ class FileHeader(dat.FileHeader):
             chanheader.parse(f)
             label, id = chanheader.label, chanheader.id
             if label != ('chan%d' % id):
-                print('Excluding chan%d (%r) as auxiliary channel' % (id, label))
+                print('Treating chan%d (%r) as auxiliary channel' % (id, label))
                 self.auxchanheaders[id] = chanheader
             else: # save ephys channel
                 self.chanheaders[id] = chanheader
@@ -117,7 +164,7 @@ class FileHeader(dat.FileHeader):
         self.nauxchans = len(self.auxchanheaders) # number of aux chans
         assert self.nchans + self.nauxchans == self.nchanstotal
         if self.nauxchans > 0: # some chans were aux chans
-            print('Excluded %d auxiliary channels' % (self.nauxchans))
+            print('Found %d auxiliary channels' % (self.nauxchans))
         assert len(self) == f.tell() # header should be of expected length
 
         # if there's no adapter, AD ephys chans == probe chans:
@@ -211,6 +258,21 @@ class FileHeader(dat.FileHeader):
         self.set_adapter()
         self.check_probe()
         self.check_adapter()
+
+    def get_ephyschanlabels(self):
+        return np.asarray([ self.chanheaders[chan].label for chan in self.chans ])
+
+    ephyschanlabels = property(get_ephyschanlabels)
+
+    def get_auxchanlabels(self):
+        return np.asarray([ self.auxchanheaders[chan].label for chan in self.auxchans ])
+
+    auxchanlabels = property(get_auxchanlabels)
+
+    def get_alllabels(self):
+        return np.concatenate([self.ephyschanlabels, self.auxchanlabels])
+
+    alllabels = property(get_alllabels)
 
 
 class ChanHeader(object):

@@ -101,7 +101,7 @@ class File(object):
         try:
             _data = self.datapacket._data
         except AttributeError:
-            raise RuntimeError('waveform data not available, file is closed/mmap deleted?')
+            raise RuntimeError('Waveform data not available, file is closed/mmap deleted?')
         return _data[:self.fileheader.nchans] # only ephys data
 
     data = property(get_data)
@@ -110,7 +110,7 @@ class File(object):
         try:
             _data = self.datapacket._data
         except AttributeError:
-            raise RuntimeError('waveform data not available, file is closed/mmap deleted?')
+            raise RuntimeError('Waveform data not available, file is closed/mmap deleted?')
         return _data[self.fileheader.nchans:] # only aux data
 
     auxdata = property(get_auxdata)
@@ -197,6 +197,11 @@ class FileHeader(object):
         self.author = j.get('author') # software that generated the .dat file
         self.version = j.get('version') # version of software that generated the .dat file
         self.notes = j.get('notes') # notes
+
+    def get_allchans(self):
+        return np.concatenate([self.chans, self.auxchans])
+
+    allchans = property(get_allchans)
 
     def set_probe(self):
         """Set probe from self.probename"""
