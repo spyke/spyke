@@ -4,8 +4,7 @@
 
 - parallelize spatial fit when importing from events.zip, which is what happens automatically during spyke's built-in detection
 
-
-- BUG: when resampling is enabled (60 kHz), at some time offsets (copied and pasted into the timepoint field), the data displayed in a long .track (many .ns6 files) appears shifted by about 1 data point when viewed in the exported .dat. When there's a difference, the displayed data for the .dat file seems to always appear advanced wrt the .track file.
+- MultiStream of .srf files has artifact at right edge of LFP window: seems to be an extra null data point at the right edge. Maybe num timepoints allocated in (nt) should be one less for this particular type of stream?
 
 - test export and concatenated export with different sized blocks, like 30 or 60 seconds instead of 10. Make sure there aren't any indexing errors or missing/extra data in the exported files.
 

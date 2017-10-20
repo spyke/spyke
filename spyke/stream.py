@@ -162,7 +162,7 @@ class Stream(object):
         #ts = np.arange(tstart, intfloor(tstart+tres*nt), tres)
         # safer to use linspace than arange in case of float tres, deals with endpoints
         # better and gives slightly more accurate output float timestamps:
-        ts = np.linspace(tstart, tstart+(nt-1)*tres, nt)
+        ts = np.linspace(tstart, tstart+(nt-1)*tres, nt) # end inclusive
         assert len(ts) == nt
         # resampled data, leave as int32 for convolution, then convert to int16:
         data = np.empty((nchans, nt), dtype=np.int32)
@@ -323,7 +323,7 @@ class DATStream(Stream):
     filtering = property(get_filtering)
 
     def __call__(self, start, stop, chans=None):
-        """Called when Stream object is called using (). start and stop indicate start and end
+        """Called when Stream object is called using (). start and stop are end inclusive
         timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
         specified chans"""
         if chans is None:
@@ -338,7 +338,7 @@ class DATStream(Stream):
         # NOTE: because CAR needs to average across as many channels as possible, keep
         # the full self.chans (which are the chans enabled in the stream) until the very end,
         # and only then slice out what is potentially a subset of self.chans using `chans`
-        rawtres = self.rawtres
+        rawtres = self.rawtres # float us
         if kind == 'highpass':
             resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
             decimate = False
@@ -371,7 +371,7 @@ class DATStream(Stream):
         t1xs = t1xsi * rawtres
         # these are slice indices, so don't add 1 when calculating ntxs:
         ntxs = t1xsi - t0xsi # int
-        tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*rawtres, ntxs)
+        tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*rawtres, ntxs) # end inclusive
         #print('t0xs, t1xs, ntxs: %f, %f, %d' % (t0xs, t1xs, ntxs))
 
         # Init dataxs, sized to hold all enabled channels.
@@ -457,9 +457,11 @@ class DATStream(Stream):
             dataxs = dataxs - car
 
         # do any resampling if necessary:
+        xstres = rawtres
         if resample:
             #tresample = time.time()
             dataxs, tsxs = self.resample(dataxs, tsxs, self.chans)
+            xstres = self.tres
             #print('resample took %.3f sec' % (time.time()-tresample))
 
         #nresampletxs = len(tsxs)
@@ -467,12 +469,12 @@ class DATStream(Stream):
         #assert ntxs == len(tsxs)
 
         # Trim down to just the requested time range and chans, and optionally decimate.
-        # For trimming time range, use integer multiple of tres to prevent floating point
-        # round-off error (when tres is non-integer us) that can occasionally
+        # For trimming time range, use integer multiple of xstres to prevent floating point
+        # round-off error (when xstres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
-        tsxsi = intround(tsxs / self.tres)
-        starti_stopi = intround([start/self.tres, stop/self.tres])
-        lo, hi = tsxsi.searchsorted(starti_stopi)
+        tsxsi = intround(tsxs / xstres)
+        starti, stopi = intround(start/xstres), intround(stop/xstres)+1 # end inclusive
+        lo, hi = tsxsi.searchsorted([starti, stopi])
 
         # Slice out chanis here only at the very end, because we want to use all
         # enabled chans up to this point for CAR, even those that we ultimately don't
@@ -658,7 +660,7 @@ class SurfStream(Stream):
         self.f.pickle()
 
     def __call__(self, start, stop, chans=None):
-        """Called when Stream object is called using (). start and stop indicate start and end
+        """Called when Stream object is called using (). start and stop are end inclusive
         timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
         specified chans"""
         if chans is None:
@@ -689,7 +691,7 @@ class SurfStream(Stream):
         t1xs = t1xsi * rawtres
         # these are slice indices, so don't add 1:
         ntxs = t1xsi - t0xsi # int
-        tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*rawtres, ntxs)
+        tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*rawtres, ntxs) # end inclusive
         #print('t0xs, t1xs, ntxs: %f, %f, %d' % (t0xs, t1xs, ntxs))
 
         # init data as int32 so we have bitwidth to rescale and zero, convert to int16 later
@@ -769,9 +771,11 @@ class SurfStream(Stream):
             raise NotImplementedError("SurfStream doesn't support filtering yet")
 
         # do any resampling if necessary:
+        xstres = rawtres
         if resample:
             #tresample = time.time()
             dataxs, tsxs = self.resample(dataxs, tsxs, chans)
+            xstres = self.tres
             #print('resample took %.3f sec' % (time.time()-tresample))
 
         ## TODO: add CAR here, after S+H correction (in self.resample) rather than before it,
@@ -783,12 +787,12 @@ class SurfStream(Stream):
             raise NotImplementedError("SurfStream doesn't support CAR yet")
 
         # Trim down to just the requested time range.
-        # For trimming time range, use integer multiple of tres to prevent floating point
-        # round-off error (when tres is non-integer us) that can occasionally
+        # For trimming time range, use integer multiple of xstres to prevent floating point
+        # round-off error (when xstres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
-        tsxsi = intround(tsxs / self.tres)
-        starti_stopi = intround([start/self.tres, stop/self.tres])
-        lo, hi = tsxsi.searchsorted(starti_stopi)
+        tsxsi = intround(tsxs / xstres)
+        starti, stopi = intround(start/xstres), intround(stop/xstres)+1 # end inclusive
+        lo, hi = tsxsi.searchsorted([starti, stopi])
 
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
@@ -875,7 +879,7 @@ class SimpleStream(Stream):
         return d
 
     def __call__(self, start, stop, chans=None):
-        """Called when Stream object is called using (). start and stop indicate start and end
+        """Called when Stream object is called using (). start and stop are end inclusive
         timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
         specified chans"""
         if chans is None:
@@ -907,7 +911,7 @@ class SimpleStream(Stream):
         t1xs = t1xsi * rawtres
         # these are slice indices, so don't add 1:
         ntxs = t1xsi - t0xsi # int
-        tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*rawtres, ntxs)
+        tsxs = np.linspace(t0xs, t0xs+(ntxs-1)*rawtres, ntxs) # end inclusive
         #print('t0xs, t1xs, ntxs: %f, %f, %d' % (t0xs, t1xs, ntxs))
 
         # slice out excess data on requested channels, init as int32 so we have bitwidth
@@ -939,12 +943,12 @@ class SimpleStream(Stream):
             raise NotImplementedError("SimpleStream doesn't support CAR yet")
 
         # Trim down to just the requested time range.
-        # For trimming time range, use integer multiple of tres to prevent floating point
-        # round-off error (when tres is non-integer us) that can occasionally
+        # For trimming time range, use integer multiple of xstres to prevent floating point
+        # round-off error (when xstres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
-        tsxsi = intround(tsxs / self.tres)
-        starti_stopi = intround([start/self.tres, stop/self.tres])
-        lo, hi = tsxsi.searchsorted(starti_stopi)
+        tsxsi = intround(tsxs / xstres)
+        starti, stopi = intround(start/xstres), intround(stop/xstres)+1 # end inclusive
+        lo, hi = tsxsi.searchsorted([starti, stopi])
 
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
@@ -1179,9 +1183,11 @@ class MultiStream(object):
         return self(key.start, key.stop, self.chans)
 
     def __call__(self, start, stop, chans=None):
-        """Figure out which stream(s) the slice spans (usually just one, sometimes 0 or
-        2), send the request to the stream(s), generate the appropriate timestamps, and
-        return the waveform"""
+        """Called when Stream object is called using (). start and stop are end inclusive
+        timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
+        specified chans. Figure out which stream(s) the slice spans (usually just one,
+        sometimes 0 or 2), send the request to the stream(s), generate the appropriate
+        timestamps, and return the waveform"""
         if chans is None:
             chans = self.chans
         if not set(chans).issubset(self.chans):
@@ -1200,10 +1206,10 @@ class MultiStream(object):
         for streami, trange in enumerate(self.tranges):
             if (trange[0] <= start < trange[1]) or (trange[0] <= stop < trange[1]):
                 streamis.append(streami)
-        nt = intround((stop - start) / tres)
+        nt = intround((stop - start) / tres) + 1 # end inclusive
         # safer to use linspace than arange in case of float tres, deals with endpoints
         # better and gives slightly more accurate output float timestamps:
-        ts = np.linspace(start, start+(nt-1)*tres, nt)
+        ts = np.linspace(start, start+(nt-1)*tres, nt) # end inclusive
         assert len(ts) == nt
         data = np.zeros((nchans, nt), dtype=np.int16) # any gaps will have zeros
         for streami in streamis:
@@ -1216,7 +1222,7 @@ class MultiStream(object):
             # source slice times:
             st0 = relt0 + stream.t0
             st1 = relt1 + stream.t0
-            sdata = stream(st0, st1, chans).data # source data
+            sdata = stream(st0, st1, chans).data # source data, end inclusive
             # destination slice indices:
             dt0i = intround((abst0 + relt0 - start) / tres) # absolute index
             dt1i = dt0i + sdata.shape[1]
