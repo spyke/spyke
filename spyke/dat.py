@@ -106,6 +106,15 @@ class File(object):
 
     data = property(get_data)
 
+    def get_auxdata(self):
+        try:
+            _data = self.datapacket._data
+        except AttributeError:
+            raise RuntimeError('waveform data not available, file is closed/mmap deleted?')
+        return _data[self.fileheader.nchans:] # only aux data
+
+    auxdata = property(get_auxdata)
+
     def __getstate__(self):
         """Don't pickle open file handle or datapacket with open mmap"""
         d = self.__dict__.copy() # copy it cuz we'll be making changes
