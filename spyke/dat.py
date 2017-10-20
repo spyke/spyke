@@ -17,9 +17,10 @@ from .stream import DATStream
 
 class File(object):
     """Open a .dat file"""
-    def __init__(self, fname, path):
-        self.fname = fname
-        self.path = path
+    def __init__(self, fname, path=None):
+        if path is None:
+            path, fname = os.path.split(fname) # separate path from fname
+        self.fname, self.path = fname, path
         self.filesize = os.stat(self.join(fname))[6] # in bytes
         self.open() # calls parse() and load()
 
