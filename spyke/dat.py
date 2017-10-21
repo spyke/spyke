@@ -97,7 +97,17 @@ class File(object):
         self.datapacket = datapacket
         self.contiguous = True
 
+    def get_tsec(self):
+        """Return all timestamps for data in self, in sec"""
+        start, stop, step = self.t0, self.t1, self.fileheader.tres
+        ts = np.arange(start, stop+step, step) # timestamps in us
+        assert len(ts) == self.data.shape[1]
+        return ts / 1000000 # timestamps in sec
+
+    tsec = property(get_tsec)
+
     def get_data(self):
+        """Return all ephys data"""
         try:
             _data = self.datapacket._data
         except AttributeError:
@@ -107,6 +117,7 @@ class File(object):
     data = property(get_data)
 
     def get_auxdata(self):
+        """Return all auxiliary data"""
         try:
             _data = self.datapacket._data
         except AttributeError:
