@@ -1,5 +1,34 @@
 """Stream objects for requesting arbitrary time ranges of data from various file types
-in a common way"""
+in a common way.
+
+To test streams thoroughly:
+
+* open up all 3 kinds of windows (spike, chart, LFP) and scroll around
+* scroll to the very start and end of a stream. Do the start and end timepoint
+  buttons correspond to the current displayed time position when at start and end of stream
+  respectively?
+* try zooming in and out in time on all the windows
+* change between all the different settings for each of the pre-processing options:
+  Filtering, CAR and Sampling
+* export raw data to .dat, then open the .dat and compare with original using two instances
+  of spyke. They should be identical, down to the last pixel. Compare them while doing all
+  of the above
+* also export high and low-pass data to .dat and compare with original
+
+First do the above for single Streams (DATStream, NSXStream, SurfStream, SimpleStream),
+then repeat for MultiStreams of all the above types. For simplicity, work on a
+MultiStream that is made up of only two short single Streams.
+
+Additional MultiStream tests:
+
+* compare the original single Streams with their appropriate spots in the MultiStream. Use
+  the MultiStream's .tranges array to tell you where to scroll to in the MultiStream to
+  find the equivalent start and end positions of the all of its constituent Streams.
+  Do this while varying the pre-processing settings.
+* in addition to exporting raw data to .dat and comparing to the MultiStream, also compare to
+  the constituent Streams
+
+"""
 
 from __future__ import division
 from __future__ import print_function
@@ -323,9 +352,12 @@ class DATStream(Stream):
     filtering = property(get_filtering)
 
     def __call__(self, start, stop, chans=None):
-        """Called when Stream object is called using (). start and stop are end inclusive
-        timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
-        specified chans"""
+        """Called when Stream object is called using (). start and stop are timepoints in us
+        wrt t=0. Returns the corresponding WaveForm object with just the specified chans.
+
+        As of 2017-10-24 I'm not sure if this behaviour qualifies as end-inclusive or not,
+        but I suspect not. See how these single Streams are called in MultiStream.__call__
+        """
         if chans is None:
             chans = self.chans
         kind = self.kind
@@ -338,7 +370,10 @@ class DATStream(Stream):
         # NOTE: because CAR needs to average across as many channels as possible, keep
         # the full self.chans (which are the chans enabled in the stream) until the very end,
         # and only then slice out what is potentially a subset of self.chans using `chans`
-        rawtres = self.rawtres # float us
+        tres, rawtres = self.tres, self.rawtres # float us
+        # mintres handles both high-pass data where tres < rawtres, and low-pass decimated
+        # data where tres > rawtres:
+        mintres = min(tres, rawtres)
         if kind == 'highpass':
             resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
             decimate = False
@@ -356,8 +391,8 @@ class DATStream(Stream):
         xs = XSWIDEBANDPOINTS * rawtres # us
         #print('xs: %d, rawtres: %g' % (xs, rawtres))
 
-        # stream limits, in us and in sample indices, wrt t=0 and sample=0:
-        t0, t1, nt = self.t0, self.t1, self.f.nt
+        nt = self.f.nt
+        # stream limits in sample indices, wrt sample=0:
         t0i, t1i = self.f.t0i, self.f.t1i
         # calculate *slice* indices t0xsi and t1xsi, for a greater range of
         # raw data (with xs) than requested:
@@ -457,23 +492,21 @@ class DATStream(Stream):
             dataxs = dataxs - car
 
         # do any resampling if necessary:
-        xstres = rawtres
         if resample:
             #tresample = time.time()
             dataxs, tsxs = self.resample(dataxs, tsxs, self.chans)
-            xstres = self.tres
             #print('resample took %.3f sec' % (time.time()-tresample))
 
-        #nresampletxs = len(tsxs)
-        #print('ntxs, nresampletxs: %d, %d' % (ntxs, nresampletxs))
+        nresampletxs = len(tsxs)
+        print('Stream ntxs, nresampletxs: %d, %d' % (ntxs, nresampletxs))
         #assert ntxs == len(tsxs)
 
         # Trim down to just the requested time range and chans, and optionally decimate.
-        # For trimming time range, use integer multiple of xstres to prevent floating point
-        # round-off error (when xstres is non-integer us) that can occasionally
+        # For trimming time range, use integer multiple of mintres to prevent floating point
+        # round-off error (when mintres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
-        tsxsi = intround(tsxs / xstres)
-        starti, stopi = intround(start/xstres), intround(stop/xstres)+1 # end inclusive
+        tsxsi = intround(tsxs / mintres)
+        starti, stopi = intround(start/mintres), intround(stop/mintres)
         lo, hi = tsxsi.searchsorted([starti, stopi])
 
         # Slice out chanis here only at the very end, because we want to use all
@@ -487,7 +520,7 @@ class DATStream(Stream):
             data = dataxs[chanis, lo:hi]
             ts = tsxs[lo:hi]
 
-        #print('slice:', start, stop, self.tres, data.shape)
+        print('Stream start, stop, tres, shape:\n', start, stop, self.tres, data.shape)
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
         return WaveForm(data=data, ts=ts, chans=chans)
@@ -1020,16 +1053,23 @@ class MultiStream(object):
 
         """Generate tranges, an array of all the contiguous data ranges in all the
         streams in self. These are relative to the start of acquisition (t=0) in the first
-        stream"""
+        stream. Round the time deltas between neighbouring streams to the nearest multiple
+        of rawtres to avoid problems indexing across streams. This work for both high-pass
+        data whose tres < rawtres, and decimated low-pass data whose tres > rawtres"""
         tranges = []
+        rawtres = self.rawtres # float us
         for stream in streams:
             # time delta between stream i and stream 0:
             dt = td2fusec(stream.datetime - datetimes[0]) # float us
-            dt = intround(dt / self.rawtres) * self.rawtres # round to nearest raw timepoint
-            for trange in stream.tranges:
-                t0 = dt + trange[0] # float us
-                t1 = dt + trange[1] # float us
-                tranges.append([t0, t1])
+            dt = intround(dt / rawtres) * rawtres # round to nearest raw timepoint
+            # stream.tranges is only ever 1 row for a regular non-multi stream:
+            for (t0, t1) in stream.tranges:
+                streamnt = (t1 - t0) / rawtres
+                assert streamnt % 1 == 0
+                streamnt = int(streamnt)
+                t0 = intround(t0 / rawtres) * rawtres
+                t1 = t0 + streamnt * rawtres
+                tranges.append([dt+t0, dt+t1])
         self.tranges = np.asarray(tranges)
         self.t0 = self.tranges[0, 0] # float us
         self.t1 = self.tranges[-1, 1] # float us
@@ -1183,7 +1223,7 @@ class MultiStream(object):
         return self(key.start, key.stop, self.chans)
 
     def __call__(self, start, stop, chans=None):
-        """Called when Stream object is called using (). start and stop are end inclusive
+        """Called when Stream object is called using (). start and stop are
         timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
         specified chans. Figure out which stream(s) the slice spans (usually just one,
         sometimes 0 or 2), send the request to the stream(s), generate the appropriate
@@ -1194,39 +1234,47 @@ class MultiStream(object):
             raise ValueError("requested chans %r are not a subset of available enabled "
                              "chans %r in %s stream" % (chans, self.chans, self.kind))
 
-        #print('*** new MultiStream.__call__()')
-        #print('multi start, stop: %f, %f' % (start, stop))
+        print('*** new MultiStream.__call__()')
         nchans = len(chans)
-        tres = self.tres
-        start = intround(start / tres) * tres # round to nearest mult of tres
-        stop = intround(stop / tres) * tres # round to nearest mult of tres
-        start, stop = max(start, self.t0), min(stop, self.t1) # stay within stream limits
+        tres, rawtres = self.tres, self.rawtres # float us
+        print('Multi start, stop', start, stop)
+        start, stop = max(self.t0, start), min(stop, self.t1+tres) # stay within stream limits
+        print('Multi limit start, stop', start, stop)
+        nt = intround((stop - start) / tres) # in units of tres
+        stop = start + nt * tres # in units of tres
+        print('Multi nearest rawtres start, stop', start, stop)
         streamis = []
         ## TODO: this could probably be more efficient by not iterating over all streams:
         for streami, trange in enumerate(self.tranges):
             if (trange[0] <= start < trange[1]) or (trange[0] <= stop < trange[1]):
                 streamis.append(streami)
-        nt = intround((stop - start) / tres) + 1 # end inclusive
         # safer to use linspace than arange in case of float tres, deals with endpoints
         # better and gives slightly more accurate output float timestamps:
         ts = np.linspace(start, start+(nt-1)*tres, nt) # end inclusive
         assert len(ts) == nt
         data = np.zeros((nchans, nt), dtype=np.int16) # any gaps will have zeros
+        # iterate over all relevant streams:
         for streami in streamis:
             stream = self.streams[streami]
-            abst0 = self.tranges[streami, 0] # absolute start time of stream
+            streamt0 = intround(stream.t0 / rawtres) * rawtres
+            streamt1 = intround(stream.t1 / rawtres) * rawtres
+            abst0 = self.tranges[streami, 0] # absolute start time of this stream
             # find start and end offsets relative to abst0, while observing lower and upper
             # stream limits:
-            relt0 = max(start - abst0, 0)
-            relt1 = min(stop - abst0, stream.t1 - stream.t0)
+            relt0 = max(0, start - abst0)
+            relt1 = min(stop - abst0, streamt1 - streamt0 + rawtres) # end inclusive at
+                                                                     # upper stream limit?
             # source slice times:
-            st0 = relt0 + stream.t0
-            st1 = relt1 + stream.t0
-            sdata = stream(st0, st1, chans).data # source data, end inclusive
+            st0 = relt0 + streamt0
+            st1 = relt1 + streamt0
+            print('Multi abst0, relt0, st0, st1:', abst0, relt0, st0, st1)
+            sdata = stream(st0, st1, chans).data # source data, in units of tres
             # destination slice indices:
             dt0i = intround((abst0 + relt0 - start) / tres) # absolute index
             dt1i = dt0i + sdata.shape[1]
+            print('Multi dt0i, dt1i', dt0i, dt1i)
+            print('Multi start, stop, tres, sdata, data:\n',
+                  start, stop, tres, sdata.shape, data.shape)
             data[:, dt0i:dt1i] = sdata
-            #print('dt0i, dt1i', dt0i, dt1i)
-            #print('MLT:', start, stop, tres, sdata.shape, data.shape)
+            assert data.shape[1] == len(ts)
         return WaveForm(data=data, ts=ts, chans=chans)

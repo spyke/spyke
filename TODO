@@ -1,10 +1,10 @@
+- apply DATStream.__call__ changes to SurfStream and SimpleStream, and test
+
 - KiloSort detects the transients at border between time gap and actual data as spikes. These big transients are due to filtering that it applies to raw data (and are also visible in spyke with filtering enabled). Maybe when exporting raw data, we should actually process it slightly by smoothing the blank period with actual data. This would probably be preferable to excluding all spikes from kilosort around the first/last 5 ms of data of each recording, because KiloSort will make wasteful templates for these huge transients. The smoothing could simply be a linear ramp, just to make it clear that it isn't real data, but also make it smooth enough that it isn't likely to be detected as spike by KiloSort
     - the smoothest ramp of all would be from the last sample of the previous recording to the first sample of the next recording
     - KiloSort seems to ignore the first and last filtering artifacts, that must be hard-coded
 
 - parallelize spatial fit when importing from events.zip, which is what happens automatically during spyke's built-in detection
-
-- MultiStream of .srf files has artifact at right edge of LFP window: seems to be an extra null data point at the right edge. Maybe num timepoints allocated in (nt) should be one less for this particular type of stream?
 
 - test export and concatenated export with different sized blocks, like 30 or 60 seconds instead of 10. Make sure there aren't any indexing errors or missing/extra data in the exported files.
 
