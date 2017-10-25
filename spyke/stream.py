@@ -498,7 +498,7 @@ class DATStream(Stream):
             #print('resample took %.3f sec' % (time.time()-tresample))
 
         nresampletxs = len(tsxs)
-        print('Stream ntxs, nresampletxs: %d, %d' % (ntxs, nresampletxs))
+        #print('Stream ntxs, nresampletxs: %d, %d' % (ntxs, nresampletxs))
         #assert ntxs == len(tsxs)
 
         # Trim down to just the requested time range and chans, and optionally decimate.
@@ -520,7 +520,7 @@ class DATStream(Stream):
             data = dataxs[chanis, lo:hi]
             ts = tsxs[lo:hi]
 
-        print('Stream start, stop, tres, shape:\n', start, stop, self.tres, data.shape)
+        #print('Stream start, stop, tres, shape:\n', start, stop, self.tres, data.shape)
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
         return WaveForm(data=data, ts=ts, chans=chans)
@@ -835,7 +835,7 @@ class SurfStream(Stream):
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
 
-        print('Stream start, stop, tres, shape:\n', start, stop, self.tres, data.shape)
+        #print('Stream start, stop, tres, shape:\n', start, stop, self.tres, data.shape)
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
         return WaveForm(data=data, ts=ts, chans=chans)
@@ -998,7 +998,7 @@ class SimpleStream(Stream):
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
 
-        print('Stream start, stop, tres, shape:\n', start, stop, self.tres, data.shape)
+        #print('Stream start, stop, tres, shape:\n', start, stop, self.tres, data.shape)
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
         return WaveForm(data=data, ts=ts, chans=chans)
@@ -1246,15 +1246,15 @@ class MultiStream(object):
             raise ValueError("requested chans %r are not a subset of available enabled "
                              "chans %r in %s stream" % (chans, self.chans, self.kind))
 
-        print('*** new MultiStream.__call__()')
+        #print('*** new MultiStream.__call__()')
         nchans = len(chans)
         tres, rawtres = self.tres, self.rawtres # float us
-        print('Multi start, stop', start, stop)
+        #print('Multi start, stop', start, stop)
         start, stop = max(self.t0, start), min(stop, self.t1+tres) # stay within stream limits
-        print('Multi limit start, stop', start, stop)
+        #print('Multi limit start, stop', start, stop)
         nt = intround((stop - start) / tres) # in units of tres
         stop = start + nt * tres # in units of tres
-        print('Multi nearest rawtres start, stop', start, stop)
+        #print('Multi nearest rawtres start, stop', start, stop)
         streamis = []
         ## TODO: this could probably be more efficient by not iterating over all streams:
         for streami, trange in enumerate(self.tranges):
@@ -1279,14 +1279,14 @@ class MultiStream(object):
             # source slice times:
             st0 = relt0 + streamt0
             st1 = relt1 + streamt0
-            print('Multi abst0, relt0, st0, st1:', abst0, relt0, st0, st1)
+            #print('Multi abst0, relt0, st0, st1:', abst0, relt0, st0, st1)
             sdata = stream(st0, st1, chans).data # source data, in units of tres
             # destination slice indices:
             dt0i = intround((abst0 + relt0 - start) / tres) # absolute index
             dt1i = dt0i + sdata.shape[1]
-            print('Multi dt0i, dt1i', dt0i, dt1i)
-            print('Multi start, stop, tres, sdata, data:\n',
-                  start, stop, tres, sdata.shape, data.shape)
+            #print('Multi dt0i, dt1i', dt0i, dt1i)
+            #print('Multi start, stop, tres, sdata, data:\n',
+            #      start, stop, tres, sdata.shape, data.shape)
             data[:, dt0i:dt1i] = sdata
             assert data.shape[1] == len(ts)
         return WaveForm(data=data, ts=ts, chans=chans)
