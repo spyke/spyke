@@ -693,16 +693,23 @@ class SurfStream(Stream):
         self.f.pickle()
 
     def __call__(self, start, stop, chans=None):
-        """Called when Stream object is called using (). start and stop are end inclusive
-        timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
-        specified chans"""
+        """Called when Stream object is called using (). start and stop are timepoints in us
+        wrt t=0. Returns the corresponding WaveForm object with just the specified chans.
+
+        As of 2017-10-24 I'm not sure if this behaviour qualifies as end-inclusive or not,
+        but I suspect not. See how these single Streams are called in MultiStream.__call__
+        """
         if chans is None:
             chans = self.chans
+        kind = self.kind
         if not set(chans).issubset(self.chans):
             raise ValueError("requested chans %r are not a subset of available enabled "
                              "chans %r in %s stream" % (chans, self.chans, self.kind))
         nchans = len(chans)
-        rawtres = self.rawtres # float us
+        tres, rawtres = self.tres, self.rawtres # float us
+        # mintres handles both high-pass data where tres < rawtres (40 us), and low-pass
+        # data where tres = rawtres (1000 us):
+        mintres = min(tres, rawtres)
         resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
         if resample:
             # excess data in us at either end, to eliminate interpolation distortion at
@@ -757,7 +764,7 @@ class SurfStream(Stream):
         # load up data+excess, from all relevant records
         # TODO: fix code duplication
         #tload = time.time()
-        if self.kind == 'highpass': # straightforward
+        if kind == 'highpass': # straightforward
             chanis = self.layout.ADchanlist.searchsorted(chans)
             for record in records: # iterating over highpass records
                 d = self.f.loadContinuousRecord(record)[chanis] # record's data on chans
@@ -804,11 +811,9 @@ class SurfStream(Stream):
             raise NotImplementedError("SurfStream doesn't support filtering yet")
 
         # do any resampling if necessary:
-        xstres = rawtres
         if resample:
             #tresample = time.time()
             dataxs, tsxs = self.resample(dataxs, tsxs, chans)
-            xstres = self.tres
             #print('resample took %.3f sec' % (time.time()-tresample))
 
         ## TODO: add CAR here, after S+H correction (in self.resample) rather than before it,
@@ -820,17 +825,17 @@ class SurfStream(Stream):
             raise NotImplementedError("SurfStream doesn't support CAR yet")
 
         # Trim down to just the requested time range.
-        # For trimming time range, use integer multiple of xstres to prevent floating point
-        # round-off error (when xstres is non-integer us) that can occasionally
+        # For trimming time range, use integer multiple of mintres to prevent floating point
+        # round-off error (when mintres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
-        tsxsi = intround(tsxs / xstres)
-        starti, stopi = intround(start/xstres), intround(stop/xstres)+1 # end inclusive
+        tsxsi = intround(tsxs / mintres)
+        starti, stopi = intround(start/mintres), intround(stop/mintres)
         lo, hi = tsxsi.searchsorted([starti, stopi])
 
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
 
-        #print('slice:', start, stop, self.tres, data.shape)
+        print('Stream start, stop, tres, shape:\n', start, stop, self.tres, data.shape)
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
         return WaveForm(data=data, ts=ts, chans=chans)
@@ -912,17 +917,24 @@ class SimpleStream(Stream):
         return d
 
     def __call__(self, start, stop, chans=None):
-        """Called when Stream object is called using (). start and stop are end inclusive
-        timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
-        specified chans"""
+        """Called when Stream object is called using (). start and stop are timepoints in us
+        wrt t=0. Returns the corresponding WaveForm object with just the specified chans.
+
+        As of 2017-10-24 I'm not sure if this behaviour qualifies as end-inclusive or not,
+        but I suspect not. See how these single Streams are called in MultiStream.__call__
+        """
         if chans is None:
             chans = self.chans
+        kind = self.kind
         if not set(chans).issubset(self.chans):
             raise ValueError("requested chans %r are not a subset of available enabled "
-                             "chans %r in %s stream" % (chans, self.chans, self.kind))
+                             "chans %r in %s stream" % (chans, self.chans, kind))
         nchans = len(chans)
         chanis = self.ADchans.searchsorted(chans)
-        rawtres = self.rawtres # float us
+        tres, rawtres = self.tres, self.rawtres # float us
+        # mintres handles both high-pass data where tres < rawtres, and low-pass decimated
+        # data where tres > rawtres:
+        mintres = min(tres, rawtres)
         resample = self.sampfreq != self.rawsampfreq or self.shcorrect == True
         if resample:
             # excess data in us at either end, to eliminate interpolation distortion at
@@ -951,7 +963,7 @@ class SimpleStream(Stream):
         # to rescale and zero, convert to int16 later:
         dataxs = np.int32(self.wavedata[chanis, t0xsi:t1xsi])
 
-        # bitshift left by 4 to scale 12 bit values to use full 16 bit dynamic range, same as
+        # bitshift left by self.bitshift to use full 16 bit dynamic range, same as
         # * 2**(16-12) == 16. This provides more fidelity for interpolation, reduces uV per
         # AD to about 0.02
         if self.bitshift:
@@ -976,17 +988,17 @@ class SimpleStream(Stream):
             raise NotImplementedError("SimpleStream doesn't support CAR yet")
 
         # Trim down to just the requested time range.
-        # For trimming time range, use integer multiple of xstres to prevent floating point
-        # round-off error (when xstres is non-integer us) that can occasionally
+        # For trimming time range, use integer multiple of mintres to prevent floating point
+        # round-off error (when mintres is non-integer us) that can occasionally
         # cause searchsorted to produce off-by-one indices:
-        tsxsi = intround(tsxs / xstres)
-        starti, stopi = intround(start/xstres), intround(stop/xstres)+1 # end inclusive
+        tsxsi = intround(tsxs / mintres)
+        starti, stopi = intround(start/mintres), intround(stop/mintres)
         lo, hi = tsxsi.searchsorted([starti, stopi])
 
         data = dataxs[:, lo:hi]
         ts = tsxs[lo:hi]
 
-        #print('slice:', start, stop, self.tres, data.shape)
+        print('Stream start, stop, tres, shape:\n', start, stop, self.tres, data.shape)
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
         return WaveForm(data=data, ts=ts, chans=chans)
