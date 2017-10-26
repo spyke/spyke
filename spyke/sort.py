@@ -716,9 +716,22 @@ class Sort(object):
         elif kind == 'NMF': # non-negative matrix factorization
             from sklearn.decomposition import NMF
             n_components = 5
-            init = None # random, nndsvd, nndsvda, nndsvdar, custom
+            init = None # 'random', 'nndsvd', 'nndsvda', 'nndsvdar', 'custom'
             nmf = NMF(n_components=n_components, init=init)
             X = nmf.fit_transform(data) # do both the fit and the transform
+        elif kind == 'tSNE': # t-distributed stochastic neighbor embedding
+            # limit number of PCs to feed into ICA, keep up to npcsperchan components per
+            # chan on average:
+            ncomp = min((self.npcsperchan*nchans, data.shape[1]))
+            print('ncomp: %d' % ncomp)
+            import mdp # delay as late as possible
+            # do PCA first, to reduce dimensionality and speed up ICA:
+            data = mdp.pca(data, output_dim=ncomp)
+            from sklearn.manifold import TSNE
+            n_components = 3 # not suited for any more than 3, according to the paper
+            #init =  'random', 'pca'
+            tsne = TSNE(n_components=n_components)
+            X = tsne.fit_transform(data) # do both the fit and the transform
         elif kind == 'ICA': # independent components analysis
             # ensure nspikes >= ndims**2 for good ICA convergence
             maxncomp = intround(np.sqrt(nspikes))

@@ -1442,6 +1442,11 @@ NMF only works on non-negative data (unlike spikes)</string>
          </item>
          <item>
           <property name="text">
+           <string>tSNE</string>
+          </property>
+         </item>
+         <item>
+          <property name="text">
            <string>ICA</string>
           </property>
          </item>
