@@ -2867,7 +2867,8 @@ class SortWindow(SpykeToolWindow):
         else: # to in ['min', 'max']
             print('Aligning %d spikes to %s' % (len(sids), to))
             dirtysids = s.alignminmax(sids, to)
-        print('Aligned %d spikes' % len(dirtysids))
+        paligned = len(dirtysids) / len(sids) * 100
+        print('Aligned %d/%d (%.1f%%) spikes' % (len(dirtysids), len(sids), paligned))
         unids = np.unique(spikes['nid'][dirtysids])
         neurons = [ s.neurons[nid] for nid in unids ]
         for neuron in neurons:
