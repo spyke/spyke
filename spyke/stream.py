@@ -1287,6 +1287,6 @@ class MultiStream(object):
             #print('Multi dt0i, dt1i', dt0i, dt1i)
             #print('Multi start, stop, tres, sdata, data:\n',
             #      start, stop, tres, sdata.shape, data.shape)
-            data[:, dt0i:dt1i] = sdata
+            data[:, dt0i:dt1i] = sdata # destination data, in units of tres
             assert data.shape[1] == len(ts)
         return WaveForm(data=data, ts=ts, chans=chans)
