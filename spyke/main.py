@@ -356,15 +356,6 @@ class SpykeWindow(QtGui.QMainWindow):
             # don't update path
 
     @QtCore.pyqtSlot()
-    def on_actionExportGdfFiles_triggered(self):
-        path = getExistingDirectory(self, caption="Export .gdf file(s) to",
-                                    directory=self.sortpath)
-        path = str(path)
-        if path:
-            self.sort.exportgdffiles(path)
-            # don't update path
-
-    @QtCore.pyqtSlot()
     def on_actionExportTsChIdFiles_triggered(self):
         path = getExistingDirectory(self, caption="Export .tschid file(s) to",
                                     directory=self.sortpath)
