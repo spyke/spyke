@@ -3207,9 +3207,14 @@ class SpykeWindow(QtGui.QMainWindow):
               % (nreject, nspikes, preject))
 
         # remove any empty neurons due to all their spikes being rejected:
+        nneurons, nnreject = len(sort.neurons), 0
         for neuron in sort.neurons.values():
             if len(neuron.sids) == 0:
                 sw.RemoveNeuron(neuron, update=False)
+                nnreject += 1
+        preject = nnreject / nneurons * 100
+        print('Removed %d/%d (%.1f %%) empty neurons'
+              % (nnreject, nneurons, pnreject))
 
         self.UpdateClustersGUI()
 
