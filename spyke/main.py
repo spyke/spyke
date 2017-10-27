@@ -482,6 +482,9 @@ class SpykeWindow(QtGui.QMainWindow):
         resampling are set appropriately. Use export_msg and export_ext to communicate this.
         cat controls whether to concatenate all the exported data into a single
         .dat file"""
+        if not self.hpstream:
+            print('First open a stream!')
+            return
         if self.hpstream.is_multi(): # self.hpstream is a MultiStream
             hpstreams = self.hpstream.streams
             defaultpath = hpstreams[0].f.path # get path of first stream
@@ -535,6 +538,9 @@ class SpykeWindow(QtGui.QMainWindow):
     def export_lpstream(self, format='binary'):
         """Export low-pass stream (LFP) data as binary .lfp.zip file(s) or text .lfp.csv
         file(s) in user-designated basepath"""
+        if not self.lpstream:
+            print('First open a stream!')
+            return
         format2ext = {'binary': '.lfp.zip', 'text': '.lfp.csv'}
         ext = format2ext[format]
         caption = "Export low-pass data to %s %s files" % (format, ext)
@@ -591,6 +597,9 @@ class SpykeWindow(QtGui.QMainWindow):
         output to get sampfreq. Export chans in order of depth, superficial to deep.
         bipolarref: optionally take each channel's raw data to be the difference of the two
         immediately spatially adjacent channels, before calculating the envelope"""
+        if not self.hpstream:
+            print('First open a stream!')
+            return
         if self.hpstream.is_multi(): # self.hpstream is a MultiStream
             hpstreams = self.hpstream.streams
         else: # self.hpstream is a single Stream
