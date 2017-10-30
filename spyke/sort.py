@@ -350,9 +350,7 @@ class Sort(object):
         path = os.path.join(basepath, stream.srcfnameroot)
         try: os.mkdir(path)
         except OSError: pass # path already exists?
-        fname = exportdt.replace(' ', '_')
-        fname = fname.replace(':', '.')
-        fname = fname + '.ptcs'
+        fname = stream.srcfnameroot + '.ptcs'
         fullfname = os.path.join(path, fname)
         header = PTCSHeader(self, sortpath, stream, nneurons, nspikes, userdescr,
                             nsamplebytes, fullfname, exportdt)
