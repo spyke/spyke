@@ -7,7 +7,7 @@
 - add option to scatter points along time axis in cluster plot, to reduce artifactual clustering in time due to recording time gaps, or sparse firing - this should create bridges across the time gaps, and make gac clustering over time work better.
     - scatter by some percentage of the full time range currently plotted? sample from a gaussian with a sigma of about 2% of the full time range?
 
-- consider adding a mode that normalizes spike amplitudes temporarily
+- consider adding a mode that normalizes spike amplitudes temporarily, according to amplitude of each spike's max chan, both for waveform display and clustering
     - this would allow the user to remove spike amplitude from affecting clustering, which would now only rely on spike shape and spatial distribution, and would allow for better handling of bursts (assuming spike shape doesn't change much during a burst)
     - make a checkbox in the Plotting group of controls?
 

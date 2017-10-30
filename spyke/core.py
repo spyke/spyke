@@ -1353,7 +1353,8 @@ def td2usec(td):
 def td2fusec(td):
     """Convert datetime.timedelta to float microseconds"""
     sec = td.total_seconds() # float
-    return sec * 1000000
+    usec = sec * 1000000
+    return usec
 
 def td2days(td):
     """Convert datetime.timedelta to days"""
