@@ -1066,22 +1066,23 @@ class MultiStream(object):
         """Generate tranges, an array of all the contiguous data ranges in all the
         streams in self. These are relative to the start of acquisition (t=0) in the first
         stream. Round the time deltas between neighbouring streams to the nearest multiple
-        of rawtres to avoid problems indexing across streams. This work for both high-pass
+        of rawtres to avoid problems indexing across streams. This works for both high-pass
         data whose tres < rawtres, and decimated low-pass data whose tres > rawtres"""
         tranges = []
         rawtres = self.rawtres # float us
         for stream in streams:
-            # time delta between stream i and stream 0:
+            # time delta between this stream and first stream:
             dt = td2fusec(stream.datetime - datetimes[0]) # float us
             dt = intround(dt / rawtres) * rawtres # round to nearest raw timepoint
             # stream.tranges is only ever 1 row for a regular non-multi stream:
-            for (t0, t1) in stream.tranges:
-                streamnt = (t1 - t0) / rawtres
-                assert streamnt % 1 == 0
-                streamnt = int(streamnt)
-                t0 = intround(t0 / rawtres) * rawtres
-                t1 = t0 + streamnt * rawtres
-                tranges.append([dt+t0, dt+t1])
+            assert len(stream.tranges) == 1
+            t0, t1 = stream.tranges[0]
+            streamnt = (t1 - t0) / rawtres
+            assert streamnt % 1 == 0 # ensure integer num of timepoints between t0 and t1
+            streamnt = int(streamnt)
+            t0 = intround(t0 / rawtres) * rawtres
+            t1 = t0 + streamnt * rawtres
+            tranges.append([dt+t0, dt+t1])
         self.tranges = np.asarray(tranges)
         self.t0 = self.tranges[0, 0] # float us
         self.t1 = self.tranges[-1, 1] # float us
