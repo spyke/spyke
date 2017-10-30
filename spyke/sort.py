@@ -32,7 +32,7 @@ from . import util # .pyx file
 
 from . import core
 from .core import (WaveForm, Gaussian, MAXLONGLONG, R, toiter, intround, printflush, lstrip,
-                   rstrip, lrstrip, pad, td2usec, td2days, SpykeToolWindow, NList, NSList,
+                   rstrip, lrstrip, pad, td2days, SpykeToolWindow, NList, NSList,
                    USList, ClusterChange, SpikeSelectionSlider, lrrep2Darrstripis, rollwin2D)
 from .surf import EPOCH
 from .plot import SpikeSortPanel, CLUSTERCOLOURDICT, WHITE
@@ -306,15 +306,22 @@ class Sort(object):
         else: # self.stream is a single Stream
             streams = [self.stream]
         print('Exporting "good" clusters to:')
-        # do a separate export for each recording
-        for stream in streams:
-            # get time delta between stream i and stream 0, could be 0:
-            td = stream.datetime - streams[0].datetime
-            self.exportptcsfile(stream, basepath, td, exportdt, sortpath)
+        # do a separate export for each recording:
+        # absolute start and stop times of all streams, rounded to nearest raw timepoint:
+        tranges = self.stream.tranges
+        t0 = tranges[0, 0] # absolute start time of first stream
+        for stream, trange in zip(streams, tranges):
+            abst0 = trange[0] # absolute start time of this stream relative to t0
+            # time delta between this stream and first stream, to nearest raw timepoint, us:
+            dt = abst0 - t0
+            dt = intround(dt) # to nearest int us
+            self.exportptcsfile(stream, basepath, dt, exportdt, sortpath)
 
-    def exportptcsfile(self, stream, basepath, td, exportdt, sortpath):
+    def exportptcsfile(self, stream, basepath, dt, exportdt, sortpath):
         """Export spike data to binary .ptcs file in basepath. Constrain to spikes in
-        stream, and undo any time delta in spike times"""
+        stream, and undo any time delta in spike times. dt is the integer
+        time difference between start of stream and start of first stream in the track,
+        rounded to the nearest us (spike times are stored as int64 us in .ptcs)"""
 
         # build up list of PTCSNeuronRecords that have spikes in this stream,
         # and tally their spikes
@@ -328,7 +335,7 @@ class Sort(object):
             spikets = self.spikes['t'][neuron.sids] # should be a sorted copy
             assert spikets.flags['OWNDATA'] # safe to modify in place
             spikets.sort() # just in case it isn't perfectly sorted
-            spikets -= td2usec(td) # export spike times relative to t=0 of this recording
+            spikets -= dt # export spike times relative to t=0 of this recording
             # only include spikes that occurred during this recording
             lo, hi = spikets.searchsorted([stream.t0, stream.t1])
             spikets = spikets[lo:hi]
