@@ -286,13 +286,15 @@ class SpykeWindow(QtGui.QMainWindow):
         """Save sort to new .sort file"""
         defaultfname = os.path.join(self.sortpath, self.sort.fname)
         if self.sort.fname == '': # sort hasn't been previously saved
-            # generate default fname with hpstream.fname and datetime
+            # generate default fname with hpstream.fname:
             fname = self.hpstream.fname.replace(' ', '_')
-            dt = str(datetime.datetime.now()) # get an export timestamp
-            dt = dt.split('.')[0] # ditch the us
-            dt = dt.replace(' ', '_')
-            dt = dt.replace(':', '.')
-            defaultfname += fname + '_' + dt + '.sort'
+            # and datetime:
+            #dt = str(datetime.datetime.now()) # get a sort creation timestamp
+            #dt = dt.split('.')[0] # ditch the us
+            #dt = dt.replace(' ', '_')
+            #dt = dt.replace(':', '.')
+            #defaultfname += fname + '_' + dt + '.sort'
+            defaultfname += fname + '.sort'
         fname = getSaveFileName(self, caption="Save sort As",
                                 directory=defaultfname,
                                 filter="Sort files (*.sort);;"
