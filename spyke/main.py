@@ -1536,19 +1536,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def gac(self, sids, dims):
         """Cluster sids along dims, using NVS's gradient ascent algorithm"""
         s = self.sort
-        waveclustering = np.any([ dim.startswith('pk') for dim in dims ])
-        if waveclustering: # do waveform clustering
-            if len(dims) > 1:
-                raise RuntimeError("Can't do high-D clustering of spike waveforms in tandem "
-                                   "with any other spike parameters as dimensions")
-            wctype = dims[0]
-            try:
-                data = self.get_waveclustering_data(sids, wctype=wctype)
-            except RuntimeError as msg:
-                print(msg)
-                return
-        else: # do spike parameter (non-wavefrom) clustering
-            data, sids = self.get_param_matrix(sids=sids, dims=dims, scale=True)
+        data, sids = self.get_param_matrix(sids=sids, dims=dims, scale=True)
         data = tocontig(data) # ensure it's contiguous for gac()
         # grab gac() params and run it
         self.update_sort_from_cluster_pane()
@@ -1668,106 +1656,6 @@ class SpykeWindow(QtGui.QMainWindow):
             self.on_plotButton_clicked() # need to do a full replot
         cc.message += ' into %r' % [c.id for c in newclusters]
         print(cc.message)
-
-    def get_waveclustering_data(self, sids, wctype='wave'):
-        s = self.sort
-        spikes = s.spikes
-
-        # find which chans are common to all sids
-        commonchans, chanslist = s.get_common_chans(sids)
-
-        # get selected chans
-        chans = self.get_selchans(sids)
-        for chan in chans:
-            if chan not in commonchans:
-                raise RuntimeError("chan %d not common to all spikes, pick from %r"
-                                   % (chan, list(commonchans)))
-        nchans = len(chans)
-        if nchans == 0:
-            raise RuntimeError("no channels selected")
-        print('Clustering on chans %r' % list(chans))
-
-        # collect data from chans from all spikes:
-        nspikes = len(sids)
-        nt = s.wavedata.shape[2]
-        data = np.zeros((nspikes, nchans, nt), dtype=np.float32)
-        for sii, sid in enumerate(sids):
-            spikechans = chanslist[sii]
-            spikechanis = np.searchsorted(spikechans, chans)
-            data[sii] = s.wavedata[sid, spikechanis]
-
-        # find mean waveform of selected spikes, evenly sampling for speed
-        # if nspikes exceeds a threshold:
-        if nspikes > MEANWAVEMAXSAMPLES:
-            step = nspikes // MEANWAVEMAXSAMPLES + 1 
-            print('get_waveclustering_data() sampling every %d spikes instead of all %d'
-                  % (step, nspikes))
-            siis = np.arange(0, nspikes, step) # eq'v to: np.arange(nspikes)[::step]
-            template = data[siis].mean(axis=0)
-        else:
-            template = data.mean(axis=0)
-
-        # TODO: add stdev2, stdev6 and stdev10 that use the most variable points
-        # per chan, or somehow, the most non-gaussian points per chan
-
-        if wctype == 'pk2':
-            # use data at peaks of template
-            ntis = 2
-            tis = np.zeros((nchans, ntis), dtype=int)
-            for chani in range(nchans):
-                t0, t1 = np.sort([template[chani].argmin(), template[chani].argmax()])
-                tis[chani] = t0, t1
-        elif wctype == 'pk6':
-            # use data at peaks of template, and before and after each peak
-            ntis = 6
-            tis = np.zeros((nchans, ntis), dtype=int)
-            for chani in range(nchans):
-                t1, t4 = np.sort([template[chani].argmin(), template[chani].argmax()])
-                dt3 = max((t4 - t1) / 3.0, 1) # 1/3 the distance between peaks
-                t0 = max(t1-dt3, 0)
-                t2 = min(t1+dt3, nt-1)
-                t3 = max(t4-dt3, 0)
-                t5 = min(t4+dt3, nt-1)
-                tis[chani] = intround([t0, t1, t2, t3, t4, t5])
-        elif wctype == 'pk10':
-            # use data at peaks of template, and before and after each peak
-            ntis = 10
-            tis = np.zeros((nchans, ntis), dtype=int)
-            for chani in range(nchans):
-                t2, t7 = np.sort([template[chani].argmin(), template[chani].argmax()])
-                dt5 = max((t7 - t2) / 5.0, 1) # 1/5 the distance between peaks
-                t0 = max(t2-2*dt5, 0)
-                t1 = max(t2-dt5, 0)
-                t3 = min(t2+dt5, nt-1)
-                t4 = min(t2+2*dt5, nt-1)
-                t5 = max(t7-2*dt5, 0)
-                t6 = max(t7-dt5, 0)
-                t8 = min(t7+dt5, nt-1)
-                t9 = min(t7+2*dt5, nt-1)
-                tis[chani] = intround([t0, t1, t2, t3, t4, t5, t6, t7, t8, t9])
-        else:
-            raise RuntimeError('unknown wctype %r' % wctype)
-
-        print('tis =')
-        print(tis)
-        for chani in range(nchans):
-            assert core.is_unique(tis[chani])
-            # TODO: if it isn't unique, throw out the ti repeats per channel, and have
-            # potentially a different number of tis per chan. Would have to change the
-            # fancy indexing operation below...
-
-        # grab each spike's data at tis, using fancy indexing
-        # see core.rowtake() or util.rowtake_cy() for indexing explanation
-        data = data[:, np.arange(nchans)[:, None], tis] # shape = nspikes, nchans, ntis
-        data.shape = nspikes, -1 # reshape to 2D, ie flatten across chans
-
-        # normalize by the std of the dim with the biggest std - this allows use of reasonable
-        # value of sigma (~0.15), similar to param clustering, and independent of what the
-        # amplifier gain was during recording
-        norm = data.std(axis=0).max()
-        data /= norm
-        print('Normalized waveform data by %f' % norm)
-        return data
 
     @QtCore.pyqtSlot()
     def on_x0y0VppButton_clicked(self):
