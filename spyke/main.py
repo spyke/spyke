@@ -3195,7 +3195,7 @@ class SpykeWindow(QtGui.QMainWindow):
                 nnreject += 1
         preject = nnreject / nneurons * 100
         print('Removed %d/%d (%.1f %%) empty neurons'
-              % (nnreject, nneurons, pnreject))
+              % (nnreject, nneurons, preject))
 
         self.UpdateClustersGUI()
 
