@@ -833,7 +833,7 @@ class Sort(object):
         h.update(tis)
         h.update(chans)
         if kind == 'ICA': # consider npcsperchan only if doing ICA
-            h.update(str(npcsperchan))
+            h.update(str(npcsperchan).encode())
         return h.hexdigest()
 
     def create_neuron(self, id=None, inserti=None):
