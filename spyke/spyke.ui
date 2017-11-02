@@ -724,113 +724,6 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
         <property name="checked">
          <bool>false</bool>
         </property>
-        <widget class="QListWidget" name="dimlist">
-         <property name="enabled">
-          <bool>false</bool>
-         </property>
-         <property name="geometry">
-          <rect>
-           <x>0</x>
-           <y>40</y>
-           <width>66</width>
-           <height>146</height>
-          </rect>
-         </property>
-         <property name="toolTip">
-          <string>Dimensions to cluster on</string>
-         </property>
-         <property name="verticalScrollBarPolicy">
-          <enum>Qt::ScrollBarAlwaysOff</enum>
-         </property>
-         <property name="horizontalScrollBarPolicy">
-          <enum>Qt::ScrollBarAlwaysOff</enum>
-         </property>
-         <property name="selectionMode">
-          <enum>QAbstractItemView::ExtendedSelection</enum>
-         </property>
-         <property name="flow">
-          <enum>QListView::LeftToRight</enum>
-         </property>
-         <property name="isWrapping" stdset="0">
-          <bool>true</bool>
-         </property>
-         <property name="viewMode">
-          <enum>QListView::ListMode</enum>
-         </property>
-         <property name="uniformItemSizes">
-          <bool>false</bool>
-         </property>
-         <item>
-          <property name="text">
-           <string>x0</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>y0</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>Vpp</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>t</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>sx</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>dt</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>c0</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>c1</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>c2</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>c3</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>c4</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>pk2</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>pk6</string>
-          </property>
-         </item>
-         <item>
-          <property name="text">
-           <string>pk10</string>
-          </property>
-         </item>
-        </widget>
         <widget class="QLabel" name="label_22">
          <property name="geometry">
           <rect>
@@ -1055,25 +948,6 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
          </property>
          <property name="value">
           <number>1000</number>
-         </property>
-        </widget>
-        <widget class="QCheckBox" name="enableDimlistCheckBox">
-         <property name="enabled">
-          <bool>true</bool>
-         </property>
-         <property name="geometry">
-          <rect>
-           <x>0</x>
-           <y>20</y>
-           <width>51</width>
-           <height>20</height>
-          </rect>
-         </property>
-         <property name="text">
-          <string>dims</string>
-         </property>
-         <property name="checked">
-          <bool>false</bool>
          </property>
         </widget>
        </widget>
@@ -2751,7 +2625,6 @@ or remove all duplicate spikes from selected neurons
   <tabstop>blockSizeLineEdit</tabstop>
   <tabstop>lockRxSpinBox</tabstop>
   <tabstop>inclRSpinBox</tabstop>
-  <tabstop>dimlist</tabstop>
   <tabstop>sigmaSpinBox</tabstop>
   <tabstop>rmergeXSpinBox</tabstop>
   <tabstop>rneighXSpinBox</tabstop>
@@ -2826,22 +2699,6 @@ or remove all duplicate spikes from selected neurons
     <hint type="destinationlabel">
      <x>311</x>
      <y>323</y>
-    </hint>
-   </hints>
-  </connection>
-  <connection>
-   <sender>enableDimlistCheckBox</sender>
-   <signal>toggled(bool)</signal>
-   <receiver>dimlist</receiver>
-   <slot>setEnabled(bool)</slot>
-   <hints>
-    <hint type="sourcelabel">
-     <x>52</x>
-     <y>179</y>
-    </hint>
-    <hint type="destinationlabel">
-     <x>54</x>
-     <y>262</y>
     </hint>
    </hints>
   </connection>

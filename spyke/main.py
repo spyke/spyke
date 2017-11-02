@@ -155,7 +155,6 @@ class SpykeWindow(QtGui.QMainWindow):
         self.cchanges = core.Stack() # cluster change stack, for undo/redo
         self.cci = -1 # pointer to cluster change for the next undo (add 1 for next redo)
 
-        self.SetClusteringDims(['c0', 'c1', 'c2'])
 
         self.dirtysids = set() # sids whose waveforms in .wave file are out of date
         
@@ -1373,7 +1372,7 @@ class SpykeWindow(QtGui.QMainWindow):
         if len(sids) == 0: # nothing selected
             sids = spikes['id'] # all spikes (sorted)
             oldclusters = s.clusters.values() # all clusters
-        dims = self.GetClusteringDims()
+        dims = self.GetClusterPlotDims()
         comps = np.any([ dim.startswith('c') and dim[-1].isdigit() for dim in dims ])
         subsidss = [] # sids grouped into subclusters, each to be clustered separately
         msgs = []
@@ -1876,7 +1875,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def get_cleaning_density_hist(self):
         """Calculate histogram of point densities of selected spikes over selected
         clustering dimensions from origin"""
-        dims = self.GetClusteringDims()
+        dims = self.GetClusterPlotDims()
         X, sids = self.get_param_matrix(dims=dims)
         # each dim in X has 0 mean, so X is centered on origin
         X = np.float64(X) # convert to double precision
@@ -2358,26 +2357,6 @@ class SpykeWindow(QtGui.QMainWindow):
                     gw.nids[sidis] = setnid
                 gw.colour(commonsids) # recolour commonsids according to their nids
         gw.updateGL()
-
-    def SetClusteringDims(self, dims):
-        dimlist = self.ui.dimlist
-        alldims = [ str(dimlist.item(rowi).text()) for rowi in range(dimlist.count()) ]
-        rowis = [ alldims.index(dim) for dim in dims ]
-        for rowi in rowis:
-            # there really should be an easier way, but .setSelection(QRect, ...) doesn't work?
-            #dimlist.setCurrentRow(rowi, QtGui.QItemSelectionModel.Select)
-            dimlist.item(rowi).setSelected(True) # a little nicer
-
-    def GetClusteringDims(self):
-        """Get selected clustering dimensions in dimlist. If dimlist disabled, use plot
-        dimensions instead"""
-        if not self.ui.dimlist.isEnabled():
-            return self.GetClusterPlotDims()
-        items = self.ui.dimlist.selectedItems()
-        if len(items) == 0:
-            raise RuntimeError('No clustering dimensions selected')
-        dims = [ str(item.text()) for item in items ] # dim names
-        return dims
 
     def GetClusterPlotDims(self):
         """Return 3-tuple of strings of cluster dimension names, in (x, y, z) order"""
