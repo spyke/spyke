@@ -1026,10 +1026,16 @@ class SpykeWindow(QtGui.QMainWindow):
             sw = self.windows['Sort']
         except KeyError:
             QtGui.QMainWindow.keyPressEvent(self, event) # pass it on
-        if key in [Qt.Key_Escape, Qt.Key_E]: # deselect all spikes and clusters in Sort window
+        if key == Qt.Key_A:
+            self.ui.plotButton.click()
+        elif key == Qt.Key_N:
+            self.ui.normButton.click()
+        elif key in [Qt.Key_Escape, Qt.Key_E]:
             sw.clear()
         elif key == Qt.Key_R: # doesn't fire when certain widgets have focus
             sw.on_actionSelectRandomSpikes_triggered()
+        elif key == Qt.Key_B:
+            sw.on_actionAlignBest_triggered()
 
     @QtCore.pyqtSlot()
     def on_actionUndo_triggered(self):
