@@ -2718,6 +2718,12 @@ class SortWindow(SpykeToolWindow):
                 return
         else:
             srcchans = source.neuron.wave.chans
+
+        if self.spykewindow.ui.normButton.isChecked():
+            print("NOTE: findMostSimilarCluster() doesn't currently take spike amplitude "
+                  "normalization into account. To see the true amplitudes used to compare "
+                  "neuron pairs, turn off normalization")
+
         errors = []
         dests = []
         t0, t1 = self.tis # timepoint range selected in incltComboBox
