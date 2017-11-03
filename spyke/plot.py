@@ -139,23 +139,29 @@ class Plot(object):
         """Update LineCollection segments data from wave, and associated Fill.
         It's up to the caller to update colours if needed"""
         self.tref = tref
-        AD2uV = self.panel.AD2uV
+        panel = self.panel
+        AD2uV = panel.AD2uV
         nchans, npoints = wave.data.shape
         segments = np.zeros((nchans, npoints, 2)) # x vals in col 0, yvals in col 1
         data = AD2uV(wave.data) # convert AD wave data to uV
         if wave.ts is not None: # or maybe check if data.size != 0 too
-            gain = self.panel.gain
-            if self.panel.spykewindow.ui.normButton.isChecked():
-                # normalize by chan with max Vpp:
-                maxvpp = data.ptp(axis=1).max()
+            if panel.spykewindow.ui.normButton.isChecked():
+                # normalize by chan with max Vpp within the channel and
+                # timepoint selection window:
+                ti0, ti1 = panel.sortwin.get_tis()
+                selchans = panel.chans_selected
+                chans = np.intersect1d(wave.chans, selchans) # overlapping set
+                chanis = wave.chans.searchsorted(chans) # indices into data rows
+                seldata = data[chanis, ti0:ti1] # selected part of the waveform
+                maxvpp = seldata.ptp(axis=1).max()
                 data = data / maxvpp * 200 ## TODO: this extra * by 200 is a display hack...
             x = np.tile(wave.ts-tref, nchans)
             x.shape = nchans, npoints
             segments[:, :, 0] = x
-            segments[:, :, 1] = gain * data
+            segments[:, :, 1] = panel.gain * data
             # add offsets:
             for chani, chan in enumerate(wave.chans):
-                xpos, ypos = self.panel.pos[chan]
+                xpos, ypos = panel.pos[chan]
                 segments[chani, :, 0] += xpos
                 segments[chani, :, 1] += ypos
         self.lc.set_segments(segments)
