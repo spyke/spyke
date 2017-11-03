@@ -144,7 +144,7 @@
        </size>
       </property>
       <property name="currentIndex">
-       <number>0</number>
+       <number>1</number>
       </property>
       <widget class="QWidget" name="detectTab">
        <attribute name="title">
@@ -703,9 +703,9 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
        <widget class="ClusteringGroupBox" name="clusteringGroupBox">
         <property name="geometry">
          <rect>
-          <x>5</x>
+          <x>190</x>
           <y>5</y>
-          <width>201</width>
+          <width>181</width>
           <height>186</height>
          </rect>
         </property>
@@ -727,9 +727,9 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
         <widget class="QLabel" name="label_22">
          <property name="geometry">
           <rect>
-           <x>75</x>
+           <x>66</x>
            <y>14</y>
-           <width>56</width>
+           <width>41</width>
            <height>16</height>
           </rect>
          </property>
@@ -740,7 +740,7 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
         <widget class="ClusterTabDoubleSpinBox" name="sigmaSpinBox">
          <property name="geometry">
           <rect>
-           <x>135</x>
+           <x>110</x>
            <y>9</y>
            <width>62</width>
            <height>25</height>
@@ -765,7 +765,7 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
         <widget class="QLabel" name="label_23">
          <property name="geometry">
           <rect>
-           <x>75</x>
+           <x>50</x>
            <y>39</y>
            <width>56</width>
            <height>16</height>
@@ -778,7 +778,7 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
         <widget class="ClusterTabDoubleSpinBox" name="rmergeXSpinBox">
          <property name="geometry">
           <rect>
-           <x>135</x>
+           <x>110</x>
            <y>34</y>
            <width>62</width>
            <height>25</height>
@@ -800,9 +800,9 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
         <widget class="QLabel" name="label_24">
          <property name="geometry">
           <rect>
-           <x>75</x>
+           <x>67</x>
            <y>89</y>
-           <width>56</width>
+           <width>41</width>
            <height>16</height>
           </rect>
          </property>
@@ -813,7 +813,7 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
         <widget class="ClusterTabDoubleSpinBox" name="alphaSpinBox">
          <property name="geometry">
           <rect>
-           <x>135</x>
+           <x>110</x>
            <y>84</y>
            <width>62</width>
            <height>25</height>
@@ -838,7 +838,7 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
         <widget class="ClusterTabSpinBox" name="minpointsSpinBox">
          <property name="geometry">
           <rect>
-           <x>135</x>
+           <x>110</x>
            <y>109</y>
            <width>62</width>
            <height>25</height>
@@ -857,9 +857,9 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
         <widget class="QLabel" name="label_27">
          <property name="geometry">
           <rect>
-           <x>75</x>
+           <x>42</x>
            <y>115</y>
-           <width>56</width>
+           <width>61</width>
            <height>16</height>
           </rect>
          </property>
@@ -870,9 +870,9 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
         <widget class="QLabel" name="label_32">
          <property name="geometry">
           <rect>
-           <x>75</x>
+           <x>55</x>
            <y>64</y>
-           <width>56</width>
+           <width>51</width>
            <height>16</height>
           </rect>
          </property>
@@ -883,7 +883,7 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
         <widget class="ClusterTabDoubleSpinBox" name="rneighXSpinBox">
          <property name="geometry">
           <rect>
-           <x>135</x>
+           <x>110</x>
            <y>59</y>
            <width>62</width>
            <height>25</height>
@@ -905,14 +905,14 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
         <widget class="QPushButton" name="clusterButton">
          <property name="geometry">
           <rect>
-           <x>135</x>
+           <x>110</x>
            <y>160</y>
-           <width>56</width>
+           <width>61</width>
            <height>27</height>
           </rect>
          </property>
          <property name="toolTip">
-          <string>Cluster selected spikes</string>
+          <string>&lt;b&gt;SPACE&lt;/b&gt; &amp;nbsp; Cluster selected spikes</string>
          </property>
          <property name="text">
           <string>Cluster</string>
@@ -921,7 +921,7 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
         <widget class="QLabel" name="label_35">
          <property name="geometry">
           <rect>
-           <x>75</x>
+           <x>48</x>
            <y>140</y>
            <width>56</width>
            <height>16</height>
@@ -934,7 +934,7 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
         <widget class="ClusterTabSpinBox" name="maxgradSpinBox">
          <property name="geometry">
           <rect>
-           <x>135</x>
+           <x>110</x>
            <y>134</y>
            <width>62</width>
            <height>25</height>
@@ -954,7 +954,7 @@ spike spatial extents - any spikes with modelled spatial extent greater than thi
        <widget class="PlottingGroupBox" name="plottingGroupBox">
         <property name="geometry">
          <rect>
-          <x>208</x>
+          <x>7</x>
           <y>5</y>
           <width>176</width>
           <height>186</height>
@@ -1233,14 +1233,14 @@ p, li { white-space: pre-wrap; }
         <widget class="QPushButton" name="plotButton">
          <property name="geometry">
           <rect>
-           <x>62</x>
+           <x>58</x>
            <y>160</y>
-           <width>46</width>
+           <width>112</width>
            <height>27</height>
           </rect>
          </property>
          <property name="toolTip">
-          <string>(Re)plot points in cluster window</string>
+          <string>&lt;b&gt;A&lt;/b&gt; &amp;nbsp; (Re)plot points in cluster window</string>
          </property>
          <property name="text">
           <string>Plot</string>
@@ -1289,7 +1289,7 @@ Ctrl+click forces recalculation of components</string>
           </rect>
          </property>
          <property name="toolTip">
-          <string>Component analysis method. ICA seems to
+          <string>&lt;b&gt;C&lt;/b&gt; &amp;nbsp; Component analysis method. ICA seems to
 do better than PCA alone when one cluster in a
 pair has far more points than the other.
 NMF only works on non-negative data (unlike spikes)</string>
@@ -1348,11 +1348,29 @@ NMF only works on non-negative data (unlike spikes)</string>
           </rect>
          </property>
          <property name="toolTip">
-          <string>Set plot dimensions to first 2 PCs/ICs and time
-Ctrl+click forces recalculation of components</string>
+          <string>&lt;b&gt;T&lt;/b&gt; &amp;nbsp; Set plot dimensions to first 2 PCs/ICs and time. Ctrl+click forces recalculation of components</string>
          </property>
          <property name="text">
           <string>c0c1t</string>
+         </property>
+        </widget>
+        <widget class="QPushButton" name="normButton">
+         <property name="geometry">
+          <rect>
+           <x>0</x>
+           <y>160</y>
+           <width>56</width>
+           <height>27</height>
+          </rect>
+         </property>
+         <property name="toolTip">
+          <string>&lt;b&gt;N&lt;/b&gt; &amp;nbsp; Normalize spike amplitudes (Vpp) to remove influence of amplitude variability, such as during bursting</string>
+         </property>
+         <property name="text">
+          <string>Norm</string>
+         </property>
+         <property name="checkable">
+          <bool>true</bool>
          </property>
         </widget>
        </widget>

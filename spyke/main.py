@@ -155,7 +155,6 @@ class SpykeWindow(QtGui.QMainWindow):
         self.cchanges = core.Stack() # cluster change stack, for undo/redo
         self.cci = -1 # pointer to cluster change for the next undo (add 1 for next redo)
 
-
         self.dirtysids = set() # sids whose waveforms in .wave file are out of date
         
         # disable most widgets until a stream or a sort is opened:
@@ -1027,10 +1026,16 @@ class SpykeWindow(QtGui.QMainWindow):
             sw = self.windows['Sort']
         except KeyError:
             QtGui.QMainWindow.keyPressEvent(self, event) # pass it on
-        if key in [Qt.Key_Escape, Qt.Key_E]: # deselect all spikes and clusters in Sort window
+        if key == Qt.Key_A:
+            self.ui.plotButton.click()
+        elif key == Qt.Key_N:
+            self.ui.normButton.click()
+        elif key in [Qt.Key_Escape, Qt.Key_E]:
             sw.clear()
         elif key == Qt.Key_R: # doesn't fire when certain widgets have focus
             sw.on_actionSelectRandomSpikes_triggered()
+        elif key == Qt.Key_B:
+            sw.on_actionAlignBest_triggered()
 
     @QtCore.pyqtSlot()
     def on_actionUndo_triggered(self):
@@ -1536,7 +1541,8 @@ class SpykeWindow(QtGui.QMainWindow):
     def gac(self, sids, dims):
         """Cluster sids along dims, using NVS's gradient ascent algorithm"""
         s = self.sort
-        data, sids = self.get_param_matrix(sids=sids, dims=dims, scale=True)
+        norm = self.ui.normButton.isChecked()
+        data, sids = self.get_param_matrix(sids=sids, dims=dims, norm=norm, scale=True)
         data = tocontig(data) # ensure it's contiguous for gac()
         # grab gac() params and run it
         self.update_sort_from_cluster_pane()
@@ -1718,8 +1724,9 @@ class SpykeWindow(QtGui.QMainWindow):
             selchans = self.get_selchans(sids)
         if comps:
             kind = str(self.ui.componentAnalysisComboBox.currentText())
+        norm = self.ui.normButton.isChecked()
         X = s.get_param_matrix(kind=kind, sids=sids, tis=tis, selchans=selchans,
-                               dims=dims, scale=scale)
+                               norm=norm, dims=dims, scale=scale)
         return X, sids
 
     def get_Xhash_args(self):
@@ -1733,7 +1740,8 @@ class SpykeWindow(QtGui.QMainWindow):
         selchans = np.asarray(self.get_selchans(sids))
         chans = self.sort.get_common_chans(sids, selchans)[0]
         npcsperchan = self.sort.npcsperchan
-        return kind, sids, tis, chans, npcsperchan
+        norm = self.ui.normButton.isChecked()
+        return kind, sids, tis, chans, npcsperchan, norm
 
     @QtCore.pyqtSlot()
     def on_plotButton_clicked(self):
@@ -1758,6 +1766,16 @@ class SpykeWindow(QtGui.QMainWindow):
         cw.plot(X, sids, nids)
         sw = self.OpenWindow('Sort') # in case it isn't already open
         sw.PlotClusterHistogram(X, nids) # auto update cluster histogram plot
+
+    @QtCore.pyqtSlot()
+    def on_normButton_clicked(self):
+        """Cluster pane norm button click"""
+        if self.ui.normButton.isChecked():
+            print('Normalizing spike amplitudes')
+        else:
+            print('Un-normalizing spike amplitudes')
+        self.windows['Sort'].panel.updateAllItems() # refresh plotted waveforms
+        self.on_plotButton_clicked() # refresh cluster plot
 
     @QtCore.pyqtSlot()
     def get_cleaning_density_hist(self):
