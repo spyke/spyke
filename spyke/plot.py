@@ -1370,6 +1370,7 @@ class SortPanel(PlotPanel):
         """Shortcut for updating all items in used_plots"""
         items = list(self.used_plots) # dict keys are plot ids
         self.updateItems(items)
+
     def updateItems(self, items):
         """Re-plot items, potentially because their WaveForms have changed.
         Typical use case: spike is added to a neuron, neuron's mean waveform has changed"""

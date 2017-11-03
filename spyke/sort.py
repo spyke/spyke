@@ -2708,7 +2708,7 @@ class SortWindow(SpykeToolWindow):
         except RuntimeError as err:
             print(err)
             return
-        destinations = self.sort.clusters.values()
+        destinations = list(self.sort.clusters.values())
         destinations.remove(source)
         selchans = np.sort(self.panel.chans_selected)
         if len(selchans) > 0:
