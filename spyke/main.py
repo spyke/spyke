@@ -2923,6 +2923,16 @@ class SpykeWindow(QtGui.QMainWindow):
         assert len(spikets) == len(maxchans) == len(nids)
         nspikes = len(spikets)
 
+        # check that maxchans are a subset of enabled chans in stream:
+        umaxchans = np.unique(maxchans)
+        if not np.isin(umaxchans, self.hpstream.chans).all():
+            raise RuntimeError("maxchans in %r are not a subset of currently enabled stream "
+                               "chans. Was the .events.zip file generated from a different "
+                               "set of enabled channels?\n"
+                               "maxchans: %s\n"
+                               "enabled chans: %s\n"
+                               % (fname, umaxchans, self.hpstream.chans))
+
         # create sort:
         sort = self.CreateNewSort() # create a new sort, with bound stream
         # create detector and run Detector.predetect(), so that things initialize:
@@ -3115,6 +3125,11 @@ class SpykeWindow(QtGui.QMainWindow):
         # reshape to ntemplates, nchans, nt by swapping axes (can't just assign new shape!):
         templates = np.swapaxes(templates, 1, 2)
         templates = np.ascontiguousarray(templates) # make C contiguous
+        ntemplates, nchans, nt = templates.shape
+        if nchans != s.nchans:
+            raise RuntimeError("Number of chans in 'templates.npy' (%d) doesn't match "
+                               "number of currently enabled chans in stream (%d)"
+                               % (nchans, s.nchans))
 
         # calculate spike times to nearest int64 us, assume KiloSort was run on
         # raw uninterpolated data:
@@ -3129,7 +3144,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # template, then find argmax along chan axis of each template:
         templatemaxchanis = abs(templates).max(axis=2).argmax(axis=1) # one per template
         # get dereferenced maxchan IDs, for example, A1x32 probe has 1-based chans, at
-        # least when recorded with Blackrock NSP:
+        # least when recorded with Blackrock NSP. s.chans are *enabled* chans only:
         templatemaxchans = s.chans[templatemaxchanis] # one per template
         maxchans = templatemaxchans[nids] # one per spike
 
@@ -3139,7 +3154,7 @@ class SpykeWindow(QtGui.QMainWindow):
         maxchans = np.uint8(maxchans) # save space, use same dtype as in SPIKEDTYPE
 
         # convert to 1-based neuron IDs, reserve 0 for unclustered spikes. Note that
-        # KiloSort's 0-based neuron IDs might have gaps, i.e., the don't necessarily span
+        # KiloSort's 0-based neuron IDs might have gaps, i.e., they don't necessarily span
         # the range 0..nneurons-1:
         nids += 1
         # check limits, convert nids to int16:
