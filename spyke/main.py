@@ -1740,7 +1740,8 @@ class SpykeWindow(QtGui.QMainWindow):
         selchans = np.asarray(self.get_selchans(sids))
         chans = self.sort.get_common_chans(sids, selchans)[0]
         npcsperchan = self.sort.npcsperchan
-        return kind, sids, tis, chans, npcsperchan
+        norm = self.ui.normButton.isChecked()
+        return kind, sids, tis, chans, npcsperchan, norm
 
     @QtCore.pyqtSlot()
     def on_plotButton_clicked(self):
