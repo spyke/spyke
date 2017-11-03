@@ -523,8 +523,8 @@ class Sort(object):
         print('Exported %d spikes on chans=%r and tis=%r to %s'
               % (nspikes, list(chans), list(tis), fname))
         
-    def get_param_matrix(self, kind=None, sids=None, tis=None, selchans=None, dims=None,
-                         scale=True):
+    def get_param_matrix(self, kind=None, sids=None, tis=None, selchans=None, norm=False,
+                         dims=None, scale=True):
         """Organize dims parameters from sids into a data matrix, each column
         corresponding to a dim. To do PCA/ICA clustering on all spikes, one maxchan at
         a time, caller needs to call this multiple times, one for each set of
@@ -539,7 +539,7 @@ class Sort(object):
         hascomps = ncomp > 0
         if hascomps:
             X = self.get_component_matrix(kind, sids, tis=tis, chans=selchans,
-                                          minncomp=ncomp)
+                                          minncomp=ncomp, norm=norm)
         if rmserror:
             rms = self.get_rms_error(sids, tis=tis, chans=selchans)
 
@@ -576,7 +576,8 @@ class Sort(object):
                         d /= dstd
         return data
 
-    def get_component_matrix(self, kind, sids, tis=None, chans=None, minncomp=None):
+    def get_component_matrix(self, kind, sids, tis=None, chans=None, minncomp=None,
+                             norm=False):
         """Find set of chans common to all sids, and do PCA/ICA on those waveforms. Or,
         if chans are specified, limit PCA/ICA to them. Return component matrix with at
         least minncomp dimensions"""
@@ -597,7 +598,7 @@ class Sort(object):
             raise RuntimeError("Spikes have no common chans for %s" % kind)
 
         # check if desired components have already been calculated (cache hit):
-        Xhash = self.get_Xhash(kind, sids, tis, chans, self.npcsperchan)
+        Xhash = self.get_Xhash(kind, sids, tis, chans, self.npcsperchan, norm)
         self.Xhash = Xhash # save as key to most recent component matrix in self.X
         try: self.X
         except AttributeError: self.X = {} # init the dimension reduction cache attrib
@@ -616,7 +617,11 @@ class Sort(object):
         for sii, sid in enumerate(sids):
             spikechans = chanslist[sii]
             spikechanis = spikechans.searchsorted(chans)
-            data[sii] = self.wavedata[sid][spikechanis, ti0:ti1]
+            spikedata = self.wavedata[sid][spikechanis, ti0:ti1]
+            if norm:
+                # normalize by Vpp of chan with max Vpp:
+                spikedata = spikedata / spikedata.ptp(axis=1).max()
+            data[sii] = spikedata
         print('Input shape for %s: %r' % (kind, data.shape))
         t0 = time.time()
         data.shape = nspikes, nchans*nt # flatten timepoints of all chans into columns
@@ -824,7 +829,7 @@ class Sort(object):
                 print('WARNING: ignored chans %r not common to all spikes' % list(diffchans))
         return commonchans, chanslist
 
-    def get_Xhash(self, kind, sids, tis, chans, npcsperchan):
+    def get_Xhash(self, kind, sids, tis, chans, npcsperchan, norm):
         """Return MD5 hex digest of args, for uniquely identifying the matrix resulting
         from dimension reduction of spike data"""
         h = hashlib.md5()
@@ -834,6 +839,7 @@ class Sort(object):
         h.update(chans)
         if kind == 'ICA': # consider npcsperchan only if doing ICA
             h.update(str(npcsperchan).encode())
+        h.update(str(norm).encode())
         return h.hexdigest()
 
     def create_neuron(self, id=None, inserti=None):
@@ -2090,6 +2096,8 @@ class SortWindow(SpykeToolWindow):
         spw = self.spykewindow
         if key == Qt.Key_A: # ignored in SpykeListViews
             spw.ui.plotButton.click() # same as hitting ENTER in nslist
+        elif key == Qt.Key_N: # ignored in SpykeListViews
+            spw.ui.normButton.click()
         elif key == Qt.Key_Escape: # deselect all spikes and all clusters
             self.clear()
         elif key == Qt.Key_Delete:

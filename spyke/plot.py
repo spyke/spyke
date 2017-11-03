@@ -143,14 +143,16 @@ class Plot(object):
         nchans, npoints = wave.data.shape
         segments = np.zeros((nchans, npoints, 2)) # x vals in col 0, yvals in col 1
         data = AD2uV(wave.data) # convert AD wave data to uV
-        if wave.ts is None: # or maybe check if data.size == 0 too
-            x = []
-            y = []
-        else:
+        if wave.ts is not None: # or maybe check if data.size != 0 too
+            gain = self.panel.gain
+            if self.panel.spykewindow.ui.normButton.isChecked():
+                # normalize by chan with max Vpp:
+                maxvpp = data.ptp(axis=1).max()
+                data = data / maxvpp * 200 ## TODO: this extra * by 200 is a display hack...
             x = np.tile(wave.ts-tref, nchans)
             x.shape = nchans, npoints
             segments[:, :, 0] = x
-            segments[:, :, 1] = self.panel.gain * data
+            segments[:, :, 1] = gain * data
             # add offsets:
             for chani, chan in enumerate(wave.chans):
                 xpos, ypos = self.panel.pos[chan]
@@ -1321,6 +1323,10 @@ class SortPanel(PlotPanel):
         self.qrplt = None # qrplt set in addItems is no longer quickly removable
         self.blit(self.ax.bbox) # blit everything to screen
 
+    def updateAllItems(self):
+        """Shortcut for updating all items in used_plots"""
+        items = list(self.used_plots) # dict keys are plot ids
+        self.updateItems(items)
     def updateItems(self, items):
         """Re-plot items, potentially because their WaveForms have changed.
         Typical use case: spike is added to a neuron, neuron's mean waveform has changed"""
@@ -1341,11 +1347,6 @@ class SortPanel(PlotPanel):
             self.background = None
             self.qrplt = None # qrplt set in addItems is no longer quickly removable
         self.blit(self.ax.bbox) # blit everything to screen
-
-    def updateAllItems(self):
-        """Shortcut for updating all items in used_plots"""
-        items = list(self.used_plots) # dict keys are plot ids
-        self.updateItems(items)
 
     def updateItem(self, item):
         """Update and draw an item's plot"""
