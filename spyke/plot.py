@@ -140,25 +140,15 @@ class Plot(object):
         It's up to the caller to update colours if needed"""
         self.tref = tref
         panel = self.panel
-        AD2uV = panel.AD2uV
         nchans, npoints = wave.data.shape
         segments = np.zeros((nchans, npoints, 2)) # x vals in col 0, yvals in col 1
-        data = AD2uV(wave.data) # convert AD wave data to uV
-        if wave.ts is not None: # or maybe check if data.size != 0 too
+        if wave.ts is not None: # or maybe check if wave.data.size != 0 too
             if panel.spykewindow.ui.normButton.isChecked():
-                # normalize by chan with max Vpp within the channel and
-                # timepoint selection window:
-                ti0, ti1 = panel.sortwin.get_tis()
-                selchans = panel.chans_selected
-                chans = np.intersect1d(wave.chans, selchans) # overlapping set
-                chanis = wave.chans.searchsorted(chans) # indices into data rows
-                seldata = data[chanis, ti0:ti1] # selected part of the waveform
-                maxvpp = seldata.ptp(axis=1).max()
-                data = data / maxvpp * 200 ## TODO: this extra * by 200 is a display hack...
+                wave = self.norm_wave(wave)
             x = np.tile(wave.ts-tref, nchans)
             x.shape = nchans, npoints
             segments[:, :, 0] = x
-            segments[:, :, 1] = panel.gain * data
+            segments[:, :, 1] = panel.gain * panel.AD2uV(wave.data)
             # add offsets:
             for chani, chan in enumerate(wave.chans):
                 xpos, ypos = panel.pos[chan]
@@ -168,6 +158,45 @@ class Plot(object):
         self.chans = wave.chans
         if self.fill != None:
             self.fill.update(wave, tref)
+
+    def norm_wave(self, wave):
+        """Return wave with data normalized by Vpp of its max chan, subject to the current
+        channel and timepoint selection"""
+        panel = self.panel
+        ti0, ti1 = panel.sortwin.get_tis()
+        selchans = panel.chans_selected
+        chans = np.intersect1d(wave.chans, selchans) # overlapping set
+        if len(chans) == 0: # empty array, no overlap
+            chans = wave.chans # ignore selected chans
+        chanis = wave.chans.searchsorted(chans) # indices into data rows
+        seldata = wave.data[chanis, ti0:ti1] # selected part of the waveform
+        Vpp = seldata.ptp(axis=1).max() # Vpp chan with biggest Vpp
+        # For display, scale up by Vpp of the highest amplitude plotted neuron.
+        # This makes multiple neuron mean waveforms the same amplitude when plotted
+        # simultaneously, allowing visual comparison purely by shape:
+        neurons = panel.get_neurons() # neurons currently plotted
+        scales = []
+        for neuron in neurons:
+            nwave = neuron.wave
+            chans = np.intersect1d(nwave.chans, selchans) # overlapping set
+            if len(chans) == 0: # empty array, no overlap
+                chans = nwave.chans # ignore selected chans
+            chanis = nwave.chans.searchsorted(chans) # indices into data rows
+            selndata = nwave.data[chanis, ti0:ti1] # selected part of the waveform
+            scale = selndata.ptp(axis=1).max()
+            scales.append(scale)
+        if scales: # non-empty
+            scale = max(scales)
+        else: # no neuron plotted
+            scale = 150 # arbitrary value to scale to
+        wave.data = wave.data / Vpp * scale
+        if wave.std is not None:
+            ## TODO: since we don't have all the individual spike waveforms that what went
+            ## into calculating wave.data, and since std is a non-linear operation,
+            ## there's no easy way to update wave.std, so displayed error bars will not
+            ## take normalization into account and may be larger than they should be
+            pass
+        return wave
 
     def show(self, enable=True):
         """Show/hide LC"""
@@ -423,6 +452,14 @@ class PlotPanel(FigureCanvas):
         return self.spykewindow.sort
 
     sort = property(get_sort)
+
+    def get_neurons(self):
+        nids = []
+        for key in self.used_plots:
+            if key[0] == 'n':
+                nids.append(int(key[1:]))
+        neurons = [ self.sort.neurons[nid] for nid in nids ]
+        return neurons
 
     def get_tres(self):
         return self.stream.tres # overriden in SortPanel
