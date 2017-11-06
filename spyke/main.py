@@ -1700,7 +1700,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.zDimComboBox.setCurrentIndex(zi)
         self.on_plotButton_clicked() # replot
 
-    def get_param_matrix(self, sids=None, dims=None, scale=True):
+    def get_param_matrix(self, sids=None, dims=None, norm=False, scale=True):
         """Given list of dims, get clustering parameter matrix according to
         current selection of sids and channels"""
         s = self.sort
