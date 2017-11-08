@@ -287,6 +287,32 @@ class Stream(object):
             kernels[chan] = kernelrow
         return kernels
 
+    def get_block_tranges(self, bs=10000000):
+        """Get time ranges spanning self, in block sizes of bs us"""
+        tranges = []
+        for start in np.arange(self.t0, self.t1, bs):
+            stop = start + bs
+            tranges.append((start, stop))
+        tranges = np.asarray(tranges)
+        # don't exceed self.t1:
+        tranges[-1, -1] = self.t1
+        return tranges
+
+    def get_block_data(self, bs=10000000, step=None, chans=None, units='uV'):
+        """Get blocks of data in block sizes of bs us, on specified chans, in units"""
+        tranges = self.get_block_tranges(bs=bs)
+        data = []
+        for (start, stop) in tranges:
+            blockwave = self(start, stop, chans=chans)
+            data.append(blockwave.data[::step]) # decimate
+        data = np.concatenate(data, axis=1) # concatenate horizontally
+        if units is None:
+            return data
+        elif units == 'uV':
+            return self.converter.AD2uV(data)
+        else:
+            raise ValueError("Unknown units %r" % units)
+
 
 class DATStream(Stream):
     """Stream interface for .dat files"""
@@ -1307,3 +1333,30 @@ class MultiStream(object):
             data[:, dt0i:dt1i] = sdata # destination data, in units of tres
             assert data.shape[1] == len(ts)
         return WaveForm(data=data, ts=ts, chans=chans)
+
+    def get_block_tranges(self, bs=10000000):
+        """Get time ranges spanning self, in block sizes of bs us
+        NOTE: copied from Stream class"""
+        tranges = []
+        for start in np.arange(self.t0, self.t1, bs):
+            stop = start + bs
+            tranges.append((start, stop))
+        tranges = np.asarray(tranges)
+        # don't exceed self.t1:
+        tranges[-1, -1] = self.t1
+        return tranges
+
+    def get_block_data(self, bs=10000000, step=None, chans=None, units='uV'):
+        """Get blocks of data in block sizes of bs us, on specified chans, in units"""
+        tranges = self.get_block_tranges(bs=bs)
+        data = []
+        for (start, stop) in tranges:
+            blockwave = self(start, stop, chans=chans)
+            data.append(blockwave.data[::step]) # decimate
+        data = np.concatenate(data, axis=1) # concatenate horizontally
+        if units is None:
+            return data
+        elif units == 'uV':
+            return self.converter.AD2uV(data)
+        else:
+            raise ValueError("Unknown units %r" % units)
