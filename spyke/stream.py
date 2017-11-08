@@ -299,7 +299,8 @@ class Stream(object):
         return tranges
 
     def get_block_data(self, bs=10000000, step=None, chans=None, units='uV'):
-        """Get blocks of data in block sizes of bs us, on specified chans, in units"""
+        """Get blocks of data in block sizes of bs us, keeping every step'th data point
+        (default keeps all), on specified chans, in units"""
         tranges = self.get_block_tranges(bs=bs)
         data = []
         for (start, stop) in tranges:
@@ -1336,7 +1337,7 @@ class MultiStream(object):
 
     def get_block_tranges(self, bs=10000000):
         """Get time ranges spanning self, in block sizes of bs us
-        NOTE: copied from Stream class"""
+        HACK: this was copied from Stream class"""
         tranges = []
         for start in np.arange(self.t0, self.t1, bs):
             stop = start + bs
@@ -1347,7 +1348,9 @@ class MultiStream(object):
         return tranges
 
     def get_block_data(self, bs=10000000, step=None, chans=None, units='uV'):
-        """Get blocks of data in block sizes of bs us, on specified chans, in units"""
+        """Get blocks of data in block sizes of bs us, keeping every step'th data point
+        (default keeps all), on specified chans, in units.
+        HACK: this was copied from Stream class"""
         tranges = self.get_block_tranges(bs=bs)
         data = []
         for (start, stop) in tranges:
