@@ -351,13 +351,17 @@ class DATStream(Stream):
 
     filtering = property(get_filtering)
 
-    def __call__(self, start, stop, chans=None):
+    def __call__(self, start=None, stop=None, chans=None):
         """Called when Stream object is called using (). start and stop are timepoints in us
         wrt t=0. Returns the corresponding WaveForm object with just the specified chans.
 
         As of 2017-10-24 I'm not sure if this behaviour qualifies as end-inclusive or not,
         but I suspect not. See how these single Streams are called in MultiStream.__call__
         """
+        if start is None:
+            start = self.t0
+        if stop is None:
+            stop = self.t1
         if chans is None:
             chans = self.chans
         kind = self.kind
@@ -692,13 +696,17 @@ class SurfStream(Stream):
     def pickle(self):
         self.f.pickle()
 
-    def __call__(self, start, stop, chans=None):
+    def __call__(self, start=None, stop=None, chans=None):
         """Called when Stream object is called using (). start and stop are timepoints in us
         wrt t=0. Returns the corresponding WaveForm object with just the specified chans.
 
         As of 2017-10-24 I'm not sure if this behaviour qualifies as end-inclusive or not,
         but I suspect not. See how these single Streams are called in MultiStream.__call__
         """
+        if start is None:
+            start = self.t0
+        if stop is None:
+            stop = self.t1
         if chans is None:
             chans = self.chans
         kind = self.kind
@@ -916,13 +924,17 @@ class SimpleStream(Stream):
         except KeyError: pass
         return d
 
-    def __call__(self, start, stop, chans=None):
+    def __call__(self, start=None, stop=None, chans=None):
         """Called when Stream object is called using (). start and stop are timepoints in us
         wrt t=0. Returns the corresponding WaveForm object with just the specified chans.
 
         As of 2017-10-24 I'm not sure if this behaviour qualifies as end-inclusive or not,
         but I suspect not. See how these single Streams are called in MultiStream.__call__
         """
+        if start is None:
+            start = self.t0
+        if stop is None:
+            stop = self.t1
         if chans is None:
             chans = self.chans
         kind = self.kind
@@ -1235,12 +1247,16 @@ class MultiStream(object):
             raise ValueError('unsupported slice step size: %s' % key.step)
         return self(key.start, key.stop, self.chans)
 
-    def __call__(self, start, stop, chans=None):
+    def __call__(self, start=None, stop=None, chans=None):
         """Called when Stream object is called using (). start and stop are
         timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
         specified chans. Figure out which stream(s) the slice spans (usually just one,
         sometimes 0 or 2), send the request to the stream(s), generate the appropriate
         timestamps, and return the waveform"""
+        if start is None:
+            start = self.t0
+        if stop is None:
+            stop = self.t1
         if chans is None:
             chans = self.chans
         if not set(chans).issubset(self.chans):
