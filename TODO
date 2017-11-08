@@ -4,6 +4,8 @@
 
 - parallelize spatial fit when importing from events.zip, which is what happens automatically during spyke's built-in detection
 
+- check for spike normalization flag when calculating RMS error during best fit alignment
+
 - add option to scatter points along time axis in cluster plot, to reduce artifactual clustering in time due to recording time gaps, or sparse firing - this should create bridges across the time gaps, and make gac clustering over time work better.
     - scatter by some percentage of the full time range currently plotted? sample from a gaussian with a sigma of about 2% of the full time range?
 
