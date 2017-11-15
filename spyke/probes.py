@@ -841,7 +841,8 @@ PROBETYPES = [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b, pt16a_HS27,
 
 
 def getprobe(name):
-    """Get instantiated probe type by name or layout"""
+    """Get instantiated probe type by name or layout. Could potentially handle
+    probe renaming here as well, but currently isn't necessary"""
     for probetype in PROBETYPES:
         probe = probetype()
         if probe.name == name or probe.layout == name:

@@ -224,7 +224,7 @@ class FileHeader(dat.FileHeader):
                 jsonfname = None
                 print('Found %d %s files, ignoring them' % (njsonfiles, jsonext))
 
-        # get probe name and optional adapter name
+        # get probe name and optional adapter name:
         if jsonfname:
             with open(jsonfname, 'r') as jf:
                 j = json.load(jf) # should return a dict of key:val pairs
@@ -243,6 +243,10 @@ class FileHeader(dat.FileHeader):
                 self.probename = j['probe_name'] # new name
             except KeyError:
                 self.probename = j['chan_layout_name'] # old name
+            # make sure probename is valid probe.name or probe.layout,
+            # potentially rename any old probe names to new ones:
+            probe = probes.getprobe(self.probename)
+            self.probename = probe.name
             self.adaptername = j.get('adapter_name')
         else: # no .json file, maybe the .nsx comment specifies the probe type?
             self.probename = self.comment.replace(' ', '_')
