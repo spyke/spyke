@@ -682,12 +682,11 @@ class A1x32_edge(Probe):
         self.check()
 
 
-class A1x64_Poly2_6mm_23s_160(Probe):
-    """A1x64-Poly2-6mm-23s-160, 30-38 um spacing (23 um vertical spacing), 2 column,
-    1-based channel IDs"""
+class A1x64(Probe):
+    """A1x64, 30-38 um spacing (23 um vertical spacing), 2 column, 1-based channel IDs"""
     def __init__(self):
         self.layout = 'A1x64_Poly2_6mm_23s_160'
-        self.name = 'A1x64_Poly2_6mm_23s_160'
+        self.name = 'A1x64'
         self.nchans = 64
         self.ncols = 2
         sl = {}
@@ -838,16 +837,16 @@ class H3(Probe):
 
 
 PROBETYPES = [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b, pt16a_HS27, pt16b_HS27,
-              single, IMEC30, A1x32, A1x32_edge, A1x64_Poly2_6mm_23s_160, H3]
+              single, IMEC30, A1x32, A1x32_edge, A1x64, H3]
 
 
 def getprobe(name):
-    """Get instantiated probe type by name"""
+    """Get instantiated probe type by name or layout"""
     for probetype in PROBETYPES:
         probe = probetype()
-        if probe.name == name:
+        if probe.name == name or probe.layout == name:
             return probe
-    raise ValueError("unknown probe name %r" % name)
+    raise ValueError("unknown probe name or layout %r" % name)
 
 def findprobe(siteloc):
     """Return instantiation of first probe type whose layout matches siteloc"""
