@@ -784,6 +784,8 @@ class SpykeWindow(QtGui.QMainWindow):
             v = self.update_1_0_to_1_1()
         if v == 1.1:
             v = self.update_1_1_to_1_2()
+        if v == 1.2:
+            v = self.update_1_2_to_1_3()
         print('Now save me!')
             
     def update_0_3_to_0_4(self):
@@ -996,6 +998,22 @@ class SpykeWindow(QtGui.QMainWindow):
                 stream.f.fileheader.adaptername = None
         s.__version__ = '1.2' # update
         print('Done updating sort from version 1.1 to 1.2')
+        return float(s.__version__)
+
+    def update_1_2_to_1_3(self):
+        """Update sort 1.2 to 1.3:
+            - rename class (done by core.unpickler_find_global()):
+                - A1x64_Poly2_6mm_23s_160 -> A1x64
+        """
+        print('Updating sort from version 1.2 to 1.3')
+        s = self.sort
+        classname = s.probe.__class__.__name__
+        print('sort.probe class is now %r' % classname)
+        print('sort.probe.name was %r' % s.probe.name)
+        s.probe.name = 'A1x64' # update name attribute
+        print('sort.probe.name is now %r' % s.probe.name)
+        s.__version__ = '1.3' # update
+        print('Done updating sort from version 1.2 to 1.3')
         return float(s.__version__)
 
     @QtCore.pyqtSlot()
@@ -3193,7 +3211,7 @@ class SpykeWindow(QtGui.QMainWindow):
         t0 = time.time()
         f = open(os.path.join(self.sortpath, fname), 'rb')
         unpickler = pickle.Unpickler(f)
-        unpickler.find_global = core.unpickler_find_global_0_7_to_0_8
+        unpickler.find_global = core.unpickler_find_global
         sort = unpickler.load()
         print('Done opening sort file, took %.3f sec' % (time.time()-t0))
         print('Sort file was %d bytes long' % f.tell())
