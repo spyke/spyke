@@ -620,7 +620,9 @@ class Sort(object):
             spikedata = self.wavedata[sid][spikechanis, ti0:ti1]
             if norm:
                 # normalize by Vpp of chan with max Vpp:
-                spikedata = spikedata / spikedata.ptp(axis=1).max()
+                maxptp = spikedata.ptp(axis=1).max()
+                if maxptp != 0: # prevent div by 0
+                    spikedata = spikedata / maxptp
             data[sii] = spikedata
         print('Input shape for %s: %r' % (kind, data.shape))
         t0 = time.time()
