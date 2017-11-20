@@ -3204,8 +3204,8 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Done converting KiloSort events')
 
     def OpenSortFile(self, fname):
-        """Open a Sort from a .sort and .spike file, try and open a .wave file
-        with the same name, restore the (closed) stream"""
+        """Open a Sort from a .sort and .spike and .wave file with the same base name,
+        restore the stream"""
         self.DeleteSort() # delete any existing Sort
         print('Opening sort file %r' % fname)
         t0 = time.time()
@@ -3216,6 +3216,7 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Done opening sort file, took %.3f sec' % (time.time()-t0))
         print('Sort file was %d bytes long' % f.tell())
         f.close()
+        sort.fname = fname # update in case file was renamed
         self.sort = sort
 
         # if a stream is already open, try rebinding it to the sort. If they don't match,
@@ -3231,7 +3232,14 @@ class SpykeWindow(QtGui.QMainWindow):
             self.uVperum = UVPERUM[ext]
             self.usperum = USPERUM[ext]
 
+        basefname = os.path.splitext(fname)[0]
+        # load .spike file of the same base name:
+        sort.spikefname = basefname + '.spike' # update in case of renamed basefname
         self.OpenSpikeFile(sort.spikefname)
+
+        # load .wave file of the same base name:
+        sort.wavefname = basefname + '.wave' # update in case of renamed basefname
+        sort.wavedata = self.OpenWaveFile(sort.wavefname)
 
         # try auto-updating sort to latest version:
         if float(sort.__version__) < float(__version__):
@@ -3309,6 +3317,7 @@ class SpykeWindow(QtGui.QMainWindow):
         except AttributeError: pass
 
     def OpenSpikeFile(self, fname):
+        """Open a .spike file, assign its contents to the spikes array, update dependencies"""
         sort = self.sort
         print('Loading spike file %r' % fname)
         t0 = time.time()
@@ -3319,23 +3328,17 @@ class SpykeWindow(QtGui.QMainWindow):
         f.close()
         sort.spikes = spikes
         # when loading a spike file, make sure the nid field is overwritten
-        # in the spikes array. The nids in sort.neurons are always the definitive ones
+        # in the spikes array. The nids in sort.neurons are always the definitive ones:
         for neuron in sort.neurons.values():
             spikes['nid'][neuron.sids] = neuron.id
         sort.update_usids()
-        # try loading .wave file of the same name
-        wavefname = os.path.splitext(fname)[0] + '.wave'
-        sort.wavedata = self.OpenWaveFile(wavefname)
 
     def OpenWaveFile(self, fname):
         """Open a .wave file and return wavedata array"""
         sort = self.sort
         print('Opening wave file %r' % fname)
         t0 = time.time()
-        try: f = open(os.path.join(self.sortpath, fname), 'rb')
-        except IOError:
-            print("Can't find file %r" % fname)
-            return
+        f = open(os.path.join(self.sortpath, fname), 'rb')
         try:
             del sort.wavedata
             #gc.collect() # ensure memory is freed up to prepare for new wavedata, necessary?
