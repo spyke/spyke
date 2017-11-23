@@ -515,6 +515,14 @@ class SpykeWindow(QtGui.QMainWindow):
                     #print('%d to %d us' % (t0, t1))
                     printflush('.', end='') # succint progress indicator
                     wave = hps[t0:t1]
+                    dtype = np.iinfo(wave.data.dtype)
+                    maxval, minval = dtype.min, dtype.max
+                    satis = (wave.data == minval) | (wave.data == maxval) # saturation indices
+                    if satis.any():
+                        wave.data[satis] = 0
+                        print()
+                        print('Zeroing out saturation in block range (%d, %d)'
+                              % (t0, t1))
                     #if t0 == t0s[-1]:
                     #    print('last block asked:', t0, t1)
                     #    print('last block received:', wave.ts[0], wave.ts[-1])
