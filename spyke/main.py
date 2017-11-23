@@ -515,18 +515,22 @@ class SpykeWindow(QtGui.QMainWindow):
                     #print('%d to %d us' % (t0, t1))
                     printflush('.', end='') # succint progress indicator
                     wave = hps[t0:t1]
-                    dtype = np.iinfo(wave.data.dtype)
-                    satis = (wave.data == minval) | (wave.data == maxval) # saturation indices
-                    minval, maxval = dtype.min, dtype.max
+                    data = wave.data
+                    dtinf = np.iinfo(data.dtype)
+                    minval, maxval = dtinf.min, dtinf.max
+                    satis = (data == minval) | (data == maxval) # saturation bool indices
                     if satis.any():
-                        wave.data[satis] = 0
+                        isatis = np.where(satis) # integer row and col indices
+                        satchanis = np.unique(isatis[0]) # indices of rows that saturated
+                        ## TODO: filter satchaniis over entire block to remove really big
+                        ## transients. For now, just print a message
+                        satchans = wave.chans[satchanis]
                         print()
-                        print('Zeroing out saturation in block range (%d, %d)'
-                              % (t0, t1))
+                        print('Saturation in block (%d, %d) on chans %s' % (t0, t1, satchans))
                     #if t0 == t0s[-1]:
                     #    print('last block asked:', t0, t1)
                     #    print('last block received:', wave.ts[0], wave.ts[-1])
-                    wave.data.T.tofile(datf) # write in column-major (Fortran) order
+                    data.T.tofile(datf) # write in column-major (Fortran) order
                 print() # newline
                 core.write_dat_json(hps, fulljsonfname)
         print('Done exporting %s data' % export_msg)
