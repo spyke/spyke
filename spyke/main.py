@@ -516,8 +516,8 @@ class SpykeWindow(QtGui.QMainWindow):
                     printflush('.', end='') # succint progress indicator
                     wave = hps[t0:t1]
                     dtype = np.iinfo(wave.data.dtype)
-                    maxval, minval = dtype.min, dtype.max
                     satis = (wave.data == minval) | (wave.data == maxval) # saturation indices
+                    minval, maxval = dtype.min, dtype.max
                     if satis.any():
                         wave.data[satis] = 0
                         print()
