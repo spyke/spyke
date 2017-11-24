@@ -522,11 +522,10 @@ class SpykeWindow(QtGui.QMainWindow):
                     if satis.any():
                         isatis = np.where(satis) # integer row and col indices
                         satchanis = np.unique(isatis[0]) # indices of rows that saturated
-                        ## TODO: filter satchaniis over entire block to remove really big
-                        ## transients. For now, just print a message
                         satchans = wave.chans[satchanis]
-                        print()
+                        print() # newline
                         print('Saturation in block (%d, %d) on chans %s' % (t0, t1, satchans))
+                        data.fill(0) # zero out the whole block of data
                     #if t0 == t0s[-1]:
                     #    print('last block asked:', t0, t1)
                     #    print('last block received:', wave.ts[0], wave.ts[-1])
