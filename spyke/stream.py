@@ -139,6 +139,15 @@ class Stream(object):
 
     shcorrect = property(get_shcorrect, set_shcorrect)
 
+    def get_israw(self):
+        """Return if self is currently set to return raw data"""
+        return (not self.filtmeth and
+                not self.car and
+                self.sampfreq == self.rawsampfreq and
+                not self.shcorrect)
+
+    israw = property(get_israw)
+
     def get_datetime(self):
         return self.f.datetime
 
@@ -1260,6 +1269,12 @@ class MultiStream(object):
         return self.streams[0].filtering
 
     filtering = property(get_filtering)
+
+    def get_israw(self):
+        """Return if self is currently set to return raw data"""
+        return self.streams[0].israw
+
+    israw = property(get_israw)
 
     def pickle(self):
         """Just a way to pickle all the files associated with self"""
