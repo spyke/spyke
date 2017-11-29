@@ -736,8 +736,8 @@ class SpykeWindow(QtGui.QMainWindow):
         # write KiloSort channel map .mat file, indicate which chans are included in the .dat
         datfnameML = matlabize(datfname) # make suitable for use as MATLAB script name
         chanmapfname = datfnameML + '_ks_chanmap.mat'
-        fullchanpmapfname = os.path.join(path, chanmapfname)
-        core.write_ks_chanmap_mat(stream, fullchanpmapfname)
+        fullchanmapfname = os.path.join(path, chanmapfname)
+        core.write_ks_chanmap_mat(stream, fullchanmapfname)
 
         # write KiloSort config .m file:
         with open('./templates/kilosort/ks_config.m') as templateksconfigf:
