@@ -1019,10 +1019,11 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Updating sort from version 1.2 to 1.3')
         s = self.sort
         classname = s.probe.__class__.__name__
-        print('sort.probe class is now %r' % classname)
-        print('sort.probe.name was %r' % s.probe.name)
-        s.probe.name = 'A1x64' # update name attribute
-        print('sort.probe.name is now %r' % s.probe.name)
+        if s.probe.name == 'A1x64_Poly2_6mm_23s_160':
+            print('sort.probe class is now %r' % classname)
+            print('sort.probe.name was %r' % s.probe.name)
+            s.probe.name = 'A1x64' # update name attribute
+            print('sort.probe.name is now %r' % s.probe.name)
         s.__version__ = '1.3' # update
         print('Done updating sort from version 1.2 to 1.3')
         return float(s.__version__)
