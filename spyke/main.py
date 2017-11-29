@@ -474,14 +474,16 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionExportHighPassDatFiles_triggered(self):
         self.export_hpstream()
 
-    def export_hpstream(self, cat=False, export_msg='high-pass', export_ext='.filt.dat'):
+    def export_hpstream(self, cat=False, checksat=False, satwin=None,
+                        export_msg='high-pass', export_ext='.filt.dat'):
         """Export high-pass stream to user-designated path, using current preprocessing
         settings (filtering, CAR, and resampling) and channel selection, to export_ext file(s)
         with associated export_ext.json file describing the preprocessing that was done. This
         can also be used to export raw data if the hpstream settings for filtering, CAR and
         resampling are set appropriately. Use export_msg and export_ext to communicate this.
         cat controls whether to concatenate all the exported data into a single
-        .dat file"""
+        .dat file. If checksat is true, check for saturation in raw data, then zero out +/-
+        satwin us around any saturated data. This works best if the data is indeed high-pass"""
         if not self.hpstream:
             print('First open a stream!')
             return
@@ -514,18 +516,20 @@ class SpykeWindow(QtGui.QMainWindow):
                     t1 = t0 + blocksize
                     #print('%d to %d us' % (t0, t1))
                     printflush('.', end='') # succint progress indicator
-                    wave = hps[t0:t1]
+                    wave = hps(t0, t1, checksat=checksat)
                     data = wave.data
-                    dtinf = np.iinfo(data.dtype)
-                    minval, maxval = dtinf.min, dtinf.max
-                    satis = (data == minval) | (data == maxval) # saturation bool indices
-                    if satis.any():
-                        isatis = np.where(satis) # integer row and col indices
-                        satchanis = np.unique(isatis[0]) # indices of rows that saturated
-                        satchans = wave.chans[satchanis]
-                        print() # newline
-                        print('Saturation in block (%d, %d) on chans %s' % (t0, t1, satchans))
-                        data.fill(0) # zero out the whole block of data
+                    if checksat:
+                        satis = wave.satis # should have same shape as data
+                        if satis.any():
+                            ## TODO: do this more fine-grained using satwin:
+                            isatis = np.where(satis) # integer row and col indices
+                            satchanis = np.unique(isatis[0]) # indices of rows that saturated
+                            satchans = wave.chans[satchanis]
+                            print() # newline
+                            print('Saturation in block (%d, %d) on chans %s'
+                                  % (t0, t1, satchans))
+                            data.fill(0) # zero out the whole block of data
+                            ## TODO: export tranges of zeroed-out data to .npy file
                     #if t0 == t0s[-1]:
                     #    print('last block asked:', t0, t1)
                     #    print('last block received:', wave.ts[0], wave.ts[-1])
@@ -673,16 +677,21 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Done exporting high-pass envelope data')
 
     @QtCore.pyqtSlot()
+    def on_actionExportHighPassDatKiloSortFiles_triggered(self):
+        self.export_hp_ks_dat()
+
+    @QtCore.pyqtSlot()
     def on_actionExportRawDataDatFiles_triggered(self):
         self.export_raw_dat()
 
-    def export_raw_dat(self):
-        """Export raw ephys data of enabled chans concatenated across all files in current
-        track, to .dat file in user-designated path. This works by first turning off all
-        filtering, CAR, and resampling, then calling self.export_hpstream(), then restoring
-        filtering, CAR, and resampling settings. Also export channel map file in .mat format
-        for KiloSort"""
-        print('Exporting raw ephys data to .dat file')
+    def export_hp_ks_dat(self):
+        """Export high-pass ephys data for use in KiloSort, while checking
+        for and zeroing out any periods of saturation. Exports enabled chans concatenated
+        across all files in current track, to .dat file in user-designated path.
+        This works by first turning off all filtering, CAR, and resampling, then calling
+        self.export_hpstream(), then restoring filtering, CAR, and resampling settings"""
+        print('Exporting high-pass ephys data to .dat file for use in KiloSort, '
+              'removing any saturation')
 
         # save current hpstream filtering CAR and sampling settings:
         stream = self.hpstream
@@ -694,9 +703,10 @@ class SpykeWindow(QtGui.QMainWindow):
         sampfreq = stream.sampfreq
         shcorrect = stream.shcorrect
 
-        # set hpstream to show raw data:
-        print('Temporarily disabling filtering, CAR, and resampling for raw export')
-        self.SetFiltmeth(None)
+        # set hpstream to show high-pass filtered, but otherwise raw, data:
+        print('Temporarily setting filtering to non-causal Butterworth, '
+              'disabling CAR & resampling')
+        self.SetFiltmeth('BWNC')
         self.SetCAR(None)
         self.SetSampfreq(stream.rawsampfreq)
         if stream.ext != '.srf':
@@ -707,7 +717,8 @@ class SpykeWindow(QtGui.QMainWindow):
             cat = True # concatenate
         else: # it's a single Stream
             cat = False # nothing to concatenate
-        result = self.export_hpstream(cat=cat, export_msg='raw', export_ext='.dat')
+        result = self.export_hpstream(cat=cat, checksat=True, satwin=1000000,
+                                      export_msg='high-pass', export_ext='.dat')
         if result:
             path, datfname = result
 
@@ -754,6 +765,51 @@ class SpykeWindow(QtGui.QMainWindow):
         with open(fullksrunfname, 'w') as ksrunf:
             ksrunf.write(ksrunstr)
         print('Wrote KiloSort run file %r' % fullksrunfname)
+
+    def export_raw_dat(self):
+        """Export raw ephys data of enabled chans concatenated across all files in current
+        track, to .dat file in user-designated path. This works by first turning off all
+        filtering, CAR, and resampling, then calling self.export_hpstream(), then restoring
+        filtering, CAR, and resampling settings"""
+        print('Exporting raw ephys data to .dat file')
+
+        # save current hpstream filtering CAR and sampling settings:
+        stream = self.hpstream
+        if not stream:
+            print('First open a stream!')
+            return
+        filtmeth = stream.filtmeth
+        car = stream.car
+        sampfreq = stream.sampfreq
+        shcorrect = stream.shcorrect
+
+        # set hpstream to show raw data:
+        print('Temporarily disabling filtering, CAR, and resampling for raw export')
+        self.SetFiltmeth(None)
+        self.SetCAR(None)
+        self.SetSampfreq(stream.rawsampfreq)
+        if stream.ext != '.srf':
+            self.SetSHCorrect(False) # leave it enabled for .srf, data is wrong w/o it
+
+        # do the export:
+        if stream.is_multi(): # it's a MultiStream
+            cat = True # concatenate
+        else: # it's a single Stream
+            cat = False # nothing to concatenate
+        result = self.export_hpstream(cat=cat, export_msg='raw', export_ext='.dat')
+        if result:
+            path, datfname = result
+
+        # restore hpstream settings:
+        print('Restoring filtering, CAR, and resampling settings')
+        self.SetFiltmeth(filtmeth)
+        self.SetCAR(car)
+        self.SetSampfreq(sampfreq)
+        self.SetSHCorrect(shcorrect)
+
+        if not result:
+            print('Raw data export cancelled')
+            return
 
     @QtCore.pyqtSlot()
     def on_actionConvertKiloSortNpy2EventsZip_triggered(self):

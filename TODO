@@ -1,3 +1,9 @@
+- change KS raw data export to no longer be raw, but rather noncausal highpass, and to detect saturation in the raw data, zero it out after highpass filtering, and then also export the time ranges of the zeroed out data for each recording. Highpass filtering handles two problems:
+    1. transients at edges of recording due to zeroing
+    2. transients when zeroing out saturated data
+    - keep option to export truly raw, but not for KS
+    - need to pass raw data to highpass export to detect saturation
+
 - KiloSort detects the transients at border between time gap and actual data as spikes. These big transients are due to filtering that it applies to raw data (and are also visible in spyke with filtering enabled). Maybe when exporting raw data, we should actually process it slightly by smoothing the blank period with actual data. This would probably be preferable to excluding all spikes from kilosort around the first/last 5 ms of data of each recording, because KiloSort will make wasteful templates for these huge transients. The smoothing could simply be a linear ramp, just to make it clear that it isn't real data, but also make it smooth enough that it isn't likely to be detected as spike by KiloSort
     - the smoothest ramp of all would be from the last sample of the previous recording to the first sample of the next recording
     - KiloSort seems to ignore the first and last filtering artifacts, that must be hard-coded
