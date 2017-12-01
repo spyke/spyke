@@ -547,10 +547,11 @@ class SpykeWindow(QtGui.QMainWindow):
                             ztrangeis = np.stack([onis-ntwin, offis+ntwin], axis=1)
                             ## TODO: some ztrangeis overlap when multiple ones hit
                             ## the start or end of the datablock
+                            ztrangeis = ztrangeis.clip(0, nt) # limit to valid slice values
                             for oni, offi in ztrangeis:
                                 sattis[oni:offi] = True
-                            ztrangeis = ztrangeis.clip(0, nt-1) # limit to valid values
                             data[:, sattis] = 0 # zero out data at sattis
+                            ztrangeis = ztrangeis.clip(max=nt-1) # limit to valid index values
                             ztranges = wave.ts[ztrangeis]
                             print('Zeroed-out time ranges:')
                             print(intround(ztranges)) # convert to int for better display
