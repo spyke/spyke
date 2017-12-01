@@ -1,8 +1,3 @@
-
-- KiloSort detects the transients at border between time gap and actual data as spikes. These big transients are due to filtering that it applies to raw data (and are also visible in spyke with filtering enabled). Maybe when exporting raw data, we should actually process it slightly by smoothing the blank period with actual data. This would probably be preferable to excluding all spikes from kilosort around the first/last 5 ms of data of each recording, because KiloSort will make wasteful templates for these huge transients. The smoothing could simply be a linear ramp, just to make it clear that it isn't real data, but also make it smooth enough that it isn't likely to be detected as spike by KiloSort
-    - the smoothest ramp of all would be from the last sample of the previous recording to the first sample of the next recording
-    - KiloSort seems to ignore the first and last filtering artifacts, that must be hard-coded
-
 - parallelize spatial fit when importing from events.zip, which is what happens automatically during spyke's built-in detection
 
 - check for spike normalization flag when calculating RMS error during best fit alignment
@@ -1447,6 +1442,7 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - do more fine-grained zeroing of saturation using satwin kwarg
 - export time ranges of the zeroed out data, if any
     - save 2D array to .npy file?
+- update TUTORIAL.md for new high-pass export to KiloSort
 
 
 

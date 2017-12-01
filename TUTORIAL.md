@@ -146,12 +146,17 @@ them. If you right-click on a channel again, it's re-enabled.
 3. File->Save Track Channels to save any channel selections you may have made. These
 selections are saved to the `.track` file, which you can inspect with a plain text editor.
 
-4. File->Export->Raw Data->.dat & KiloSort files. Choose the desired destination folder
+4. File->Export->High-pass Data->.dat & KiloSort files. Choose the desired destination folder
 (probably a local folder, on which you will locally run KiloSort in MATLAB) and hit Open. This
-exports a concatenated `.dat` file from all your source files in the current `.track` file, as
-well as the required MATLAB files to run KiloSort. Note that the Filtering, CAR and Sampling
-settings you are currently using in spyke are ignored during export. Only raw unprocessed data
-is exported. KiloSort will then do its own preprocessing on the raw data.
+first high-pass filters (using a noncausal Butterworth filter) and concatenates the data
+across all the source files in the current `.track` file, saving the results to a `.dat` file.
+This also checks for saturation in the data, and if it finds any, zeroes it out, +/- 0.5 sec
+on either side, and also saves the start and stop time ranges of the zeroed out data to a
+`.0tranges.npy` file. Saturation and big trainsients can causes problems for KiloSort. The
+required MATLAB files to run KiloSort are also generated. Note that the Filtering, CAR and
+Sampling settings you are currently using in spyke are ignored during export. Only high-pass
+noncausal Butterworth filtered data is exported. KiloSort will then do its own further
+preprocessing.
 
 5. Open the `_ks_run.m` file that was created in the above step. Check the first two lines to
 make sure that the path to wherever you installed KiloSort and
