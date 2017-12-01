@@ -87,7 +87,11 @@ CHARTTW = {'.dat': (-25000, 25000),
 # LFP window temporal window (us)
 LFPTW = -500000, 500000
 
-# shift KiloSort spike times by this much for better positioning in sort window:
+# zero out +/- this amount of time around each saturated timepoint when exporting
+# high-pass data to KiloSort:
+SATURATIONWINDOW = 500000 # us
+
+# shift imported KiloSort spike times by this much for better positioning in sort window:
 KILOSORTSHIFTCORRECT = -100 # us
 
 # spatial channel layout:
@@ -521,14 +525,32 @@ class SpykeWindow(QtGui.QMainWindow):
                     if checksat:
                         satis = wave.satis # should have same shape as data
                         if satis.any():
-                            ## TODO: do this more fine-grained using satwin:
-                            isatis = np.where(satis) # integer row and col indices
-                            satchanis = np.unique(isatis[0]) # indices of rows that saturated
+                            nt = data.shape[1] # num timepoints in this block
+                            wsatis = np.where(satis) # integer row and col indices
+                            satchanis = np.unique(wsatis[0]) # indices of rows that saturated
                             satchans = wave.chans[satchanis]
                             print() # newline
                             print('Saturation in block (%d, %d) on chans %s'
                                   % (t0, t1, satchans))
-                            data.fill(0) # zero out the whole block of data
+                            ntwin = intround(satwin / hps.tres)
+                            sattis = satis.any(axis=0) # time only, collapse across all chans
+                            edges = np.diff(sattis.astype(int)) # find +ve and -ve edges
+                            onis = np.where(edges > 0)[0] + 1
+                            offis = np.where(edges < 0)[0] + 1
+                            if len(onis) - len(offis) == 1:
+                                offis = np.append(offis, nt) # last off is end of block
+                            elif len(offis) - len(onis) == 1:
+                                onis = np.append(onis, 0) # first on is start of block
+                            # convert to nx2 array, expand window for zeroing around on
+                            # and off index of each saturation:
+                            ztrangeis = np.stack([onis-ntwin, offis+ntwin], axis=1)
+                            for oni, offi in ztrangeis:
+                                sattis[oni:offi] = True
+                            ztrangeis = ztrangeis.clip(0, nt-1) # limit to valid values
+                            data[:, sattis] = 0 # zero out data at sattis
+                            ztranges = wave.ts[ztrangeis]
+                            print('Zeroed-out time ranges:')
+                            print(intround(ztranges)) # convert to int for better display
                             ## TODO: export tranges of zeroed-out data to .npy file
                     #if t0 == t0s[-1]:
                     #    print('last block asked:', t0, t1)
@@ -717,7 +739,7 @@ class SpykeWindow(QtGui.QMainWindow):
             cat = True # concatenate
         else: # it's a single Stream
             cat = False # nothing to concatenate
-        result = self.export_hpstream(cat=cat, checksat=True, satwin=1000000,
+        result = self.export_hpstream(cat=cat, checksat=True, satwin=SATURATIONWINDOW,
                                       export_msg='high-pass', export_ext='.dat')
         if result:
             path, datfname = result
