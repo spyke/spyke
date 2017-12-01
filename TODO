@@ -1445,6 +1445,8 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
     - keep option to export truly raw, but not for KS
     - need to pass raw data to highpass export to detect saturation
 - do more fine-grained zeroing of saturation using satwin kwarg
+- export time ranges of the zeroed out data, if any
+    - save 2D array to .npy file?
 
 
 

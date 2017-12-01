@@ -515,6 +515,7 @@ class SpykeWindow(QtGui.QMainWindow):
             fulljsonfname = fullfname + '.json'
             print('Exporting %s data to %r' % (export_msg, fullfname))
             with open(fullfname, 'wb') as datf:
+                ztrangess = []
                 t0s = np.arange(hps.t0, hps.t1, blocksize)
                 for t0 in t0s:
                     t1 = t0 + blocksize
@@ -544,6 +545,8 @@ class SpykeWindow(QtGui.QMainWindow):
                             # convert to nx2 array, expand window for zeroing around on
                             # and off index of each saturation:
                             ztrangeis = np.stack([onis-ntwin, offis+ntwin], axis=1)
+                            ## TODO: some ztrangeis overlap when multiple ones hit
+                            ## the start or end of the datablock
                             for oni, offi in ztrangeis:
                                 sattis[oni:offi] = True
                             ztrangeis = ztrangeis.clip(0, nt-1) # limit to valid values
@@ -551,13 +554,19 @@ class SpykeWindow(QtGui.QMainWindow):
                             ztranges = wave.ts[ztrangeis]
                             print('Zeroed-out time ranges:')
                             print(intround(ztranges)) # convert to int for better display
-                            ## TODO: export tranges of zeroed-out data to .npy file
+                            ztrangess.append(ztranges)
                     #if t0 == t0s[-1]:
                     #    print('last block asked:', t0, t1)
                     #    print('last block received:', wave.ts[0], wave.ts[-1])
                     data.T.tofile(datf) # write in column-major (Fortran) order
                 print() # newline
                 core.write_dat_json(hps, fulljsonfname)
+                if ztrangess:
+                    ztrangess = np.concatenate(ztrangess, axis=0)
+                    ztrangesfname = fullfname + '.0tranges.npy'
+                    np.save(ztrangesfname, ztrangess)
+                    print('Zeroed-out %d time ranges' % len(ztrangess))
+                    print('Wrote 0tranges file %r' % ztrangesfname)
         print('Done exporting %s data' % export_msg)
 
         # only return path and fname if we're only exporting to a single file:
