@@ -64,7 +64,7 @@ from .gac import gac # .pyx file
 from . import core
 from .core import (toiter, tocontig, intround, intceil, printflush, lstrip, matlabize,
                    g, dist, iterable, ClusterChange, SpykeToolWindow, DJS,
-                   qvar2list, qvar2str)
+                   qvar2list, qvar2str, merge_intervals)
 from . import dat, nsx, surf, stream, probes
 from .stream import SimpleStream, MultiStream
 from .sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES, NPCSPERCHAN
@@ -545,8 +545,7 @@ class SpykeWindow(QtGui.QMainWindow):
                             # convert to nx2 array, expand window for zeroing around on
                             # and off index of each saturation:
                             ztrangeis = np.stack([onis-ntwin, offis+ntwin], axis=1)
-                            ## TODO: some ztrangeis overlap when multiple ones hit
-                            ## the start or end of the datablock
+                            ztrangeis = np.asarray(merge_intervals(ztrangeis)) # remove overlap
                             ztrangeis = ztrangeis.clip(0, nt) # limit to valid slice values
                             for oni, offi in ztrangeis:
                                 sattis[oni:offi] = True

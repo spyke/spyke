@@ -1398,6 +1398,21 @@ def concatenate_destroy(arrs):
         rowi += nrows
     return a
 
+def merged_interval_gen(intervals):
+    """Generator that merges overlapping (start, stop) intervals.
+    Adapted from https://codereview.stackexchange.com/a/108651"""
+    lo, hi = intervals[0] # bounds of the current run of merges
+    for interval in intervals[1:]:
+        if interval[0] <= hi:  # new interval overlaps current run
+            hi = max(hi, interval[1])  # merge with the current run
+        else:  # current run is over
+            yield lo, hi  # yield accumulated interval
+            lo, hi = interval  # start new run
+    yield lo, hi  # end the final run
+
+def merge_intervals(intervals):
+    return list(merged_interval_gen(intervals))
+
 def lst2shrtstr(lst, sigfigs=4, brackets=False):
     """Return string representation of list, replacing any floats with potentially
     shorter representations with fewer sig figs. Any string items in list will be
