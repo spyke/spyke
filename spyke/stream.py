@@ -139,6 +139,15 @@ class Stream(object):
 
     shcorrect = property(get_shcorrect, set_shcorrect)
 
+    def get_israw(self):
+        """Return if self is currently set to return raw data"""
+        return (not self.filtmeth and
+                not self.car and
+                self.sampfreq == self.rawsampfreq and
+                not self.shcorrect)
+
+    israw = property(get_israw)
+
     def get_datetime(self):
         return self.f.datetime
 
@@ -378,9 +387,11 @@ class DATStream(Stream):
 
     filtering = property(get_filtering)
 
-    def __call__(self, start=None, stop=None, chans=None):
+    def __call__(self, start=None, stop=None, chans=None, checksat=False):
         """Called when Stream object is called using (). start and stop are timepoints in us
         wrt t=0. Returns the corresponding WaveForm object with just the specified chans.
+        If checksat, also returns boolean array of data points of the same shape designating
+        which data points reached saturation in the raw data.
 
         As of 2017-10-24 I'm not sure if this behaviour qualifies as end-inclusive or not,
         but I suspect not. See how these single Streams are called in MultiStream.__call__
@@ -462,6 +473,17 @@ class DATStream(Stream):
         allchanis = core.argmatch(self.f.fileheader.chans, self.chans)
         dataxs[:, dt0i:dt1i] = self.f.data[allchanis, st0i:st1i]
         #print('data load took %.3f sec' % (time.time()-tload))
+
+        satis = None
+        if checksat:
+            # also return boolean indices of saturated rawdata points:
+            tsxsi = intround(tsxs / rawtres)
+            starti, stopi = intround(start / rawtres), intround(stop / rawtres)
+            lo, hi = tsxsi.searchsorted([starti, stopi])
+            rawdata = dataxs[:, lo:hi]
+            dtinf = np.iinfo(rawdata.dtype)
+            minval, maxval = dtinf.min, dtinf.max
+            satis = (rawdata == minval) | (rawdata == maxval) # saturation bool indices
 
         #print('filtmeth: %s' % self.filtmeth)
         if self.filtmeth == None:
@@ -554,7 +576,9 @@ class DATStream(Stream):
         #print('Stream start, stop, tres, shape:\n', start, stop, self.tres, data.shape)
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
-        return WaveForm(data=data, ts=ts, chans=chans)
+        if checksat:
+            assert data.shape == satis.shape
+        return WaveForm(data=data, ts=ts, chans=chans, satis=satis)
 
 
 class NSXStream(DATStream):
@@ -1261,6 +1285,12 @@ class MultiStream(object):
 
     filtering = property(get_filtering)
 
+    def get_israw(self):
+        """Return if self is currently set to return raw data"""
+        return self.streams[0].israw
+
+    israw = property(get_israw)
+
     def pickle(self):
         """Just a way to pickle all the files associated with self"""
         for stream in self.streams:
@@ -1274,7 +1304,7 @@ class MultiStream(object):
             raise ValueError('unsupported slice step size: %s' % key.step)
         return self(key.start, key.stop, self.chans)
 
-    def __call__(self, start=None, stop=None, chans=None):
+    def __call__(self, start=None, stop=None, chans=None, checksat=False):
         """Called when Stream object is called using (). start and stop are
         timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
         specified chans. Figure out which stream(s) the slice spans (usually just one,
@@ -1309,6 +1339,9 @@ class MultiStream(object):
         ts = np.linspace(start, start+(nt-1)*tres, nt) # end inclusive
         assert len(ts) == nt
         data = np.zeros((nchans, nt), dtype=np.int16) # any gaps will have zeros
+        satis = None
+        if checksat:
+            satis = np.zeros((nchans, nt), dtype=bool)
         # iterate over all relevant streams:
         for streami in streamis:
             stream = self.streams[streami]
@@ -1324,7 +1357,8 @@ class MultiStream(object):
             st0 = relt0 + streamt0
             st1 = relt1 + streamt0
             #print('Multi abst0, relt0, st0, st1:', abst0, relt0, st0, st1)
-            sdata = stream(st0, st1, chans).data # source data, in units of tres
+            wave = stream(st0, st1, chans, checksat) # source WaveForm
+            sdata, ssatis = wave.data, wave.satis # source data and satis, in units of tres
             # destination slice indices:
             dt0i = intround((abst0 + relt0 - start) / tres) # absolute index
             dt1i = dt0i + sdata.shape[1]
@@ -1332,8 +1366,10 @@ class MultiStream(object):
             #print('Multi start, stop, tres, sdata, data:\n',
             #      start, stop, tres, sdata.shape, data.shape)
             data[:, dt0i:dt1i] = sdata # destination data, in units of tres
+            if checksat:
+                satis[:, dt0i:dt1i] = ssatis # destination satis, in units of tres
             assert data.shape[1] == len(ts)
-        return WaveForm(data=data, ts=ts, chans=chans)
+        return WaveForm(data=data, ts=ts, chans=chans, satis=satis)
 
     def get_block_tranges(self, bs=10000000):
         """Get time ranges spanning self, in block sizes of bs us

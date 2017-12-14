@@ -64,7 +64,7 @@ from .gac import gac # .pyx file
 from . import core
 from .core import (toiter, tocontig, intround, intceil, printflush, lstrip, matlabize,
                    g, dist, iterable, ClusterChange, SpykeToolWindow, DJS,
-                   qvar2list, qvar2str)
+                   qvar2list, qvar2str, merge_intervals)
 from . import dat, nsx, surf, stream, probes
 from .stream import SimpleStream, MultiStream
 from .sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES, NPCSPERCHAN
@@ -87,7 +87,11 @@ CHARTTW = {'.dat': (-25000, 25000),
 # LFP window temporal window (us)
 LFPTW = -500000, 500000
 
-# shift KiloSort spike times by this much for better positioning in sort window:
+# zero out +/- this amount of time around each saturated timepoint when exporting
+# high-pass data to KiloSort:
+SATURATIONWINDOW = 500000 # us
+
+# shift imported KiloSort spike times by this much for better positioning in sort window:
 KILOSORTSHIFTCORRECT = -100 # us
 
 # spatial channel layout:
@@ -474,14 +478,16 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionExportHighPassDatFiles_triggered(self):
         self.export_hpstream()
 
-    def export_hpstream(self, cat=False, export_msg='high-pass', export_ext='.filt.dat'):
+    def export_hpstream(self, cat=False, checksat=False, satwin=None,
+                        export_msg='high-pass', export_ext='.filt.dat'):
         """Export high-pass stream to user-designated path, using current preprocessing
         settings (filtering, CAR, and resampling) and channel selection, to export_ext file(s)
         with associated export_ext.json file describing the preprocessing that was done. This
         can also be used to export raw data if the hpstream settings for filtering, CAR and
         resampling are set appropriately. Use export_msg and export_ext to communicate this.
         cat controls whether to concatenate all the exported data into a single
-        .dat file"""
+        .dat file. If checksat is true, check for saturation in raw data, then zero out +/-
+        satwin us around any saturated data. This works best if the data is indeed high-pass"""
         if not self.hpstream:
             print('First open a stream!')
             return
@@ -509,18 +515,58 @@ class SpykeWindow(QtGui.QMainWindow):
             fulljsonfname = fullfname + '.json'
             print('Exporting %s data to %r' % (export_msg, fullfname))
             with open(fullfname, 'wb') as datf:
+                ztrangess = []
                 t0s = np.arange(hps.t0, hps.t1, blocksize)
                 for t0 in t0s:
                     t1 = t0 + blocksize
                     #print('%d to %d us' % (t0, t1))
                     printflush('.', end='') # succint progress indicator
-                    wave = hps[t0:t1]
+                    wave = hps(t0, t1, checksat=checksat)
+                    data = wave.data
+                    if checksat:
+                        satis = wave.satis # should have same shape as data
+                        if satis.any():
+                            nt = data.shape[1] # num timepoints in this block
+                            wsatis = np.where(satis) # integer row and col indices
+                            satchanis = np.unique(wsatis[0]) # indices of rows that saturated
+                            satchans = wave.chans[satchanis]
+                            print() # newline
+                            print('Saturation in block (%d, %d) on chans %s'
+                                  % (t0, t1, satchans))
+                            ntwin = intround(satwin / hps.tres)
+                            sattis = satis.any(axis=0) # time only, collapse across all chans
+                            edges = np.diff(sattis.astype(int)) # find +ve and -ve edges
+                            onis = np.where(edges > 0)[0] + 1
+                            offis = np.where(edges < 0)[0] + 1
+                            if len(onis) - len(offis) == 1:
+                                offis = np.append(offis, nt) # last off is end of block
+                            elif len(offis) - len(onis) == 1:
+                                onis = np.append(onis, 0) # first on is start of block
+                            # convert to nx2 array, expand window for zeroing around on
+                            # and off index of each saturation:
+                            ztrangeis = np.stack([onis-ntwin, offis+ntwin], axis=1)
+                            ztrangeis = np.asarray(merge_intervals(ztrangeis)) # remove overlap
+                            ztrangeis = ztrangeis.clip(0, nt) # limit to valid slice values
+                            for oni, offi in ztrangeis:
+                                sattis[oni:offi] = True
+                            data[:, sattis] = 0 # zero out data at sattis
+                            ztrangeis = ztrangeis.clip(max=nt-1) # limit to valid index values
+                            ztranges = wave.ts[ztrangeis]
+                            print('Zeroed-out time ranges:')
+                            print(intround(ztranges)) # convert to int for better display
+                            ztrangess.append(ztranges)
                     #if t0 == t0s[-1]:
                     #    print('last block asked:', t0, t1)
                     #    print('last block received:', wave.ts[0], wave.ts[-1])
-                    wave.data.T.tofile(datf) # write in column-major (Fortran) order
+                    data.T.tofile(datf) # write in column-major (Fortran) order
                 print() # newline
                 core.write_dat_json(hps, fulljsonfname)
+                if ztrangess:
+                    ztrangess = np.concatenate(ztrangess, axis=0)
+                    ztrangesfname = fullfname + '.0tranges.npy'
+                    np.save(ztrangesfname, ztrangess)
+                    print('Zeroed-out %d time ranges' % len(ztrangess))
+                    print('Wrote 0tranges file %r' % ztrangesfname)
         print('Done exporting %s data' % export_msg)
 
         # only return path and fname if we're only exporting to a single file:
@@ -662,15 +708,100 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Done exporting high-pass envelope data')
 
     @QtCore.pyqtSlot()
+    def on_actionExportHighPassDatKiloSortFiles_triggered(self):
+        self.export_hp_ks_dat()
+
+    @QtCore.pyqtSlot()
     def on_actionExportRawDataDatFiles_triggered(self):
         self.export_raw_dat()
+
+    def export_hp_ks_dat(self):
+        """Export high-pass ephys data for use in KiloSort, while checking
+        for and zeroing out any periods of saturation. Exports enabled chans concatenated
+        across all files in current track, to .dat file in user-designated path.
+        This works by first turning off all filtering, CAR, and resampling, then calling
+        self.export_hpstream(), then restoring filtering, CAR, and resampling settings"""
+        print('Exporting high-pass ephys data to .dat file for use in KiloSort, '
+              'removing any saturation')
+
+        # save current hpstream filtering CAR and sampling settings:
+        stream = self.hpstream
+        if not stream:
+            print('First open a stream!')
+            return
+        filtmeth = stream.filtmeth
+        car = stream.car
+        sampfreq = stream.sampfreq
+        shcorrect = stream.shcorrect
+
+        # set hpstream to show high-pass filtered, but otherwise raw, data:
+        print('Temporarily setting filtering to non-causal Butterworth, '
+              'disabling CAR & resampling')
+        self.SetFiltmeth('BWNC')
+        self.SetCAR(None)
+        self.SetSampfreq(stream.rawsampfreq)
+        if stream.ext != '.srf':
+            self.SetSHCorrect(False) # leave it enabled for .srf, data is wrong w/o it
+
+        # do the export:
+        if stream.is_multi(): # it's a MultiStream
+            cat = True # concatenate
+        else: # it's a single Stream
+            cat = False # nothing to concatenate
+        result = self.export_hpstream(cat=cat, checksat=True, satwin=SATURATIONWINDOW,
+                                      export_msg='high-pass', export_ext='.dat')
+        if result:
+            path, datfname = result
+
+        # restore hpstream settings:
+        print('Restoring filtering, CAR, and resampling settings')
+        self.SetFiltmeth(filtmeth)
+        self.SetCAR(car)
+        self.SetSampfreq(sampfreq)
+        self.SetSHCorrect(shcorrect)
+
+        if not result:
+            print('Raw data export cancelled')
+            return
+
+        # write KiloSort channel map .mat file, indicate which chans are included in the .dat
+        datfnameML = matlabize(datfname) # make suitable for use as MATLAB script name
+        chanmapfname = datfnameML + '_ks_chanmap.mat'
+        fullchanmapfname = os.path.join(path, chanmapfname)
+        core.write_ks_chanmap_mat(stream, fullchanmapfname)
+
+        # write KiloSort config .m file:
+        with open('./templates/kilosort/ks_config.m') as templateksconfigf:
+            ksconfigstr = templateksconfigf.read()
+        # nclusts for KiloSort to use: 3x nchans, rounded up to nearest multiple of 32:
+        nclusts = intceil(3 * stream.nchans / 32) * 32
+        ksconfigstr = ksconfigstr.format(DATFNAME=datfname,
+                                         KSRESULTSFNAME=datfname + '.ks_results',
+                                         FS=stream.rawsampfreq,
+                                         NCHANS=stream.nchans,
+                                         NCLUSTS=nclusts,
+                                         CHANMAPFNAME=chanmapfname)
+        ksconfigfname = datfnameML + '_ks_config.m'
+        fullksconfigfname = os.path.join(path, ksconfigfname)
+        with open(fullksconfigfname, 'w') as ksconfigf:
+            ksconfigf.write(ksconfigstr)
+        print('Wrote KiloSort config file %r' % fullksconfigfname)
+
+        # write KiloSort run .m file:
+        with open('./templates/kilosort/ks_run.m') as templateksrunf:
+            ksrunstr = templateksrunf.read()
+        ksrunstr = ksrunstr.format(KSCONFIGFNAME=ksconfigfname)
+        ksrunfname = datfnameML + '_ks_run.m'
+        fullksrunfname = os.path.join(path, ksrunfname)
+        with open(fullksrunfname, 'w') as ksrunf:
+            ksrunf.write(ksrunstr)
+        print('Wrote KiloSort run file %r' % fullksrunfname)
 
     def export_raw_dat(self):
         """Export raw ephys data of enabled chans concatenated across all files in current
         track, to .dat file in user-designated path. This works by first turning off all
         filtering, CAR, and resampling, then calling self.export_hpstream(), then restoring
-        filtering, CAR, and resampling settings. Also export channel map file in .mat format
-        for KiloSort"""
+        filtering, CAR, and resampling settings"""
         print('Exporting raw ephys data to .dat file')
 
         # save current hpstream filtering CAR and sampling settings:
@@ -710,39 +841,6 @@ class SpykeWindow(QtGui.QMainWindow):
         if not result:
             print('Raw data export cancelled')
             return
-
-        # write KiloSort channel map .mat file, indicate which chans are included in the .dat
-        datfnameML = matlabize(datfname) # make suitable for use as MATLAB script name
-        chanmapfname = datfnameML + '_ks_chanmap.mat'
-        fullchanpmapfname = os.path.join(path, chanmapfname)
-        core.write_ks_chanmap_mat(stream, fullchanpmapfname)
-
-        # write KiloSort config .m file:
-        with open('./templates/kilosort/ks_config.m') as templateksconfigf:
-            ksconfigstr = templateksconfigf.read()
-        # nclusts for KiloSort to use: 3x nchans, rounded up to nearest multiple of 32:
-        nclusts = intceil(3 * stream.nchans / 32) * 32
-        ksconfigstr = ksconfigstr.format(DATFNAME=datfname,
-                                         KSRESULTSFNAME=datfname + '.ks_results',
-                                         FS=stream.rawsampfreq,
-                                         NCHANS=stream.nchans,
-                                         NCLUSTS=nclusts,
-                                         CHANMAPFNAME=chanmapfname)
-        ksconfigfname = datfnameML + '_ks_config.m'
-        fullksconfigfname = os.path.join(path, ksconfigfname)
-        with open(fullksconfigfname, 'w') as ksconfigf:
-            ksconfigf.write(ksconfigstr)
-        print('Wrote KiloSort config file %r' % fullksconfigfname)
-
-        # write KiloSort run .m file:
-        with open('./templates/kilosort/ks_run.m') as templateksrunf:
-            ksrunstr = templateksrunf.read()
-        ksrunstr = ksrunstr.format(KSCONFIGFNAME=ksconfigfname)
-        ksrunfname = datfnameML + '_ks_run.m'
-        fullksrunfname = os.path.join(path, ksrunfname)
-        with open(fullksrunfname, 'w') as ksrunf:
-            ksrunf.write(ksrunstr)
-        print('Wrote KiloSort run file %r' % fullksrunfname)
 
     @QtCore.pyqtSlot()
     def on_actionConvertKiloSortNpy2EventsZip_triggered(self):
@@ -1008,10 +1106,11 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Updating sort from version 1.2 to 1.3')
         s = self.sort
         classname = s.probe.__class__.__name__
-        print('sort.probe class is now %r' % classname)
-        print('sort.probe.name was %r' % s.probe.name)
-        s.probe.name = 'A1x64' # update name attribute
-        print('sort.probe.name is now %r' % s.probe.name)
+        if s.probe.name == 'A1x64_Poly2_6mm_23s_160':
+            print('sort.probe class is now %r' % classname)
+            print('sort.probe.name was %r' % s.probe.name)
+            s.probe.name = 'A1x64' # update name attribute
+            print('sort.probe.name is now %r' % s.probe.name)
         s.__version__ = '1.3' # update
         print('Done updating sort from version 1.2 to 1.3')
         return float(s.__version__)
@@ -3204,8 +3303,8 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Done converting KiloSort events')
 
     def OpenSortFile(self, fname):
-        """Open a Sort from a .sort and .spike file, try and open a .wave file
-        with the same name, restore the (closed) stream"""
+        """Open a Sort from a .sort and .spike and .wave file with the same base name,
+        restore the stream"""
         self.DeleteSort() # delete any existing Sort
         print('Opening sort file %r' % fname)
         t0 = time.time()
@@ -3216,6 +3315,7 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Done opening sort file, took %.3f sec' % (time.time()-t0))
         print('Sort file was %d bytes long' % f.tell())
         f.close()
+        sort.fname = fname # update in case file was renamed
         self.sort = sort
 
         # if a stream is already open, try rebinding it to the sort. If they don't match,
@@ -3231,7 +3331,14 @@ class SpykeWindow(QtGui.QMainWindow):
             self.uVperum = UVPERUM[ext]
             self.usperum = USPERUM[ext]
 
+        basefname = os.path.splitext(fname)[0]
+        # load .spike file of the same base name:
+        sort.spikefname = basefname + '.spike' # update in case of renamed basefname
         self.OpenSpikeFile(sort.spikefname)
+
+        # load .wave file of the same base name:
+        sort.wavefname = basefname + '.wave' # update in case of renamed basefname
+        sort.wavedata = self.OpenWaveFile(sort.wavefname)
 
         # try auto-updating sort to latest version:
         if float(sort.__version__) < float(__version__):
@@ -3309,6 +3416,7 @@ class SpykeWindow(QtGui.QMainWindow):
         except AttributeError: pass
 
     def OpenSpikeFile(self, fname):
+        """Open a .spike file, assign its contents to the spikes array, update dependencies"""
         sort = self.sort
         print('Loading spike file %r' % fname)
         t0 = time.time()
@@ -3319,23 +3427,17 @@ class SpykeWindow(QtGui.QMainWindow):
         f.close()
         sort.spikes = spikes
         # when loading a spike file, make sure the nid field is overwritten
-        # in the spikes array. The nids in sort.neurons are always the definitive ones
+        # in the spikes array. The nids in sort.neurons are always the definitive ones:
         for neuron in sort.neurons.values():
             spikes['nid'][neuron.sids] = neuron.id
         sort.update_usids()
-        # try loading .wave file of the same name
-        wavefname = os.path.splitext(fname)[0] + '.wave'
-        sort.wavedata = self.OpenWaveFile(wavefname)
 
     def OpenWaveFile(self, fname):
         """Open a .wave file and return wavedata array"""
         sort = self.sort
         print('Opening wave file %r' % fname)
         t0 = time.time()
-        try: f = open(os.path.join(self.sortpath, fname), 'rb')
-        except IOError:
-            print("Can't find file %r" % fname)
-            return
+        f = open(os.path.join(self.sortpath, fname), 'rb')
         try:
             del sort.wavedata
             #gc.collect() # ensure memory is freed up to prepare for new wavedata, necessary?

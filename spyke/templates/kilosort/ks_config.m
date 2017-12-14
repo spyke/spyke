@@ -1,6 +1,6 @@
 % adapted from KiloSort's 'StandardConfig_MOVEME' template
 
-ops.GPU = 0; % whether to run this code on an Nvidia GPU (much faster, mexGPUall first)
+ops.GPU = 1; % whether to run this code on an Nvidia GPU (much faster, mexGPUall first)
 ops.parfor = 1; % whether to use parfor to accelerate some parts of the algorithm
 ops.verbose = 1; % whether to print command line progress
 ops.showfigures = 1; % whether to plot figures during optimization
@@ -53,7 +53,7 @@ ops.mergeT = .1; % upper threshold for merging (.1)
 ops.splitT = .1; % lower threshold for splitting (.1)
 
 % options for initializing spikes from data
-ops.initialize = 'no'; %'fromData' or 'no'
+ops.initialize = 'fromData'; %'fromData' or 'no'
 ops.spkTh = -6; % spike threshold in standard deviations (4)
 ops.loc_range = [3  1]; % ranges to detect peaks; plus/minus in time and channel ([3 1])
 ops.long_range = [30  6]; % ranges to detect isolated peaks ([30 6])

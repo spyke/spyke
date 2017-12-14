@@ -158,15 +158,16 @@ class NSXConverter(SimpleConverter):
 
 
 class WaveForm(object):
-    """Just a container for data, std of data, timestamps, and channels.
+    """Just a container for data, std of data, timestamps, channels, and saturation indices.
     Sliceable in time, and indexable in channel space. Only really used for
     convenient plotting. Everything else uses the sort.wavedata array, and
     related sort.spikes fields"""
-    def __init__(self, data=None, std=None, ts=None, chans=None):
+    def __init__(self, data=None, std=None, ts=None, chans=None, satis=None):
         self.data = data # in AD, potentially multichannel, depending on shape
-        self.std = std # std of data
+        self.std = std # standard deviation, same shape as data
         self.ts = ts # timestamps array in us, one for each sample (column) in data
         self.chans = chans # channel ids corresponding to rows in .data
+        self.satis = satis # boolean array denoting saturation, same shape as data
 
     def __getitem__(self, key):
         """Make waveform data sliceable in time, and directly indexable by channel id(s).
@@ -229,27 +230,7 @@ class WaveForm(object):
         self._check_add_sub(other)
         return WaveForm(data=self.data-other.data,
                         ts=self.ts, chans=self.chans)
-    '''
-    def get_padded_data(self, chans):
-        """Return self.data corresponding to self.chans,
-        padded with zeros for chans that don't exist in self"""
-        common = set(self.chans).intersection(chans) # overlapping chans
-        dtype = self.data.dtype # self.data corresponds to self.chans
-        # padded_data corresponds to chans:
-        padded_data = np.zeros((len(chans), len(self.ts)), dtype=dtype)
-        chanis = [] # indices into self.chans corresponding to overlapping chans
-        commonis = [] # indices into chans corresponding to overlapping chans
-        for chan in common:
-            chani, = np.where(chan == np.asarray(self.chans))
-            commoni, = np.where(chan == np.asarray(chans))
-            chanis.append(chani)
-            commonis.append(commoni)
-        chanis = np.concatenate(chanis)
-        commonis = np.concatenate(commonis)
-        # for overlapping chans, overwrite the zeros with data:
-        padded_data[commonis] = self.data[chanis]
-        return padded_data
-    '''
+
            
 class SpykeToolWindow(QtGui.QMainWindow):
     """Base class for all of spyke's tool windows"""
@@ -1416,6 +1397,21 @@ def concatenate_destroy(arrs):
         a[rowi:rowi+nrows] = arr # concatenate along 0th axis
         rowi += nrows
     return a
+
+def merged_interval_gen(intervals):
+    """Generator that merges overlapping (start, stop) intervals.
+    Adapted from https://codereview.stackexchange.com/a/108651"""
+    lo, hi = intervals[0] # bounds of the current run of merges
+    for interval in intervals[1:]:
+        if interval[0] <= hi:  # new interval overlaps current run
+            hi = max(hi, interval[1])  # merge with the current run
+        else:  # current run is over
+            yield lo, hi  # yield accumulated interval
+            lo, hi = interval  # start new run
+    yield lo, hi  # end the final run
+
+def merge_intervals(intervals):
+    return list(merged_interval_gen(intervals))
 
 def lst2shrtstr(lst, sigfigs=4, brackets=False):
     """Return string representation of list, replacing any floats with potentially

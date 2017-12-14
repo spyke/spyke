@@ -1809,6 +1809,7 @@ or remove all duplicate spikes from selected neurons
       <property name="title">
        <string>High-pass Data</string>
       </property>
+      <addaction name="actionExportHighPassDatKiloSortFiles"/>
       <addaction name="actionExportHighPassDatFiles"/>
       <addaction name="actionExportHighPassEnvelopeDatFiles"/>
       <addaction name="actionExportHighPassBipolarRefEnvelopeDatFiles"/>
@@ -2533,7 +2534,7 @@ or remove all duplicate spikes from selected neurons
   </action>
   <action name="actionExportRawDataDatFiles">
    <property name="text">
-    <string>.dat &amp;&amp; KiloSort Files</string>
+    <string>.dat Files</string>
    </property>
    <property name="toolTip">
     <string>Export raw ephys data to .dat file(s), and KiloSort chanmap, config and run files</string>
@@ -2590,6 +2591,11 @@ or remove all duplicate spikes from selected neurons
    </property>
    <property name="text">
     <string>Save Track Channels</string>
+   </property>
+  </action>
+  <action name="actionExportHighPassDatKiloSortFiles">
+   <property name="text">
+    <string>.dat &amp;&amp; KiloSort Files, remove any saturation</string>
    </property>
   </action>
  </widget>

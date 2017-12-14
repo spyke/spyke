@@ -887,6 +887,84 @@ class Adapter(object):
         return np.argsort(self.ADchans)
 
 
+class HSF_A64(Adapter):
+    """Blackrock HSF-A64 analog headstage to Blackrock NSP. This is required because the
+    HSF-A64 is wired to match the older rev3 A64 probe board, whose probe chan to MOLEX pin
+    mapping is different from rev4 and up. All new A64 probes from NeuroNexus use the newer
+    rev4+ mapping. This remapping was done by inspecting the datasheet for the HSF-A64
+    and finding the corresponding pin on the A64 probe"""
+    def __init__(self):
+        self.name = 'HSF_A64'
+        self.nchans = 64
+        p2a = {} # probe channel to AD (amplifier) channel mapping
+        p2a[1] =  27
+        p2a[2] =  25
+        p2a[3] =  29
+        p2a[4] =  23
+        p2a[5] =  28
+        p2a[6] =  21
+        p2a[7] =  26
+        p2a[8] =  19
+        p2a[9] =  24
+        p2a[10] = 17
+        p2a[11] = 22
+        p2a[12] = 15
+        p2a[13] = 20
+        p2a[14] = 13
+        p2a[15] = 18
+        p2a[16] = 11
+        p2a[17] = 16
+        p2a[18] = 9
+        p2a[19] = 14
+        p2a[20] = 7
+        p2a[21] = 12
+        p2a[22] = 3
+        p2a[23] = 10
+        p2a[24] = 1
+        p2a[25] = 8
+        p2a[26] = 6
+        p2a[27] = 2
+        p2a[28] = 4
+        p2a[29] = 5
+        p2a[30] = 30
+        p2a[31] = 31
+        p2a[32] = 32
+        p2a[33] = 33
+        p2a[34] = 34
+        p2a[35] = 35
+        p2a[36] = 60
+        p2a[37] = 61
+        p2a[38] = 63
+        p2a[39] = 59
+        p2a[40] = 57
+        p2a[41] = 64
+        p2a[42] = 55
+        p2a[43] = 62
+        p2a[44] = 53
+        p2a[45] = 58
+        p2a[46] = 51
+        p2a[47] = 56
+        p2a[48] = 49
+        p2a[49] = 54
+        p2a[50] = 47
+        p2a[51] = 52
+        p2a[52] = 45
+        p2a[53] = 50
+        p2a[54] = 43
+        p2a[55] = 48
+        p2a[56] = 41
+        p2a[57] = 46
+        p2a[58] = 39
+        p2a[59] = 44
+        p2a[60] = 37
+        p2a[61] = 42
+        p2a[62] = 36
+        p2a[63] = 40
+        p2a[64] = 38
+        self.probe2AD = p2a
+        self.check()
+
+
 class Adpt_A64_OM32x2_sm_CerePlex_Mini(Adapter):
     """NeuroNexus Adpt-A64-OM32x2-sm (MOLEX to OM32x2-sm) adapter, to Blackrock Cereplex Mini
     64 channel (banks A and B) digital headstage, to Blackrock NSP. This was
@@ -970,8 +1048,8 @@ class CN_Adpt_A64_OM32x2_sm_CerePlex_Mini(Adapter):
     """Cambridge Neurotech dual MOLEX, to NeuroNexus Adpt-A64-OM32x2-sm (MOLEX to OM32x2-sm)
     adapter, to Blackrock Cereplex Mini 64 channel (banks A and B) digital headstage, to
     Blackrock NSP. This takes into account the fact that the dual MOLEX connectors on
-    Cambridge Neurotech probes have a different channel mapping than those on NeuroNexus
-    probes."""
+    Cambridge Neurotech probes have a different channel mapping (A64 rev3) than those on
+    recent NeuroNexus probes (A64 rev4 and up)."""
     def __init__(self):
         self.name = 'CN_Adpt_A64_OM32x2_sm_CerePlex_Mini'
         self.nchans = 64
@@ -1044,7 +1122,7 @@ class CN_Adpt_A64_OM32x2_sm_CerePlex_Mini(Adapter):
         self.check()
 
 
-ADAPTERTYPES = [Adpt_A64_OM32x2_sm_CerePlex_Mini, CN_Adpt_A64_OM32x2_sm_CerePlex_Mini]
+ADAPTERTYPES = [HSF_A64, Adpt_A64_OM32x2_sm_CerePlex_Mini, CN_Adpt_A64_OM32x2_sm_CerePlex_Mini]
 
 def getadapter(name):
     """Get instantiated adapter type by name"""
