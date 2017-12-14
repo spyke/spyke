@@ -189,6 +189,8 @@ class Plot(object):
             scale = max(scales)
         else: # no neuron plotted
             scale = 150 # arbitrary value to scale to
+        if Vpp == 0:
+            Vpp = 1 # prevent divide by 0
         wave.data = wave.data / Vpp * scale
         if wave.std is not None:
             ## TODO: since we don't have all the individual spike waveforms that what went
