@@ -1403,12 +1403,12 @@ def merged_interval_gen(intervals):
     Adapted from https://codereview.stackexchange.com/a/108651"""
     lo, hi = intervals[0] # bounds of the current run of merges
     for interval in intervals[1:]:
-        if interval[0] <= hi:  # new interval overlaps current run
-            hi = max(hi, interval[1])  # merge with the current run
-        else:  # current run is over
-            yield lo, hi  # yield accumulated interval
-            lo, hi = interval  # start new run
-    yield lo, hi  # end the final run
+        if interval[0] <= hi: # new interval overlaps current run
+            hi = max(hi, interval[1]) # merge with the current run
+        else: # current run is over
+            yield lo, hi # yield accumulated interval
+            lo, hi = interval # start new run
+    yield lo, hi # end the final run
 
 def merge_intervals(intervals):
     return list(merged_interval_gen(intervals))
