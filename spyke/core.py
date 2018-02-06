@@ -1834,13 +1834,14 @@ def envelope_hilbert(x):
     """
     return np.abs(scipy.signal.hilbert(x))
 
-def envelope_filt(x, sampfreq=None, f0=None, f1=BWLPF1, order=BWLPORDER, ftype='butter'):
+def envelope_filt(x, sampfreq=None, f0=None, f1=BWLPF1, order=BWLPORDER, ftype='butter',
+                  causal=False):
     """Calculate envelope of x by rectifying and then low-pass filtering. Return float64"""
     assert sampfreq is not None
     x = np.abs(x)
     x, b, a = filterord(x, sampfreq=sampfreq, f0=f0, f1=f1,
                         order=order, rp=None, rs=None,
-                        btype='lowpass', ftype=ftype) # float64
+                        btype='lowpass', ftype=ftype, causal=causal) # float64
     return x
 
 def updatenpyfilerows(fname, rows, arr):
