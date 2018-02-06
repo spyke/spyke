@@ -152,7 +152,7 @@ first high-pass filters (using a noncausal Butterworth filter) and concatenates 
 across all the source files in the current `.track` file, saving the results to a `.dat` file.
 This also checks for saturation in the data, and if it finds any, zeroes it out, +/- 0.5 sec
 on either side, and also saves the start and stop time ranges of the zeroed out data to a
-`.0tranges.npy` file. Saturation and big trainsients can causes problems for KiloSort. The
+`.0tranges.npy` file. Saturation and big transients can causes problems for KiloSort. The
 required MATLAB files to run KiloSort are also generated. Note that the Filtering, CAR and
 Sampling settings you are currently using in spyke are ignored during export. Only high-pass
 noncausal Butterworth filtered data is exported. KiloSort will then do its own further
