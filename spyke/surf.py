@@ -61,7 +61,7 @@ class File(object):
     def __init__(self, fname, path):
         self.fname = fname
         self.path = path
-        self.filesize = os.stat(self.join(fname))[6]
+        self.filesize = os.stat(self.join(fname)).st_size # in bytes
         self.open()
         self._parseFileHeader()
         self.parsefname = fname + '.parse'

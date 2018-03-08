@@ -21,7 +21,7 @@ class File(object):
         if path is None:
             path, fname = os.path.split(fname) # separate path from fname
         self.fname, self.path = fname, path
-        self.filesize = os.stat(self.join(fname))[6] # in bytes
+        self.filesize = os.stat(self.join(fname)).st_size # in bytes
         self.open() # calls parse() and load()
 
         self.datapacketoffset = self.datapacket.offset # save for unpickling
