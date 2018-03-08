@@ -25,9 +25,10 @@ from . import probes
 
 class File(dat.File):
     """Open an .nsx file and expose its header fields and data as attribs"""
-    def __init__(self, fname, path):
-        self.fname = fname
-        self.path = path
+    def __init__(self, fname, path=None):
+        if path is None:
+            path, fname = os.path.split(fname) # separate path from fname
+        self.fname, self.path = fname, path
         self.filesize = os.stat(self.join(fname)).st_size # in bytes
         self.open() # calls parse() and load()
 
