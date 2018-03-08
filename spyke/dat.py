@@ -256,6 +256,11 @@ class DataPacket(object):
         self.offset = f.tell()
         self.nchans, self.nt, self.t0i = nchans, nt, t0i
         self.dataoffset = f.tell()
+        filesize = os.stat(f.name).st_size # in bytes
+        expectedfilesize = self.dataoffset + 2*self.nchans*self.nt
+        if filesize != expectedfilesize:
+            raise ValueError("Actual (%d) and expected (%d) file sizes don't match, "
+                             "file %s is corrupt?" % (filesize, expectedfilesize, f.name))
 
         # load all data into memory using np.fromfile. Time is MSB, chan is LSB:
         #self._data = np.fromfile(f, dtype=np.int16, count=self.nt*nchans)

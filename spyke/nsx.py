@@ -307,6 +307,11 @@ class DataPacket(object):
         # nsamples offset of first timepoint from t=0; number of timepoints:
         self.t0i, self.nt = unpack('II', f.read(8))
         self.dataoffset = f.tell()
+        filesize = os.stat(f.name).st_size # in bytes
+        expectedfilesize = self.dataoffset + 2*self.nchans*self.nt
+        if filesize != expectedfilesize:
+            raise ValueError("Actual (%d) and expected (%d) file sizes don't match, "
+                             "file %s is corrupt?" % (filesize, expectedfilesize, f.name))
 
         # load all data into memory using np.fromfile. Time is MSB, chan is LSB:
         #self._data = np.fromfile(f, dtype=np.int16, count=self.nt*nchans)
