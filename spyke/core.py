@@ -17,6 +17,7 @@ import random
 import string
 from copy import copy
 import json
+import pickle
 
 from PyQt4 import QtCore, QtGui
 from PyQt4.QtCore import Qt
@@ -1868,25 +1869,28 @@ def updatenpyfilerows(fname, rows, arr):
         f.write(arr[row])
     f.close()
 
-def unpickler_find_global(oldmod, oldcls):
-    """Required for unpickling some .sort files and upgrading them to the next version.
-    Rename class and module names that changed between two .sort versions. Unfortunately,
-    we can't check the .sort version number until after unpickling, so this has to be done
-    for *all* .sort files during unpickling, not after"""
-    oldmod2newmod = {'core': 'stream'} # version 0.7 to 0.8
-    oldcls2newcls = {'Stream': 'SurfStream', # 0.7 to 0.8
-                     'SimpleStream': 'SimpleStream', # 0.7 to 0.8
-                     'TrackStream': 'MultiStream', # 0.7 to 0.8
-                     'A1x64_Poly2_6mm_23s_160': 'A1x64'} # 1.2 to 1.3
-    try:
-        newcls = oldcls2newcls[oldcls]
-    except KeyError: # no old to new class conversion
-        exec('import %s' % oldmod)
-        return eval('%s.%s' % (oldmod, oldcls))
-    newmod = oldmod2newmod.get(oldmod, oldmod)
-    print('Rename on unpickle: %s.%s -> %s.%s' % (oldmod, oldcls, newmod, newcls))
-    exec('import %s' % newmod)
-    return eval('%s.%s' % (newmod, newcls))
+
+class SpykeUnpickler(pickle.Unpickler):
+
+    def find_class(self, oldmod, oldcls):
+        """Required for unpickling some .sort files and upgrading them to the next version.
+        Rename class and module names that changed between two .sort versions. Unfortunately,
+        we can't check the .sort version number until after unpickling, so this has to be done
+        for *all* .sort files during unpickling, not after"""
+        oldmod2newmod = {'core': 'stream'} # version 0.7 to 0.8
+        oldcls2newcls = {'Stream': 'SurfStream', # 0.7 to 0.8
+                         'SimpleStream': 'SimpleStream', # 0.7 to 0.8
+                         'TrackStream': 'MultiStream', # 0.7 to 0.8
+                         'A1x64_Poly2_6mm_23s_160': 'A1x64'} # 1.2 to 1.3
+        try:
+            newcls = oldcls2newcls[oldcls]
+        except KeyError: # no old to new class conversion
+            exec('import %s' % oldmod)
+            return eval('%s.%s' % (oldmod, oldcls))
+        newmod = oldmod2newmod.get(oldmod, oldmod)
+        print('Rename on unpickle: %s.%s -> %s.%s' % (oldmod, oldcls, newmod, newcls))
+        exec('import %s' % newmod)
+        return eval('%s.%s' % (newmod, newcls))
 
 def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=None,
                    chan_order=None, envelope=None, adaptername=None):

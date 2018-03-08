@@ -3309,8 +3309,7 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Opening sort file %r' % fname)
         t0 = time.time()
         f = open(os.path.join(self.sortpath, fname), 'rb')
-        unpickler = pickle.Unpickler(f)
-        unpickler.find_global = core.unpickler_find_global
+        unpickler = core.SpykeUnpickler(f)
         sort = unpickler.load()
         print('Done opening sort file, took %.3f sec' % (time.time()-t0))
         print('Sort file was %d bytes long' % f.tell())
