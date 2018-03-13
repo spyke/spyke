@@ -12,7 +12,7 @@ import numpy as np
 
 from .core import tolist
 
-DEFNSXPROBETYPE = 'A1x32'
+DEFNSXPROBETYPE = 'A1x32' # default .nsx probe type
 # SPIKEDTYPE currently uses uint8 for chans, ensure during Probe instantiation that
 # number of chans doesn't exceed this:
 MAXNCHANS = 2**8
@@ -55,6 +55,11 @@ class Probe(object):
     def check(self):
         """Check probe attributes"""
         assert len(self.SiteLoc) == self.nchans <= MAXNCHANS
+
+    @property
+    def nrows(self):
+        """ncols is set manually for each Probe class, but nrows is calculated automatically"""
+        return len(self.unique_coords(axis=1))
 
     @property
     def chan0(self):
