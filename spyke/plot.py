@@ -482,7 +482,7 @@ class PlotPanel(FigureCanvas):
     def init_axes(self):
         """Init the axes and ref lines"""
         self.ax = self.figure.add_axes([0, 0, 1, 1], # lbwh relative to figure?
-                                       axisbg=BACKGROUNDCOLOUR,
+                                       facecolor=BACKGROUNDCOLOUR,
                                        frameon=False,
                                        alpha=1.)
 
