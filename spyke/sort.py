@@ -2941,7 +2941,11 @@ class SortWindow(SpykeToolWindow):
             d = np.median(projs[1]) - np.median(projs[0])
             # measure whether centers are at least 3 of the bigger stdevs away from
             # each other:
-            oneDsep = d / (3 * max(projs[0].std(), projs[1].std()))
+            maxstd = max(projs[0].std(), projs[1].std())
+            if maxstd == 0:
+                oneDsep = 0 # not sure if this is ideal
+            else:
+                oneDsep = d / (3 * maxstd)
             #print('std0=%f, std1=%f, d=%f' % (projs[0].std(), projs[1].std(), d))
         proj = np.concatenate(projs)
         nbins = max(intround(np.sqrt(len(proj))), 2) # seems like a good heuristic
