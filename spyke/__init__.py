@@ -5,5 +5,6 @@ waveform data. Some of its functionality is inherited from Tim Blanche's Delphi 
 
 __authors__ = ['Martin Spacek, Reza Lotun']
 
+from .__version__ import __version__
 from . import (cluster, core, dat, detect, extract, gac, nsx, plot, probes,
                sort, stream, surf, util)
