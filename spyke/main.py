@@ -884,6 +884,8 @@ class SpykeWindow(QtGui.QMainWindow):
             v = self.update_1_1_to_1_2()
         if v == 1.2:
             v = self.update_1_2_to_1_3()
+        if v == 1.3:
+            v = self.update_1_3_to_1_4()
         print('Now save me!')
             
     def update_0_3_to_0_4(self):
@@ -1113,6 +1115,29 @@ class SpykeWindow(QtGui.QMainWindow):
             print('sort.probe.name is now %r' % s.probe.name)
         s.__version__ = '1.3' # update
         print('Done updating sort from version 1.2 to 1.3')
+        return float(s.__version__)
+
+    def update_1_3_to_1_4(self):
+        """Update sort 1.3 to 1.4:
+            - add .tres attribute to all WaveForms, which should only be in Neuron.wave
+        """
+        print('Updating sort from version 1.3 to 1.4')
+        s = self.sort
+        for nid, neuron in s.neurons.items():
+            print('n%d ' % nid, end='')
+            wave = neuron.wave
+            try:
+                wave.tres
+            except AttributeError:
+                if wave.ts is None: # empty WaveForm, can't calculate tres
+                    print("Found empty WaveForm, setting missing neuron.wave.tres = None")
+                    wave.tres = None
+                    continue
+                tres = s.tres # assign tres from sort
+                print('Setting missing neuron.wave.tres = %f' % tres)
+                wave.tres = tres
+        s.__version__ = '1.4' # update
+        print('Done updating sort from version 1.3 to 1.4')
         return float(s.__version__)
 
     @QtCore.pyqtSlot()

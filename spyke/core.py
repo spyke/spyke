@@ -163,11 +163,12 @@ class WaveForm(object):
     Sliceable in time, and indexable in channel space. Only really used for
     convenient plotting. Everything else uses the sort.wavedata array, and
     related sort.spikes fields"""
-    def __init__(self, data=None, std=None, ts=None, chans=None, satis=None):
+    def __init__(self, data=None, std=None, ts=None, chans=None, tres=None, satis=None):
         self.data = data # in AD, potentially multichannel, depending on shape
         self.std = std # standard deviation, same shape as data
         self.ts = ts # timestamps array in us, one for each sample (column) in data
         self.chans = chans # channel ids corresponding to rows in .data
+        self.tres = tres # timestamp resolution, in us
         self.satis = satis # boolean array denoting saturation, same shape as data
 
     def __getitem__(self, key):
@@ -181,24 +182,24 @@ class WaveForm(object):
         if type(key) == slice: # slice self in time
             if self.ts is None:
                 return WaveForm() # empty WaveForm
+            # use timestamp indices instead of timestamps, to avoid searchsorted
+            # problems with potential float roundoff errors:
+            try:
+                self.tis
+            except AttributeError:
+                self.tis = intround(self.ts / self.tres) # calc timestamp indices on first use
+            t0i, t1i = intround(key.start / self.tres), intround(key.stop / self.tres)
+            lo, hi = self.tis.searchsorted([t0i, t1i])
+            # direct method can cause occasional float roundoff error if self.ts are float:
+            #lo, hi = self.ts.searchsorted([key.start, key.stop])
+            data = self.data[:, lo:hi]
+            if self.std is None:
+                std = None
             else:
-                # first temporarily convert timestamps to int us so that tiny float
-                # roundoff errors don't screw up searchsorted results:
-                ## TODO: Wave timestamps should ideally be converted permanently to
-                ## int multiple of tres, but tres isn't available here for now
-                tsi = intround(self.ts)
-                t0i, t1i = intround(key.start), intround(key.stop)
-                lo, hi = tsi.searchsorted([t0i, t1i])
-                # can cause occasional float roundoff error:
-                #lo, hi = self.ts.searchsorted([key.start, key.stop])
-                data = self.data[:, lo:hi]
-                if self.std is None:
-                    std = None
-                else:
-                    std = self.std[:, lo:hi]
-                ts = self.ts[lo:hi]
-                # return a new WaveForm:
-                return WaveForm(data=data, std=std, ts=ts, chans=self.chans)
+                std = self.std[:, lo:hi]
+            ts = self.ts[lo:hi]
+            # return a new WaveForm:
+            return WaveForm(data=data, std=std, ts=ts, chans=self.chans, tres=self.tres)
         else: # index into self by channel id(s)
             keys = toiter(key)
             # don't assume self.chans are sorted:
@@ -211,7 +212,15 @@ class WaveForm(object):
                 std = None
             else:
                 std = self.std[chanis]
-            return WaveForm(data=data, std=std, ts=self.ts, chans=keys) # return a new WaveForm
+            # return a new WaveForm:
+            return WaveForm(data=data, std=std, ts=self.ts, chans=keys, tres=self.tres)
+
+    def __getstate__(self):
+        """Don't pickle self.tis, it can always be regenerated"""
+        d = self.__dict__.copy() # copy it cuz we'll be making changes
+        try: del d['tis']
+        except KeyError: pass
+        return d
 
     def __len__(self):
         """Number of data points in time"""
@@ -232,13 +241,13 @@ class WaveForm(object):
         """Return new waveform which is self+other. Keep self's timestamps"""
         self._check_add_sub(other)
         return WaveForm(data=self.data+other.data,
-                        ts=self.ts, chans=self.chans)
+                        ts=self.ts, chans=self.chans, tres=self.tres)
 
     def __sub__(self, other):
         """Return new waveform which is self-other. Keep self's timestamps"""
         self._check_add_sub(other)
         return WaveForm(data=self.data-other.data,
-                        ts=self.ts, chans=self.chans)
+                        ts=self.ts, chans=self.chans, tres=self.tres)
 
            
 class SpykeToolWindow(QtGui.QMainWindow):

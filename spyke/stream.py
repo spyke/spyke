@@ -578,7 +578,7 @@ class DATStream(Stream):
         data = np.int16(data)
         if checksat:
             assert data.shape == satis.shape
-        return WaveForm(data=data, ts=ts, chans=chans, satis=satis)
+        return WaveForm(data=data, ts=ts, chans=chans, tres=tres, satis=satis)
 
 
 class NSXStream(DATStream):
@@ -897,7 +897,7 @@ class SurfStream(Stream):
         #print('Stream start, stop, tres, shape:\n', start, stop, self.tres, data.shape)
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
-        return WaveForm(data=data, ts=ts, chans=chans)
+        return WaveForm(data=data, ts=ts, chans=chans, tres=tres)
 
 
 class SimpleStream(Stream):
@@ -1064,7 +1064,7 @@ class SimpleStream(Stream):
         #print('Stream start, stop, tres, shape:\n', start, stop, self.tres, data.shape)
         # should be safe to convert back down to int16 now:
         data = np.int16(data)
-        return WaveForm(data=data, ts=ts, chans=chans)
+        return WaveForm(data=data, ts=ts, chans=chans, tres=tres)
 
 
 class MultiStream(object):
@@ -1369,7 +1369,7 @@ class MultiStream(object):
             if checksat:
                 satis[:, dt0i:dt1i] = ssatis # destination satis, in units of tres
             assert data.shape[1] == len(ts)
-        return WaveForm(data=data, ts=ts, chans=chans, satis=satis)
+        return WaveForm(data=data, ts=ts, chans=chans, tres=tres, satis=satis)
 
     def get_block_tranges(self, bs=10000000):
         """Get time ranges spanning self, in block sizes of bs us

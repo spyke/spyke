@@ -231,7 +231,7 @@ class Sort(object):
         try:
             wavedata = self.wavedata[sid, 0:nchans]
             ts = np.arange(t0, t1, self.tres) # build them up
-            return WaveForm(data=wavedata, ts=ts, chans=chans)
+            return WaveForm(data=wavedata, ts=ts, chans=chans, tres=self.tres)
         except AttributeError: pass
 
         # try getting it from the stream
@@ -1552,8 +1552,9 @@ class Neuron(object):
         # update self's Waveform object
         self.wave.data = meanwave.data
         self.wave.std = meanwave.std
+        self.wave.ts = sort.twts # meanwave has no .ts
         self.wave.chans = meanwave.chans
-        self.wave.ts = sort.twts
+        self.wave.tres = sort.tres # meanwave has no .tres
         return self.wave
 
     def __sub__(self, other):
