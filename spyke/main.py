@@ -3069,6 +3069,7 @@ class SpykeWindow(QtGui.QMainWindow):
                                % (fname, umaxchans, self.hpstream.chans))
 
         # create sort:
+        print('Creating new sort')
         sort = self.CreateNewSort() # create a new sort, with bound stream
         # create detector and run Detector.predetect(), so that things initialize:
         self.get_detector()
@@ -3078,6 +3079,7 @@ class SpykeWindow(QtGui.QMainWindow):
         det.predetect(logpath=self.eventspath)
 
         # manually set detection results:
+        print('Allocating and filling spikes array')
         spikes = np.zeros(nspikes, det.SPIKEDTYPE)
         spikes['id'] = np.arange(nspikes)
         spikes['t'] = spikets
@@ -3102,8 +3104,15 @@ class SpykeWindow(QtGui.QMainWindow):
         det.nspikes = nspikes
 
         # init wavedata:
+        print('Allocating wavedata array')
         sort.wavedata = np.zeros((nspikes, det.maxnchansperspike, det.maxnt), dtype=np.int16)
+        # Linux has lazy physical memory allocation. See https://stackoverflow.com/a/27582592.
+        # This forces physical memory allocation, though strangely, doesn't seem to speed
+        # up loading of wavedata. It will fail immediately if physical memory can't be
+        # allocated, which is desirable:
+        sort.wavedata[:] = 0
         print('wavedata.shape:', sort.wavedata.shape)
+        print('wavedata.nbytes: %.3f GiB' % (sort.wavedata.nbytes / 1024**3))
         # "re"load spike wavedata based on imported events:
         sort.reload_spikes(spikes['id'])
 
