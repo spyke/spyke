@@ -53,6 +53,9 @@ NPCSPERCHAN = 7
 PCALIB = 'mdp'
 ICALIB = 'sklearn'
 
+MAXGROUPISI = 100000 # us (100 ms)
+MAXGROUPDT = 100000000 # us (100 s)
+
 
 class Sort(object):
     """A spike sorting session, in which you can detect spikes and sort them into Neurons.
@@ -1094,15 +1097,13 @@ class Sort(object):
             tsis = ts.argsort()
             sids = sids[tsis]
             print("Done sorting sids by time")
-        MAXISI = 100000 # us (100 ms)
-        MAXGROUPDT = 100000000 # us (100 s)
-        # break up spikes by ISIs >= MAXISI:
-        splitis = np.where(np.diff(ts) >= MAXISI)[0] + 1
+        # break up spikes by ISIs >= MAXGROUPISI:
+        splitis = np.where(np.diff(ts) >= MAXGROUPISI)[0] + 1
         groups = np.split(sids, splitis)
         # limit each group of sids to no more than MAXGROUPDT:
         groupi = 0
         while groupi < len(groups):
-            group = groups[groupi] # group of sids all with ISIs < MAXISI
+            group = groups[groupi] # group of sids all with ISIs < MAXGROUPISI
             ## TODO: not a copy: is this the optimal way to get the times in this case?
             relts = spikes[group]['t'] - spikes[group[0]]['t']
             splitis = np.where(np.diff(relts // MAXGROUPDT) > 0)[0] + 1
