@@ -1120,7 +1120,8 @@ class Sort(object):
 
         # process each group:
         sidi = 0 # init sid index across all groups, used as status counter
-        for group in groups:
+        for groupi, group in enumerate(groups):
+            printflush('<%d>' % groupi, end='')
             assert len(group) > 0 # otherwise something went wrong above
             t0 = spikes[group[0]]['t0']
             t1 = spikes[group[-1]]['t1']
