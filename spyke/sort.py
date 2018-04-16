@@ -2729,7 +2729,7 @@ class SortWindow(SpykeToolWindow):
 
         errors = []
         dests = []
-        t0, t1 = self.tis # timepoint range selected in incltComboBox
+        t0i, t1i = self.tis # timepoint range selected in incltComboBox
         # try and compare source neuron waveform to all destination neuron waveforms
         for dest in destinations:
             if dest.neuron.wave.data is None: # hasn't been calculated yet
@@ -2745,8 +2745,8 @@ class SortWindow(SpykeToolWindow):
             # ensure maxchan of both source and dest neuron are both in cmpchans
             if source.neuron.chan not in cmpchans or dest.neuron.chan not in cmpchans:
                 continue
-            srcwavedata = source.neuron.wave[cmpchans].data[:, t0:t1]
-            dstwavedata = dest.neuron.wave[cmpchans].data[:, t0:t1]
+            srcwavedata = source.neuron.wave[cmpchans].data[:, t0i:t1i]
+            dstwavedata = dest.neuron.wave[cmpchans].data[:, t0i:t1i]
             error = core.rms(srcwavedata - dstwavedata)
             errors.append(error)
             dests.append(dest)
