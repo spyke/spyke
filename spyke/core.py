@@ -182,7 +182,15 @@ class WaveForm(object):
             if self.ts is None:
                 return WaveForm() # empty WaveForm
             else:
-                lo, hi = self.ts.searchsorted([key.start, key.stop])
+                # first temporarily convert timestamps to int us so that tiny float
+                # roundoff errors don't screw up searchsorted results:
+                ## TODO: Wave timestamps should ideally be converted permanently to
+                ## int multiple of tres, but tres isn't available here for now
+                tsi = intround(self.ts)
+                t0i, t1i = intround(key.start), intround(key.stop)
+                lo, hi = tsi.searchsorted([t0i, t1i])
+                # can cause occasional float roundoff error:
+                #lo, hi = self.ts.searchsorted([key.start, key.stop])
                 data = self.data[:, lo:hi]
                 if self.std is None:
                     std = None

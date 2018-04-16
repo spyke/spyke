@@ -1,3 +1,5 @@
+- WaveForm() object: store timestamps as integer timepoint indices instead of time in us. This fixes occasional roundoff error in searchsorted when slicing by time. Means we also need to store Wave.tres
+
 - parallelize spatial fit when importing from events.zip, which is what happens automatically during spyke's built-in detection
 
 - check for spike normalization flag when calculating RMS error during best fit alignment
