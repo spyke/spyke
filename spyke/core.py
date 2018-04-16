@@ -24,7 +24,7 @@ from PyQt4.QtCore import Qt
 getSaveFileName = QtGui.QFileDialog.getSaveFileName
 
 import numpy as np
-from numpy import pi
+from numpy import pi, cos, sin
 import scipy.signal, scipy.io
 
 import matplotlib as mpl
@@ -1173,7 +1173,7 @@ def dg2dsy(x0, y0, sx, sy, x, y):
 
 def RM(theta):
     """Return 2D (2x2) rotation matrix, with theta counterclockwise rotation in radians"""
-    return np.array([[np.cos(theta), -np.sin(theta)], [np.sin(theta), np.cos(theta)]])
+    return np.array([[cos(theta), -sin(theta)], [sin(theta), cos(theta)]])
 
 
 class Poo(object):
@@ -1196,7 +1196,7 @@ def hamming(t, N):
     """Return y values of Hamming window at sample points t"""
     #if N == None:
     #    N = (len(t) - 1) / 2
-    return 0.54 - 0.46 * np.cos(pi * (2*t + N)/N)
+    return 0.54 - 0.46 * cos(pi * (2*t + N)/N)
 
 def hex2rgb(hexcolours):
     """Convert colours RGB hex string list into an RGB int array"""
@@ -1236,26 +1236,23 @@ def rgb2hex(rgbcolours):
         hx.append(h)
     return hx
 
-c = np.cos
-s = np.sin
-
 def Rx(t):
     """Rotation matrix around x axis, theta in radians"""
-    return np.matrix([[1, 0,     0   ],
-                      [0, c(t), -s(t)],
-                      [0, s(t),  c(t)]])
+    return np.matrix([[1,      0,       0],
+                      [0, cos(t), -sin(t)],
+                      [0, sin(t),  cos(t)]])
 
 def Ry(t):
     """Rotation matrix around y axis, theta in radians"""
-    return np.matrix([[ c(t), 0, s(t)],
-                      [ 0,    1, 0   ],
-                      [-s(t), 0, c(t)]])
+    return np.matrix([[ cos(t), 0, sin(t)],
+                      [      0, 1,      0],
+                      [-sin(t), 0, cos(t)]])
 
 def Rz(t):
     """Rotation matrix around z axis, theta in radians"""
-    return np.matrix([[c(t), -s(t), 0],
-                      [s(t),  c(t), 0],
-                      [0,     0,    1]])
+    return np.matrix([[cos(t), -sin(t), 0],
+                      [sin(t),  cos(t), 0],
+                      [     0,       0, 1]])
 
 def R(tx, ty, tz):
     """Return full 3D rotation matrix, given thetas in degress.
