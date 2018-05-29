@@ -180,7 +180,7 @@ class FileHeader(object):
             self.chans = np.asarray(self.chans) # convert list to array
             self.nchans = len(self.chans) # number of ephys chans
         else: # chans == [] or None
-            assert not auxchans # make sure auxchans aren't specified
+            assert not self.auxchans # make sure auxchans aren't specified
             self.nchans = self.nchanstotal
             self.chans = np.arange(chan0, chan0+self.nchans)
         if self.auxchans:
