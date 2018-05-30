@@ -765,7 +765,8 @@ class A1x64(Probe):
 
 class H3(Probe):
     """Cambridge Neurotech H3 probe, 20 um spacing, single column single shaft,
-    1-based channel IDs"""
+    1-based channel IDs. Uses rev3 electrode interface board layout, which maps directly
+    to Blackrock HSF_A64 analog headstage, and therefore doesn't require an adapter in spyke"""
     def __init__(self):
         self.layout = 'H3'
         self.name = 'H3'
