@@ -1,4 +1,4 @@
-"""Load flat .dat files with accompanying metadata. See notes/dat_metadata*.json for
+"""Load flat .dat files with accompanying metadata. See templates/json for
 example metadata files"""
 
 from __future__ import division
