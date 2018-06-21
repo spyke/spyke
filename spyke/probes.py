@@ -1128,7 +1128,57 @@ class CN_Adpt_A64_OM32x2_sm_CerePlex_Mini(Adapter):
         self.check()
 
 
-ADAPTERTYPES = [HSF_A64, Adpt_A64_OM32x2_sm_CerePlex_Mini, CN_Adpt_A64_OM32x2_sm_CerePlex_Mini]
+class Adpt_A32_OM32_RHD2132(Adapter):
+    """NeuroNexus A32 probe (single MOLEX) to Adpt-A32-OM32 (single MOLEX to OM32) adapter to
+    Intan RHD2132 32 channel headstage (OM32 connector). For some reason, the pin numbers on
+    the Adpt-A32-OM32 adapter map don't match the pin numbers on the usual NeuroNexus 32 chan
+    probe A32 MOLEX block. Also, the omnetics pinouts of the adapter don't match the omnetics
+    pin-ins of the RHD2132 headstage. This Adapter maps 1-based A32 probe channels all the way
+    to 1-based RHD2132 headstage channels. This is for when both the adapter and the RHD2132
+    headstage are connected facing the same way (both face up on one side, and both face down
+    on the other)."""
+    def __init__(self):
+        self.name = 'Adpt_A32_OM32_RHD2132'
+        self.nchans = 32
+        p2a = {} # probe channel to AD (amplifier) channel mapping
+        p2a[1] =  31
+        p2a[2] =  27
+        p2a[3] =  22
+        p2a[4] =  18
+        p2a[5] =  28
+        p2a[6] =  23
+        p2a[7] =  21
+        p2a[8] =  26
+        p2a[9] =  29
+        p2a[10] = 24
+        p2a[11] = 20
+        p2a[12] = 25
+        p2a[13] = 30
+        p2a[14] = 19
+        p2a[15] = 32
+        p2a[16] = 17
+        p2a[17] = 1
+        p2a[18] = 16
+        p2a[19] = 3
+        p2a[20] = 14
+        p2a[21] = 9
+        p2a[22] = 10
+        p2a[23] = 8
+        p2a[24] = 2
+        p2a[25] = 7
+        p2a[26] = 15
+        p2a[27] = 11
+        p2a[28] = 12
+        p2a[29] = 6
+        p2a[30] = 13
+        p2a[31] = 5
+        p2a[32] = 4
+        self.probe2AD = p2a
+        self.check()
+
+
+ADAPTERTYPES = [HSF_A64, Adpt_A64_OM32x2_sm_CerePlex_Mini, CN_Adpt_A64_OM32x2_sm_CerePlex_Mini,
+                Adpt_A32_OM32_RHD2132]
 
 def getadapter(name):
     """Get instantiated adapter type by name"""
