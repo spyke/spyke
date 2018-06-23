@@ -1177,8 +1177,85 @@ class Adpt_A32_OM32_RHD2132(Adapter):
         self.check()
 
 
+class Adpt_A64_OM32x2_sm_RHD2164(Adapter):
+    """NeuroNexus Adpt_A64_OM32x2_sm (double MOLEX to double OM32) adapter to
+    Intan RHD2164 64 channel headstage (double OM32 connector). NeuroNexus A64 probes (double
+    MOLEX) seem to map 1:1 to the pins on the Adpt_A64_OM32x2_sm, so no remapping is
+    necessary between the two, unlike for the A32 probe and the Adpt_A32_OM32_RHD2132"""
+    def __init__(self):
+        self.name = 'Adpt_A64_OM32x2_sm_RHD2164'
+        self.nchans = 64
+        p2a = {} # probe channel to AD (amplifier) channel mapping
+        p2a[1] =  48
+        p2a[2] =  44
+        p2a[3] =  43
+        p2a[4] =  40
+        p2a[5] =  39
+        p2a[6] =  38
+        p2a[7] =  46
+        p2a[8] =  35
+        p2a[9] =  42
+        p2a[10] = 33
+        p2a[11] = 37
+        p2a[12] = 50
+        p2a[13] = 36
+        p2a[14] = 52
+        p2a[15] = 34
+        p2a[16] = 54
+        p2a[17] = 49
+        p2a[18] = 56
+        p2a[19] = 51
+        p2a[20] = 58
+        p2a[21] = 53
+        p2a[22] = 61
+        p2a[23] = 55
+        p2a[24] = 63
+        p2a[25] = 57
+        p2a[26] = 59
+        p2a[27] = 64
+        p2a[28] = 62
+        p2a[29] = 60
+        p2a[30] = 45
+        p2a[31] = 47
+        p2a[32] = 41
+        p2a[33] = 23
+        p2a[34] = 17
+        p2a[35] = 19
+        p2a[36] = 6
+        p2a[37] = 4
+        p2a[38] = 2
+        p2a[39] = 5
+        p2a[40] = 7
+        p2a[41] = 1
+        p2a[42] = 9
+        p2a[43] = 3
+        p2a[44] = 11
+        p2a[45] = 8
+        p2a[46] = 13
+        p2a[47] = 10
+        p2a[48] = 15
+        p2a[49] = 12
+        p2a[50] = 32
+        p2a[51] = 14
+        p2a[52] = 30
+        p2a[53] = 16
+        p2a[54] = 27
+        p2a[55] = 31
+        p2a[56] = 24
+        p2a[57] = 29
+        p2a[58] = 20
+        p2a[59] = 28
+        p2a[60] = 25
+        p2a[61] = 26
+        p2a[62] = 21
+        p2a[63] = 22
+        p2a[64] = 18
+        self.probe2AD = p2a
+        self.check()
+
+
 ADAPTERTYPES = [HSF_A64, Adpt_A64_OM32x2_sm_CerePlex_Mini, CN_Adpt_A64_OM32x2_sm_CerePlex_Mini,
-                Adpt_A32_OM32_RHD2132]
+                Adpt_A32_OM32_RHD2132, Adpt_A64_OM32x2_sm_RHD2164]
 
 def getadapter(name):
     """Get instantiated adapter type by name"""
