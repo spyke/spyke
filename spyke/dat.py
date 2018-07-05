@@ -189,7 +189,7 @@ class FileHeader(object):
             # all auxiliary channels must follow all ephys channels:
             assert max(self.chans) < min(self.auxchans)
         else: # auxchans == [] or None
-            self.auxchans = np.array([])
+            self.auxchans = np.array([], dtype=int)
             self.nauxchans = 0
         assert self.nchans + self.nauxchans == self.nchanstotal
 
