@@ -183,6 +183,7 @@ class FileHeader(object):
             assert not self.auxchans # make sure auxchans aren't specified
             self.nchans = self.nchanstotal
             self.chans = np.arange(chan0, chan0+self.nchans)
+            print('.dat chans not specified, assuming chans start from %d' % chan0)
         if self.auxchans:
             self.auxchans = np.asarray(self.auxchans) # convert list to array
             self.nauxchans = len(self.auxchans) # number of aux chans
