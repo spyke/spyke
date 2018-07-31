@@ -602,7 +602,7 @@ class IMEC30(Probe):
 class A1x32(Probe):
     """A1x32, 25 um spacing, single column, 1-based channel IDs"""
     def __init__(self):
-        self.layout = 'A1x32'
+        self.layout = 'A1x32-5mm-25-177'
         self.name = 'A1x32'
         self.nchans = 32
         self.ncols = 1
@@ -646,7 +646,7 @@ class A1x32(Probe):
 class A1x32_edge(Probe):
     """A1x32 edge, 20 um spacing, single column, 1-based channel IDs"""
     def __init__(self):
-        self.layout = 'A1x32_edge'
+        self.layout = 'A1x32-Edge-5mm-20-177-A32'
         self.name = 'A1x32_edge'
         self.nchans = 32
         self.ncols = 1
@@ -839,7 +839,6 @@ class H3(Probe):
         sl[64] = 0, 640
         self.SiteLoc = sl
         self.check()
-
 
 
 PROBETYPES = [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b, pt16a_HS27, pt16b_HS27,
