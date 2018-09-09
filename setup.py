@@ -5,7 +5,11 @@ folder you cloned it into with git, while still being able to call `import spyke
 as a library system-wide. This creates an egg-link in your system site-packages or
 dist-packages folder to the source code:
 
->> sudo python setup.py develop
+$ sudo python setup.py develop
+
+or the equivalent using pip:
+
+$ sudo pip3 install -e .
 
 This will also install a bash script on your system so that you can simply type `spyke` at the
 command line to launch it from anywhere.
@@ -13,16 +17,16 @@ command line to launch it from anywhere.
 Other setup.py commands:
 
 For a normal installation (copies files to system site-packages or dist-packages folder):
->>> sudo python setup.py install
+$ sudo python setup.py install
 
 Build extensions in-place for development:
->>> python setup.py build_ext --inplace
+$ python setup.py build_ext --inplace
 
 Create a source distribution and force tar.gz file:
->>> python setup.py sdist --formats=gztar
+$ python setup.py sdist --formats=gztar
 
 Create a binary distribution:
->>> python setup.py bdist_wininst
+$ python setup.py bdist_wininst
 
 NOTE: Make sure there's a MANIFEST.in that includes all the files you want to place
 in the tarball. See http://wiki.python.org/moin/DistUtilsTutorial
