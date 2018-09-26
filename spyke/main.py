@@ -92,7 +92,7 @@ LFPTW = -500000, 500000
 SATURATIONWINDOW = 500000 # us
 
 # shift imported KiloSort spike times by this much for better positioning in sort window:
-KILOSORTSHIFTCORRECT = -100 # us
+KILOSORTSHIFTCORRECT = -150 # us
 
 # spatial channel layout:
 # UVPERUM affects vertical channel spacing and voltage gain (which is further multiplied by
