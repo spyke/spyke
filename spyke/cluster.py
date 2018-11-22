@@ -19,7 +19,7 @@ from .core import SpykeToolWindow, lstrip, lst2shrtstr, tocontig
 from .plot import CLUSTERCOLOURSRGB, GREYRGB, CLUSTERCOLOURRGBDICT
 
 CLUSTERPARAMMAXSAMPLES = 2000
-VIEWDISTANCE = 50
+VIEWDISTANCE = 50.0
 
 
 class Cluster(object):
@@ -203,7 +203,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         #self.setMouseTracking(True) # required for tooltips purely on mouse motion, slow
         self.lastPressPos = QtCore.QPoint()
         self.lastPos = QtCore.QPoint()
-        self.focus = np.float32([0, 0, 0]) # init camera focus
+        self.focus = np.float32([0.0, 0.0, 0.0]) # init camera focus
         self.axes = 'both' # display both mini and focal xyz axes by default
         self.selecting = None # True (selecting), False (deselecting), or None
         self.plot_selection = True # plot selection in sort panel? False for quicker selection
@@ -262,7 +262,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glEnable(GL.GL_LINE_SMOOTH) # works better, makes lines thicker
         #GL.glPointSize(1.5) # truncs to the nearest pixel if antialiasing is off
         # set initial position and orientation of camera
-        GL.glTranslate(0, 0, -VIEWDISTANCE)
+        GL.glTranslatef(0.0, 0.0, -VIEWDISTANCE)
         GL.glRotate(-45, 0, 0, 1)
         GL.glRotate(-45, 0, 1, 0)
 
@@ -318,9 +318,9 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def paint_focal_axes(self):
         """Paint xyz axes proportional in size to sigma, at focus"""
-        GL.glTranslate(*self.focus) # translate to focus
+        GL.glTranslatef(*self.focus) # translate to focus
         self.paint_axes(self.sigma)
-        GL.glTranslate(*-self.focus) # translate back
+        GL.glTranslatef(*-self.focus) # translate back
 
     def update_focal_axes(self):
         """Called every time sigma is changed in main spyke window"""
@@ -508,38 +508,38 @@ class GLWidget(QtOpenGL.QGLWidget):
         d = self.getDistance()
         vr = self.getViewRight()
         vr *= dx*d
-        GL.glTranslate(vr[0], vr[1], vr[2])
+        GL.glTranslatef(vr[0], vr[1], vr[2])
         vu = self.getViewUp()
         vu *= dy*d
-        GL.glTranslate(vu[0], vu[1], vu[2])
+        GL.glTranslatef(vu[0], vu[1], vu[2])
 
     def zoom(self, dr):
         """Translate along view normal vector"""
         d = self.getDistance()
         vn = self.getViewNormal()
         vn *= dr*d
-        GL.glTranslate(vn[0], vn[1], vn[2])
+        GL.glTranslatef(vn[0], vn[1], vn[2])
 
     def pitch(self, dangle): # aka elevation
         """Rotate around view right vector"""
         vr = self.getViewRight()
-        GL.glTranslate(*self.focus)
+        GL.glTranslatef(*self.focus)
         GL.glRotate(dangle, *vr)
-        GL.glTranslate(*-self.focus)
+        GL.glTranslatef(*-self.focus)
 
     def yaw(self, dangle): # aka azimuth
         """Rotate around view up vector"""
         vu = self.getViewUp()
-        GL.glTranslate(*self.focus)
+        GL.glTranslatef(*self.focus)
         GL.glRotate(dangle, *vu)
-        GL.glTranslate(*-self.focus)
+        GL.glTranslatef(*-self.focus)
 
     def roll(self, dangle):
         """Rotate around view normal vector"""
         vn = self.getViewNormal()
-        GL.glTranslate(*self.focus)
+        GL.glTranslatef(*self.focus)
         GL.glRotate(dangle, *vn)
-        GL.glTranslate(*-self.focus)
+        GL.glTranslatef(*-self.focus)
 
     def panTo(self, p=None):
         """Translate along view right and view up vectors such that data point p is
