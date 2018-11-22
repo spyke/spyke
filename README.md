@@ -27,7 +27,7 @@ spyke requires recent versions of the following to be installed:
 * [numpy](http://numpy.org) 1.13
 * [scipy](http://scipy.org)
 * [matplotlib](http://matplotlib.org)
-* [PyQt4](http://www.riverbankcomputing.co.uk/software/pyqt)
+* [PyQt5](http://www.riverbankcomputing.co.uk/software/pyqt)
   ([PySide](http://pyside.org) will probably work too, but is untested)
 * [PyOpenGL](http://pyopengl.sourceforge.net)
 * [Cython](http://cython.org)
