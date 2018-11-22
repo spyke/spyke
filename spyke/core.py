@@ -1859,6 +1859,21 @@ def envelope_filt(x, sampfreq=None, f0=None, f1=BWLPF1, order=BWLPORDER, ftype='
                         btype='lowpass', ftype=ftype, causal=causal) # float64
     return x
 
+def poly_between(x, ylower, yupper):
+    """Return the polygon that fills the regions between ylower and yupper, at the x.
+    All 3 arguments must have the same length.
+
+    Return values are x, y arrays for use with `matplotlib.axes.Axes.fill()`
+
+    Adapted from deprecated `matplotlib.mlab.poly_between()`:
+    https://matplotlib.org/api/mlab_api.html#matplotlib.mlab.poly_between
+    """
+    assert len(x) == len(ylower) == len(yupper)
+    # go in one direction for upper values, then opposite direction for lower values:
+    x = np.concatenate((x, x[::-1]))
+    y = np.concatenate((yupper, ylower[::-1]))
+    return x, y
+
 def updatenpyfilerows(fname, rows, arr):
     """Given a numpy formatted binary file (usually with .npy extension,
     but not necessarily), update 0-based rows (first dimension) of the
