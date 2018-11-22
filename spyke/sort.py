@@ -289,7 +289,7 @@ class Sort(object):
         var /= nspikes # normalize all data points appropriately, this is now the variance
         std = np.sqrt(var)
         # keep only those chans that at least 1/2 the spikes contributed to
-        bins = list(groupchans) + [sys.maxint] # concatenate rightmost bin edge
+        bins = list(groupchans) + [np.inf] # concatenate rightmost bin edge
         hist, bins = np.histogram(chanpopulation, bins=bins)
         chans = groupchans[hist >= nsids/2]
         chanis = groupchans.searchsorted(chans)
