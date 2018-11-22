@@ -16,9 +16,10 @@ import shutil
 import hashlib
 import multiprocessing as mp
 
-from PyQt4 import QtCore, QtGui
-from PyQt4.QtCore import Qt
-from PyQt4.QtGui import QAction, QIcon, QApplication
+from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QAction, QApplication
 
 import numpy as np
 import scipy
@@ -2036,17 +2037,17 @@ class PTCSNeuronRecord(object):
         np.uint64(self.spikets).tofile(f) # spike timestamps (us)
 
 
-class PanelScrollArea(QtGui.QScrollArea):
+class PanelScrollArea(QtWidgets.QScrollArea):
     """A scroll area for the spikesortpanel"""
     def keyPressEvent(self, event):
         key = event.key()
         # seems the ENTER key needs be handled to directly call plot, unlike in sortwin
         # where the event is passed on to be handled by the list widgets
         if key in [Qt.Key_Enter, Qt.Key_Return]:
-            sortwin = self.topLevelWidget()
+            sortwin = self.nativeParentWidget()
             sortwin.parent().ui.plotButton.click()
         else:
-            QtGui.QScrollArea.keyPressEvent(self, event) # pass it on
+            QtWidgets.QScrollArea.keyPressEvent(self, event) # pass it on
 
 
 class SortWindow(SpykeToolWindow):
@@ -2075,10 +2076,8 @@ class SortWindow(SpykeToolWindow):
         self.slider = SpikeSelectionSlider(Qt.Horizontal, self)
         self.slider.setInvertedControls(True)
         self.slider.setToolTip('Position of sliding spike selection time window')
-        self.connect(self.slider, QtCore.SIGNAL('valueChanged(int)'),
-                     self.on_slider_valueChanged)
-        self.connect(self.slider, QtCore.SIGNAL('sliderPressed()'),
-                     self.on_slider_sliderPressed)
+        self.slider.valueChanged.connect(self.on_slider_valueChanged)
+        self.slider.sliderPressed.connect(self.on_slider_sliderPressed)
 
         self.nlist = NList(self)
         self.nlist.setToolTip('Neuron list')
@@ -2096,21 +2095,21 @@ class SortWindow(SpykeToolWindow):
         self.panelscrollarea.setMinimumWidth(panelwidth + VSCROLLBARWIDTH)
         self.panelscrollarea.setWidgetResizable(True) # allows panel to size bigger than min
 
-        self.vsplitter = QtGui.QSplitter(Qt.Vertical)
+        self.vsplitter = QtWidgets.QSplitter(Qt.Vertical)
         self.vsplitter.addWidget(self.slider)
         self.vsplitter.addWidget(self.nlist)
         self.vsplitter.addWidget(self.nslist)
         self.vsplitter.addWidget(self.uslist)
 
-        self.mainsplitter = QtGui.QSplitter(Qt.Horizontal)
+        self.mainsplitter = QtWidgets.QSplitter(Qt.Horizontal)
         self.mainsplitter.addWidget(self.vsplitter)
         self.mainsplitter.addWidget(self.panelscrollarea)
 
-        self.layout = QtGui.QVBoxLayout()
+        self.layout = QtWidgets.QVBoxLayout()
         self.layout.setContentsMargins(0, 0, 0, 0)
         self.layout.addWidget(self.mainsplitter)
 
-        mainwidget = QtGui.QWidget(self)
+        mainwidget = QtWidgets.QWidget(self)
         mainwidget.setLayout(self.layout)
         self.setCentralWidget(mainwidget)
 
@@ -2118,7 +2117,7 @@ class SortWindow(SpykeToolWindow):
         self.addToolBar(self.toolbar)
 
     def setupToolbar(self):
-        toolbar = QtGui.QToolBar(self)
+        toolbar = QtWidgets.QToolBar(self)
         toolbar.setObjectName('toolbar')
         toolbar.setFloatable(True)
         toolbar.setIconSize(QtCore.QSize(16, 16)) # like in main spyke window
@@ -2127,59 +2126,51 @@ class SortWindow(SpykeToolWindow):
         tt = ('<nobr><b>Del</b> &nbsp; Delete selected spikes or clusters</nobr>\n'
               '<nobr><b>CTRL+Del</b> &nbsp; Delete selected spikes</nobr>')
         actionDelete.setToolTip(tt)
-        self.connect(actionDelete, QtCore.SIGNAL('triggered()'),
-                     self.on_actionDelete_triggered)
+        actionDelete.triggered.connect(self.on_actionDelete_triggered)
         toolbar.addAction(actionDelete)
 
         actionMergeClusters = QAction('M', self)
         tt = '<nobr><b>M</b> &nbsp; Merge clusters</nobr>'
         actionMergeClusters.setToolTip(tt)
-        self.connect(actionMergeClusters, QtCore.SIGNAL('triggered()'),
-                     self.on_actionMergeClusters_triggered)
+        actionMergeClusters.triggered.connect(self.on_actionMergeClusters_triggered)
         toolbar.addAction(actionMergeClusters)
 
         #actionToggleClustersGood = QAction(QIcon('res/dialog-apply.svg'), 'G', self)
         actionToggleClustersGood = QAction('G', self)
         tt = '<nobr><b>G</b> &nbsp; Toggle clusters as "good"</nobr>'
         actionToggleClustersGood.setToolTip(tt)
-        self.connect(actionToggleClustersGood, QtCore.SIGNAL('triggered()'),
-                     self.on_actionToggleClustersGood_triggered)
+        actionToggleClustersGood.triggered.connect(self.on_actionToggleClustersGood_triggered)
         toolbar.addAction(actionToggleClustersGood)
 
         actionSplit = QAction('+', self)
         tt = '<nobr><b>+</b> &nbsp; Split off selected spikes</nobr>'
         actionSplit.setToolTip(tt)
-        self.connect(actionSplit, QtCore.SIGNAL('triggered()'),
-                     self.on_actionSplit_triggered)
+        actionSplit.triggered.connect(self.on_actionSplit_triggered)
         toolbar.addAction(actionSplit)
 
         actionLabelMultiunit = QAction('-', self)
         tt = '<nobr><b>-</b> &nbsp; Label clusters as multiunit</nobr>'
         actionLabelMultiunit.setToolTip(tt)
-        self.connect(actionLabelMultiunit, QtCore.SIGNAL('triggered()'),
-                     self.on_actionLabelMultiunit_triggered)
+        actionLabelMultiunit.triggered.connect(self.on_actionLabelMultiunit_triggered)
         toolbar.addAction(actionLabelMultiunit)
 
         actionChanSplitClusters = QAction('/', self)
         tt = '<nobr><b>/</b> &nbsp; Split clusters by channels</nobr>'
         actionChanSplitClusters.setToolTip(tt)
-        self.connect(actionChanSplitClusters, QtCore.SIGNAL('triggered()'),
-                     self.on_actionChanSplitClusters_triggered)
+        actionChanSplitClusters.triggered.connect(self.on_actionChanSplitClusters_triggered)
         toolbar.addAction(actionChanSplitClusters)
 
         actionDensitySplit = QAction('P', self)
         tt = ('<nobr><b>P</b> &nbsp; Split cluster pair by density along line between '
               'their centers</nobr>')
         actionDensitySplit.setToolTip(tt)
-        self.connect(actionDensitySplit, QtCore.SIGNAL('triggered()'),
-                     self.on_actionDensitySplit_triggered)
+        actionDensitySplit.triggered.connect(self.on_actionDensitySplit_triggered)
         toolbar.addAction(actionDensitySplit)
 
         actionRandomSplit = QAction('\\', self)
         tt = ('<nobr><b>\\</b> &nbsp; Randomly split each selected cluster in half</nobr>')
         actionRandomSplit.setToolTip(tt)
-        self.connect(actionRandomSplit, QtCore.SIGNAL('triggered()'),
-                     self.on_actionRandomSplit_triggered)
+        actionRandomSplit.triggered.connect(self.on_actionRandomSplit_triggered)
         toolbar.addAction(actionRandomSplit)
 
         #actionRenumber = QAction(QIcon('res/gtk-edit.svg'), '#', self)
@@ -2187,22 +2178,19 @@ class SortWindow(SpykeToolWindow):
         tt = ('<nobr><b>#</b> &nbsp; Renumber all clusters in vertical spatial order</nobr>\n'
               '<nobr><b>CTRL+#</b> &nbsp; Renumber selected cluster</nobr>')
         actionRenumber.setToolTip(tt)
-        self.connect(actionRenumber, QtCore.SIGNAL('triggered()'),
-                     self.on_actionRenumber_triggered)
+        actionRenumber.triggered.connect(self.on_actionRenumber_triggered)
         toolbar.addAction(actionRenumber)
 
         actionFind = QAction(QIcon('res/edit-find.svg'), 'Find', self)
         tt = ('<nobr><b>CTRL+F</b> &nbsp; Find spike in cluster plot</nobr>')
         actionFind.setToolTip(tt)
-        self.connect(actionFind, QtCore.SIGNAL('triggered()'),
-                     self.on_actionFind_triggered)
+        actionFind.triggered.connect(self.on_actionFind_triggered)
         toolbar.addAction(actionFind)
 
         actionSelectRandomSpikes = QAction('R', self)
         tt = '<nobr><b>R</b> &nbsp; Select random sample of spikes of current clusters</nobr>'
         actionSelectRandomSpikes.setToolTip(tt)
-        self.connect(actionSelectRandomSpikes, QtCore.SIGNAL('triggered()'),
-                     self.on_actionSelectRandomSpikes_triggered)
+        actionSelectRandomSpikes.triggered.connect(self.on_actionSelectRandomSpikes_triggered)
         toolbar.addAction(actionSelectRandomSpikes)
 
         actionToggleErrors = QAction('E', self)
@@ -2210,71 +2198,63 @@ class SortWindow(SpykeToolWindow):
         actionToggleErrors.setChecked(self.panel.enable_fills)
         tt = '<nobr><b>CTRL+E</b> &nbsp; Toggle visibility of template error limits</nobr>'
         actionToggleErrors.setToolTip(tt)
-        self.connect(actionToggleErrors, QtCore.SIGNAL('toggled(bool)'),
-                     self.on_actionToggleErrors_toggled)
+        actionToggleErrors.toggled.connect(self.on_actionToggleErrors_toggled)
         toolbar.addAction(actionToggleErrors)
         self.actionToggleErrors = actionToggleErrors
 
-        nsamplesComboBox = QtGui.QComboBox(self)
+        nsamplesComboBox = QtWidgets.QComboBox(self)
         nsamplesComboBox.setToolTip('Number of spikes per cluster to randomly select')
         nsamplesComboBox.setFocusPolicy(Qt.NoFocus)
         nsamplesComboBox.addItems(['100', '50', '20', '10', '5', '1'])
         nsamplesComboBox.setCurrentIndex(2)
         toolbar.addWidget(nsamplesComboBox)
-        self.connect(nsamplesComboBox, QtCore.SIGNAL('activated(int)'),
-                     self.on_actionSelectRandomSpikes_triggered)
+        nsamplesComboBox.activated.connect(self.on_actionSelectRandomSpikes_triggered)
         self.nsamplesComboBox = nsamplesComboBox
 
-        gainComboBox = QtGui.QComboBox(self)
+        gainComboBox = QtWidgets.QComboBox(self)
         gainComboBox.setToolTip('Waveform gain (default: 1.5)')
         gainComboBox.setFocusPolicy(Qt.NoFocus)
         gainComboBox.addItems(['4', '3.75', '3.5', '3.25', '3', '2.75', '2.5', '2.25', '2',
                                '1.75', '1.5', '1.25', '1', '0.75', '0.5', '0.25'])
         gainComboBox.setCurrentIndex(3)
         toolbar.addWidget(gainComboBox)
-        self.connect(gainComboBox, QtCore.SIGNAL('activated(int)'),
-                     self.on_gainComboBox_triggered)
+        gainComboBox.activated.connect(self.on_gainComboBox_triggered)
         self.gainComboBox = gainComboBox
 
         #actionAlignMin = QAction(QIcon('res/go-bottom.svg'), 'Min', self)
         actionAlignMin = QAction('Min', self)
         actionAlignMin.setToolTip('Align selected spikes to min')
-        self.connect(actionAlignMin, QtCore.SIGNAL('triggered()'),
-                     self.on_actionAlignMin_triggered)
+        actionAlignMin.triggered.connect(self.on_actionAlignMin_triggered)
         toolbar.addAction(actionAlignMin)
 
         #actionAlignMax = QAction(QIcon('res/go-top.svg'), 'Max', self)
         actionAlignMax = QAction('Max', self)
         actionAlignMax.setToolTip('Align selected spikes to max')
-        self.connect(actionAlignMax, QtCore.SIGNAL('triggered()'),
-                     self.on_actionAlignMax_triggered)
+        actionAlignMax.triggered.connect(self.on_actionAlignMax_triggered)
         toolbar.addAction(actionAlignMax)
 
         #actionAlignBest = QAction(QIcon('res/emblem-OK.png'), 'Best', self)
         actionAlignBest = QAction('B', self)
         tt = '<nobr><b>B</b> &nbsp; Align selected spikes by best fit</nobr>'
         actionAlignBest.setToolTip(tt)
-        self.connect(actionAlignBest, QtCore.SIGNAL('triggered()'),
-                     self.on_actionAlignBest_triggered)
+        actionAlignBest.triggered.connect(self.on_actionAlignBest_triggered)
         toolbar.addAction(actionAlignBest)
 
         actionShiftLeft = QAction('[', self)
         tt = ('<nobr><b>[</b> &nbsp; Shift selected spikes 2 points left</nobr>\n'
               '<nobr><b>CTRL+[</b> &nbsp; Shift selected spikes 1 point left</nobr>')
         actionShiftLeft.setToolTip(tt)
-        self.connect(actionShiftLeft, QtCore.SIGNAL('triggered()'),
-                     self.on_actionShiftLeft_triggered)
+        actionShiftLeft.triggered.connect(self.on_actionShiftLeft_triggered)
         toolbar.addAction(actionShiftLeft)
 
         actionShiftRight = QAction(']', self)
         tt = ('<nobr><b>]</b> &nbsp; Shift selected spikes 2 points right</nobr>\n'
               '<nobr><b>CTRL+]</b> &nbsp; Shift selected spikes 1 point right</nobr>')
         actionShiftRight.setToolTip(tt)
-        self.connect(actionShiftRight, QtCore.SIGNAL('triggered()'),
-                     self.on_actionShiftRight_triggered)
+        actionShiftRight.triggered.connect(self.on_actionShiftRight_triggered)
         toolbar.addAction(actionShiftRight)
 
-        incltComboBox = QtGui.QComboBox(self)
+        incltComboBox = QtWidgets.QComboBox(self)
         incltComboBox.setToolTip("Waveform duration (us) to include for component "
                                  "analysis,\nasymmetric around spike time")
         incltComboBox.setFocusPolicy(Qt.NoFocus)
@@ -2284,19 +2264,17 @@ class SortWindow(SpykeToolWindow):
         incltComboBox.addItems([ str(incltval) for incltval in incltvals ])
         incltComboBox.setCurrentIndex(0)
         toolbar.addWidget(incltComboBox)
-        self.connect(incltComboBox, QtCore.SIGNAL('activated(int)'),
-                     self.on_incltComboBox_triggered)
+        incltComboBox.activated.connect(self.on_incltComboBox_triggered)
         self.incltComboBox = incltComboBox
-        #incltunitsLabel = QtGui.QLabel('us', self)
+        #incltunitsLabel = QtWidgets.QLabel('us', self)
         #toolbar.addWidget(incltunitsLabel)
 
-        nPCsPerChanSpinBox = QtGui.QSpinBox(self)
+        nPCsPerChanSpinBox = QtWidgets.QSpinBox(self)
         nPCsPerChanSpinBox.setToolTip("Number of PCs to use per channel to feed into ICA")
         nPCsPerChanSpinBox.setFocusPolicy(Qt.NoFocus)
         toolbar.addWidget(nPCsPerChanSpinBox)
         nPCsPerChanSpinBox.setMinimum(1)
-        self.connect(nPCsPerChanSpinBox, QtCore.SIGNAL('valueChanged(int)'),
-                     self.on_nPCsPerChanSpinBox_valueChanged)
+        nPCsPerChanSpinBox.valueChanged.connect(self.on_nPCsPerChanSpinBox_valueChanged)
         nPCsPerChanSpinBox.setValue(self.sort.npcsperchan)
         self.nPCsPerChanSpinBox = nPCsPerChanSpinBox
 
@@ -2304,16 +2282,14 @@ class SortWindow(SpykeToolWindow):
         actionFindPrevMostSimilar = QAction('<', self)
         tt = '<nobr><b>&lt;</b> &nbsp; Find previous most similar cluster</nobr>'
         actionFindPrevMostSimilar.setToolTip(tt)
-        self.connect(actionFindPrevMostSimilar, QtCore.SIGNAL('triggered()'),
-                     self.on_actionFindPrevMostSimilar_triggered)
+        actionFindPrevMostSimilar.triggered.connect(self.on_actionFindPrevMostSimilar_triggered)
         toolbar.addAction(actionFindPrevMostSimilar)
 
         #actionFindNextMostSimilar = QAction(QIcon('res/go-next.svg'), '>', self)
         actionFindNextMostSimilar = QAction('>', self)
         tt = '<nobr><b>&gt;</b> &nbsp; Find next most similar cluster</nobr>'
         actionFindNextMostSimilar.setToolTip(tt)
-        self.connect(actionFindNextMostSimilar, QtCore.SIGNAL('triggered()'),
-                     self.on_actionFindNextMostSimilar_triggered)
+        actionFindNextMostSimilar.triggered.connect(self.on_actionFindNextMostSimilar_triggered)
         toolbar.addAction(actionFindNextMostSimilar)
 
         actionReloadSpikes = QAction(QIcon('res/view-refresh.svg'), 'Reload', self)
@@ -2321,14 +2297,12 @@ class SortWindow(SpykeToolWindow):
               'If none selected, reload all</nobr>\n'
               '<nobr><b>CTRL+F5</b> &nbsp; Use mean waveform to choose chans to reload</nobr>')
         actionReloadSpikes.setToolTip(tt)
-        self.connect(actionReloadSpikes, QtCore.SIGNAL('triggered()'),
-                     self.on_actionReloadSpikes_triggered)
+        actionReloadSpikes.triggered.connect(self.on_actionReloadSpikes_triggered)
         toolbar.addAction(actionReloadSpikes)
 
         actionSave = QAction(QIcon('res/document-save.svg'), '&Save', self)
         actionSave.setToolTip('Save sort panel to file')
-        self.connect(actionSave, QtCore.SIGNAL('triggered()'),
-                     self.on_actionSave_triggered)
+        actionSave.triggered.connect(self.on_actionSave_triggered)
         toolbar.addAction(actionSave)
 
         return toolbar
@@ -2670,7 +2644,7 @@ class SortWindow(SpykeToolWindow):
         cluster = spw.GetCluster() # exactly one selected cluster
         oldid = cluster.id
         newid = max(s.norder) + 1
-        newid, ok = QtGui.QInputDialog.getInt(self, "Renumber cluster",
+        newid, ok = QtWidgets.QInputDialog.getInt(self, "Renumber cluster",
                     "This will clear the undo/redo stack, and is not undoable.\n"
                     "Enter new ID:", value=newid)
         if not ok:
@@ -2708,10 +2682,10 @@ class SortWindow(SpykeToolWindow):
         makes user inspection of clusters more orderly, makes the presence of duplicate
         clusters more obvious, and allows for maximal spatial separation between clusters of
         the same colour, reducing colour conflicts"""
-        val = QtGui.QMessageBox.question(self.panel, "Renumber all clusters",
+        val = QtWidgets.QMessageBox.question(self.panel, "Renumber all clusters",
               "Are you sure? This will clear the undo/redo stack, and is not undoable.",
-              QtGui.QMessageBox.Yes, QtGui.QMessageBox.No)
-        if val == QtGui.QMessageBox.No:
+              QtWidgets.QMessageBox.Yes, QtWidgets.QMessageBox.No)
+        if val == QtWidgets.QMessageBox.No:
             return
 
         spw = self.spykewindow

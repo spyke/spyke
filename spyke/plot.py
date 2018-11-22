@@ -11,14 +11,14 @@ from copy import copy
 import random
 import numpy as np
 
-from PyQt4 import QtGui
-from PyQt4.QtCore import Qt
+from PyQt5 import QtGui, QtWidgets
+from PyQt5.QtCore import Qt
 
 from matplotlib import rcParams
 rcParams['lines.linestyle'] = '-'
 rcParams['lines.marker'] = ''
 
-from matplotlib.backends.backend_qt4agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backend_bases import FigureCanvasBase
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
@@ -421,7 +421,7 @@ class PlotPanel(FigureCanvas):
         self.figure = Figure() # resize later? can also set dpi here
         FigureCanvas.__init__(self, self.figure)
         self.setParent(parent)
-        self.setSizePolicy(QtGui.QSizePolicy.Expanding, QtGui.QSizePolicy.Expanding)
+        self.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding)
         self.updateGeometry()
 
         self.spykewindow = parent.parent()
@@ -878,7 +878,7 @@ class PlotPanel(FigureCanvas):
         reset secondary peak timepoint"""
         spw = self.spykewindow
         button = evt.button
-        modifiers = QtGui.QApplication.keyboardModifiers()
+        modifiers = QtWidgets.QApplication.keyboardModifiers()
         ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
         # NOTE: evt.key is supposed to give us the modifier, if any (like ctrl or shift)
         # but doesn't seem to work in MPL in qt. Also, evt.guiEvent always seems to be
@@ -917,8 +917,8 @@ class PlotPanel(FigureCanvas):
         of the spike to chan. Since this is happening in a DataWindow, it's safe
         to assume that a .srf or .track file is open"""
         #if srff not open:
-        #    print("Can't align selected spike without .srf file(s)")
-        spw = self.topLevelWidget().parent() # spyke window
+        #    print("can't align selected spike without .srf file(s)")
+        spw = self.nativeParentWidget().parent() # spyke window
         spikes = spw.sort.spikes
         try:
             sid = spw.GetSpike()
@@ -1086,8 +1086,9 @@ class PlotPanel(FigureCanvas):
         modifiers = event.modifiers()
         ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
         shift = modifiers == Qt.ShiftModifier # only modifier is shift
-        # event.delta() seems to always be a multiple of 120 for some reason:
-        di = event.delta() / 120
+        # event.angleDelta() is a multiple of 120:
+        # https://doc-snapshots.qt.io/qt5-dev/qwheelevent.html#angleDelta
+        di = event.angleDelta().y() / 120
         sign = np.sign(di)
         absdi = abs(di)
         if ctrl: # scale voltage
@@ -1581,7 +1582,7 @@ class SpikeSortPanel(SortPanel, SpikePanel):
         """Scroll gainComboBox or incltComboBox on mouse wheel scroll"""
         modifiers = event.modifiers()
         ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
-        sw = self.topLevelWidget() # SortWindow
+        sw = self.nativeParentWidget() # SortWindow
         if ctrl: # scroll gainComboBox
             cbox = sw.gainComboBox
             on_box_triggered = sw.on_gainComboBox_triggered
@@ -1589,8 +1590,7 @@ class SpikeSortPanel(SortPanel, SpikePanel):
             cbox = sw.incltComboBox
             on_box_triggered = sw.on_incltComboBox_triggered
         nitems = cbox.count()
-        # event.delta() seems to always be a multiple of 120 for some reason:
-        di = event.delta() / 120
+        di = event.angleDelta().y() / 120
         # both combo boxes are sorted in decreasing order, hence the negation of di:
         i = min(max(cbox.currentIndex()-di, 0), nitems-1)
         cbox.setCurrentIndex(i)

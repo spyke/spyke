@@ -10,9 +10,9 @@ import time
 import random
 import numpy as np
 
-from PyQt4 import QtCore, QtGui, QtOpenGL, uic
-from PyQt4.QtCore import Qt
-getSaveFileName = QtGui.QFileDialog.getSaveFileName
+from PyQt5 import QtCore, QtGui, QtWidgets, QtOpenGL, uic
+from PyQt5.QtCore import Qt
+getSaveFileName = QtWidgets.QFileDialog.getSaveFileName
 from OpenGL import GL, GLU
 
 from .core import SpykeToolWindow, lstrip, lst2shrtstr, tocontig
@@ -190,11 +190,17 @@ class ClusterWindow(SpykeToolWindow):
         gw.updateGL()
 
 
+## TODO: this should probably be upgraded to use the newer QtWidget.QOpenGLWidget, i.e.:
+## class GLWidget(QtWidgets.QOpenGLWidget):
+## See:
+## https://doc.qt.io/qt-5/qtgui-index.html#opengl-and-opengl-es-integration
+## https://doc.qt.io/qt-5/qopenglwidget.html
+
 class GLWidget(QtOpenGL.QGLWidget):
     def __init__(self, parent=None):
         QtOpenGL.QGLWidget.__init__(self, parent)
         self.spw = self.parent().spykewindow
-        #self.setMouseTracking(True) # req'd for tooltips purely on mouse motion, slow
+        #self.setMouseTracking(True) # required for tooltips purely on mouse motion, slow
         self.lastPressPos = QtCore.QPoint()
         self.lastPos = QtCore.QPoint()
         self.focus = np.float32([0, 0, 0]) # init camera focus
@@ -204,9 +210,13 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.update_sigma()
         self.spw.ui.sigmaSpinBox.valueChanged.connect(self.update_focal_axes)
 
+        # enable double buffering, though this seems to be the default anyway:
         format = QtOpenGL.QGLFormat()
-        format.setDoubleBuffer(True) # req'd for picking
-        self.setFormat(format)
+        self.format().setDoubleBuffer(True) # required for picking
+        # for QtWidget.QOpenGLWidget:
+        #format = QtGui.QSurfaceFormat()
+        #format.setSwapBehavior(QtGui.QSurfaceFormat.DoubleBuffer)
+        #self.setFormat(format)
 
     def get_sids(self):
         return self._sids
@@ -284,7 +294,8 @@ class GLWidget(QtOpenGL.QGLWidget):
         # doesn't seem to be necessary, even though double-buffered mode is set with the
         # back buffer for RGB sid encoding. In fact, swapBuffers() call seems to cause
         # flickering, so leave disabled:
-        #self.swapBuffers()
+        #surface = self.context().surface()
+        #self.context().swapBuffers(surface)
 
     def resizeGL(self, width, height):
         GL.glViewport(0, 0, width, height)
@@ -681,7 +692,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         if buttons == Qt.NoButton:
             self.showToolTip()
         else:
-            QtGui.QToolTip.hideText()
+            QtWidgets.QToolTip.hideText()
         '''
 
     def wheelEvent(self, event):
@@ -689,10 +700,11 @@ class GLWidget(QtOpenGL.QGLWidget):
         shift = modifiers == Qt.ShiftModifier # only modifier is shift
         ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
         if shift or ctrl: # modify sigma
-            # event.delta() seems to always be a multiple of 120 for some reason:
-            self.spw.ui.sigmaSpinBox.stepBy(5 * event.delta() / 120)
+            # event.angleDelta() is a multiple of 120:
+            # https://doc-snapshots.qt.io/qt5-dev/qwheelevent.html#angleDelta
+            self.spw.ui.sigmaSpinBox.stepBy(5 * event.angleDelta().y() / 120)
         else: # zoom
-            self.zoom(event.delta() / 2000)
+            self.zoom(event.angleDelta().y() / 2000)
             self.updateGL()
 
     def keyPressEvent(self, event):
@@ -811,23 +823,23 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def save(self):
         """Save cluster plot to file"""
-        fname = getSaveFileName(self, "Save cluster plot to", 'cluster_plot.png')
+        fname, _ = getSaveFileName(self, "Save cluster plot to", 'cluster_plot.png')
         if fname:
             fname = str(fname) # convert from QString
             image = self.grabFrameBuffer() # defaults to withAlpha=False, makes no difference
             try:
                 image.save(fname)
             except Exception as e:
-                QtGui.QMessageBox.critical(
+                QtWidgets.QMessageBox.critical(
                     self.panel, "Error saving file", str(e),
-                    QtGui.QMessageBox.Ok, QtGui.QMessageBox.NoButton)
+                    QtWidgets.QMessageBox.Ok, QtWidgets.QMessageBox.NoButton)
             print('Cluster plot saved to %r' % fname)
 
 
     def showToolTip(self):
         """Pop up a nid or sid tooltip at current mouse cursor position"""
         # hide first if you want tooltip to move even when text is unchanged:
-        #QtGui.QToolTip.hideText()
+        #QtWidgets.QToolTip.hideText()
         spw = self.spw
         sort = spw.sort
         x, y = self.cursorPosGL()
@@ -850,9 +862,9 @@ class GLWidget(QtOpenGL.QGLWidget):
                 cpos = [ sort.neurons[nid].cluster.pos[dim] for dim in dims ]
                 tip += '\n%s: %s' % (lst2shrtstr(dims), lst2shrtstr(cpos))
             globalPos = self.mapToGlobal(self.GLtoQt(x, y))
-            QtGui.QToolTip.showText(globalPos, tip)
+            QtWidgets.QToolTip.showText(globalPos, tip)
         else:
-            QtGui.QToolTip.hideText()
+            QtWidgets.QToolTip.hideText()
 
     def selectPointsUnderCursor(self):
         """Update point selection with those currently under cursor, within pixel border pb.

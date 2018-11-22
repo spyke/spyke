@@ -19,9 +19,9 @@ from copy import copy
 import json
 import pickle
 
-from PyQt4 import QtCore, QtGui
-from PyQt4.QtCore import Qt
-getSaveFileName = QtGui.QFileDialog.getSaveFileName
+from PyQt5 import QtCore, QtGui, QtWidgets
+from PyQt5.QtCore import Qt
+getSaveFileName = QtWidgets.QFileDialog.getSaveFileName
 
 import numpy as np
 from numpy import pi, cos, sin
@@ -254,10 +254,10 @@ class WaveForm(object):
                         ts=self.ts, chans=self.chans, tres=self.tres)
 
            
-class SpykeToolWindow(QtGui.QMainWindow):
+class SpykeToolWindow(QtWidgets.QMainWindow):
     """Base class for all of spyke's tool windows"""
     def __init__(self, parent, flags=Qt.Tool):
-        QtGui.QMainWindow.__init__(self, parent, flags)
+        QtWidgets.QMainWindow.__init__(self, parent, flags)
         self.maximized = False
 
     def keyPressEvent(self, event):
@@ -269,7 +269,7 @@ class SpykeToolWindow(QtGui.QMainWindow):
         elif key == Qt.Key_S and shift:
             self.on_actionSave_triggered()
         else:
-            QtGui.QMainWindow.keyPressEvent(self, event) # pass it on
+            QtWidgets.QMainWindow.keyPressEvent(self, event) # pass it on
 
     def mouseDoubleClickEvent(self, event):
         """Doesn't catch window titlebar doubleclicks for some reason (window manager
@@ -284,7 +284,7 @@ class SpykeToolWindow(QtGui.QMainWindow):
     def toggleMaximized(self):
         if not self.maximized:
             self.normalPos, self.normalSize = self.pos(), self.size()
-            dw = QtGui.QDesktopWidget()
+            dw = QtWidgets.QDesktopWidget()
             rect = dw.availableGeometry(self)
             self.setGeometry(rect)
             self.maximized = True
@@ -302,47 +302,47 @@ class SpykeToolWindow(QtGui.QMainWindow):
         windowtitle = self.panel.window().windowTitle().lower().replace(' ', '_')
         fname += '_' + windowtitle + '.png'
         defaultfname = os.path.join(self.parent().sortpath, fname)
-        fname = getSaveFileName(self, caption="Save panel to",
-                                directory=defaultfname,
-                                filter="PNG file (*.png);;"
-                                       "All files (*.*)")
+        fname, _ = getSaveFileName(self, caption="Save panel to",
+                                   directory=defaultfname,
+                                   filter="PNG file (*.png);;"
+                                          "All files (*.*)")
         if fname:
             fname = str(fname) # convert from QString
             try:
                 f = self.panel.figure
                 f.canvas.print_figure(fname, facecolor=None, edgecolor=None)
             except Exception as e:
-                QtGui.QMessageBox.critical(
+                QtWidgets.QMessageBox.critical(
                     self.panel, "Error saving file", str(e),
-                    QtGui.QMessageBox.Ok, QtGui.QMessageBox.NoButton)
+                    QtWidgets.QMessageBox.Ok, QtWidgets.QMessageBox.NoButton)
             print('Panel saved to %r' % fname)
 
 
-class SpykeListView(QtGui.QListView):
+class SpykeListView(QtWidgets.QListView):
     def __init__(self, parent):
-        QtGui.QListView.__init__(self, parent)
+        QtWidgets.QListView.__init__(self, parent)
         self.sortwin = parent
         #self.setSelectionBehavior(QTableWidget.SelectRows)
-        self.setSelectionMode(QtGui.QListView.ExtendedSelection)
-        self.setLayoutMode(QtGui.QListView.Batched) # prevents lockup during huge layout ops
+        self.setSelectionMode(QtWidgets.QListView.ExtendedSelection)
+        self.setLayoutMode(QtWidgets.QListView.Batched) # prevents lockup during huge layout ops
         # Setting resize mode to "adjust" sometimes results in a bug where Qt seems to
         # be reflowing the contents many times over before it finally stops, resulting in
         # very slow operations when changing list contents (like adding/removing neurons).
         # But, with this disabled, the contents no longer reflow, and you're forced to use
         # scrollbars unnecessarily to see all the list contents. This might also be
         # interacting with the setWrapping and/or setBatchSize features:
-        #self.setResizeMode(QtGui.QListView.Adjust) # recalculates layout on resize
+        #self.setResizeMode(QtWidgets.QListView.Adjust) # recalculates layout on resize
         self.setUniformItemSizes(True) # speeds up listview
-        self.setFlow(QtGui.QListView.LeftToRight) # default is TopToBottom
+        self.setFlow(QtWidgets.QListView.LeftToRight) # default is TopToBottom
         self.setWrapping(True)
         self.setBatchSize(300)
-        #self.setViewMode(QtGui.QListView.IconMode)
+        #self.setViewMode(QtWidgets.QListView.IconMode)
 
     def mousePressEvent(self, event):
         sw = self.sortwin
         buttons = event.buttons()
         if buttons == QtCore.Qt.LeftButton:
-            QtGui.QListView.mousePressEvent(self, event) # handle as usual
+            QtWidgets.QListView.mousePressEvent(self, event) # handle as usual
         else:
             self.sortwin.mousePressEvent(event) # pass on up to Sort window
 
@@ -359,7 +359,7 @@ class SpykeListView(QtGui.QListView):
             or ctrlup and key == Qt.Key_Space):
             event.ignore() # pass it on up to the parent
         else:
-            QtGui.QListView.keyPressEvent(self, event) # handle it as usual
+            QtWidgets.QListView.keyPressEvent(self, event) # handle it as usual
 
     def selectionChanged(self, selected, deselected, prefix=None):
         """Plot neurons or spikes on list item selection"""
@@ -370,10 +370,10 @@ class SpykeListView(QtGui.QListView):
         # sometimes the selections themselves are displayed, even when selected
         # programmatically:
         if self.nrows < MAXNROWSLISTSELECTION:
-            QtGui.QListView.selectionChanged(self, selected, deselected)
+            QtWidgets.QListView.selectionChanged(self, selected, deselected)
         panel = self.sortwin.panel
-        addis = [ qvar2int(i.data()) for i in selected.indexes() ]
-        remis = [ qvar2int(i.data()) for i in deselected.indexes() ]
+        addis = [ i.data() for i in selected.indexes() ]
+        remis = [ i.data() for i in deselected.indexes() ]
         panel.removeItems([ prefix+str(i) for i in remis ])
         # for speed, don't allow more than MAXNSPIKEPLOTS spikes to be plotted in sort panel:
         if prefix == 's':
@@ -445,7 +445,7 @@ class SpykeListView(QtGui.QListView):
         '''
         # emits single selectionChanged signal, more efficient, but causes a bit of
         # flickering, or at least used to in Qt 4.7.0:
-        sel = QtGui.QItemSelection()
+        sel = QtCore.QItemSelection()
         for row in rows:
             index = m.index(row)
             #print('row: %r, index: %r' % (row, index))
@@ -501,7 +501,7 @@ class NList(SpykeListView):
 
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='n')
-        selnids = [ qvar2int(i.data()) for i in self.selectedIndexes() ]
+        selnids = [ i.data() for i in self.selectedIndexes() ]
         #if 1 <= len(selnids) <= 3: # populate nslist if exactly 1, 2 or 3 neurons selected
         self.sortwin.nslist.neurons = [ self.sortwin.sort.neurons[nid] for nid in selnids ]
         #else:
@@ -731,10 +731,10 @@ class NListModel(SpykeAbstractListModel):
             '''
             elif role == Qt.ForegroundRole:
                 if nid in self.sortwin.sort.get_good():
-                    return QtGui.QBrush(QtGui.QColor(255, 255, 255))
+                    return QtWidgets.QBrush(QtWidgets.QColor(255, 255, 255))
             elif role == Qt.BackgroundRole:
                 if nid in self.sortwin.sort.get_good():
-                    return QtGui.QBrush(QtGui.QColor(0, 128, 0))
+                    return QtWidgets.QBrush(QtWidgets.QColor(0, 128, 0))
             '''
 class SListModel(SpykeAbstractListModel):
     """Base model for spike list models"""
@@ -762,6 +762,7 @@ class NSListModel(SListModel):
         return self._neurons
 
     def set_neurons(self, neurons):
+        self.beginResetModel()
         self._neurons = neurons
         if neurons:
             self.sids = np.concatenate([ neuron.sids for neuron in neurons ])
@@ -773,10 +774,10 @@ class NSListModel(SListModel):
         self.nspikes = len(self.sids)
         # triggers new calls to rowCount() and data(), and critically, clears selection
         # before moving slider to pos 0, which triggers slider.valueChanged:
-        self.reset()
         self.sortwin.slider.setValue(0) # reset position to 0
         self.sortwin.update_slider() # update limits and step sizes
         self.sliding = False
+        self.endResetModel()
 
     neurons = property(get_neurons, set_neurons)
 
@@ -817,12 +818,12 @@ class USListModel(SListModel):
                 return self.spiketooltip(spike)
 
 
-class NListDelegate(QtGui.QStyledItemDelegate):
+class NListDelegate(QtWidgets.QStyledItemDelegate):
     """Delegate for neuron list view, modifies appearance of items"""
     def __init__(self, parent):
-        QtGui.QStyledItemDelegate.__init__(self, parent)
+        QtWidgets.QStyledItemDelegate.__init__(self, parent)
         self.sortwin = parent
-        palette = QtGui.QApplication.palette()
+        palette = QtWidgets.QApplication.palette()
         self.selectedgoodbrush = QtGui.QBrush(QtGui.QColor(0, 0, 255)) # blue
         self.unselectedgoodbrush = QtGui.QBrush(QtGui.QColor(0, 128, 0)) # mid green
         self.selectedbrush = palette.highlight()
@@ -842,8 +843,8 @@ class NListDelegate(QtGui.QStyledItemDelegate):
         good = nid in self.sortwin.sort.get_good()
         # don't care whether self is active or inactive, only care about
         # selection, "good", and focused states
-        selected = option.state & QtGui.QStyle.State_Selected
-        focused = option.state & QtGui.QStyle.State_HasFocus
+        selected = option.state & QtWidgets.QStyle.State_Selected
+        focused = option.state & QtWidgets.QStyle.State_HasFocus
         painter.save()
         # paint background:
         painter.setPen(QtGui.QPen(Qt.NoPen))
@@ -877,63 +878,63 @@ class NListDelegate(QtGui.QStyledItemDelegate):
                 painter.setPen(self.unselectedgoodpen)
             else: # use default background pen
                 painter.setPen(self.unselectedpen)
-        text = qvar2str(value)
+        text = str(value)
         painter.drawText(option.rect, Qt.AlignCenter, text)
         painter.restore()
 
 
-class ClusterTabSpinBox(QtGui.QSpinBox):
+class ClusterTabSpinBox(QtWidgets.QSpinBox):
     """Intercept CTRL+Z key event for cluster undo instead of spinbox edit undo"""
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
-            self.topLevelWidget().on_actionUndo_triggered()
+            self.nativeParentWidget().on_actionUndo_triggered()
         else:
-            QtGui.QSpinBox.keyPressEvent(self, event) # handle it as usual
+            QtWidgets.QSpinBox.keyPressEvent(self, event) # handle it as usual
 
 
-class ClusterTabDoubleSpinBox(QtGui.QDoubleSpinBox):
+class ClusterTabDoubleSpinBox(QtWidgets.QDoubleSpinBox):
     """Intercept CTRL+Z key event for cluster undo instead of spinbox edit undo"""
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
-            self.topLevelWidget().on_actionUndo_triggered()
+            self.nativeParentWidget().on_actionUndo_triggered()
         else:
-            QtGui.QDoubleSpinBox.keyPressEvent(self, event) # handle it as usual
+            QtWidgets.QDoubleSpinBox.keyPressEvent(self, event) # handle it as usual
 
 
-class ClusteringGroupBox(QtGui.QGroupBox):
+class ClusteringGroupBox(QtWidgets.QGroupBox):
     """Make ENTER key event activate the cluster button"""
     def keyPressEvent(self, event):
         if event.key() in [Qt.Key_Enter, Qt.Key_Return]:
-            self.topLevelWidget().ui.clusterButton.click()
+            self.nativeParentWidget().ui.clusterButton.click()
         else:
-            QtGui.QGroupBox.keyPressEvent(self, event) # handle it as usual
+            QtWidgets.QGroupBox.keyPressEvent(self, event) # handle it as usual
 
 
-class PlottingGroupBox(QtGui.QGroupBox):
+class PlottingGroupBox(QtWidgets.QGroupBox):
     """Make ENTER key event activate the plot button"""
     def keyPressEvent(self, event):
         if event.key() in [Qt.Key_Enter, Qt.Key_Return]:
-            self.topLevelWidget().ui.plotButton.click()
+            self.nativeParentWidget().ui.plotButton.click()
         else:
-            QtGui.QGroupBox.keyPressEvent(self, event) # handle it as usual
+            QtWidgets.QGroupBox.keyPressEvent(self, event) # handle it as usual
 
 
-class XCorrsGroupBox(QtGui.QGroupBox):
+class XCorrsGroupBox(QtWidgets.QGroupBox):
     """Make ENTER key event activate the correlograms plot button"""
     def keyPressEvent(self, event):
         if event.key() in [Qt.Key_Enter, Qt.Key_Return]:
-            self.topLevelWidget().ui.plotXcorrsButton.click()
+            self.nativeParentWidget().ui.plotXcorrsButton.click()
         else:
-            QtGui.QGroupBox.keyPressEvent(self, event) # handle it as usual
+            QtWidgets.QGroupBox.keyPressEvent(self, event) # handle it as usual
 
 
-class SpikeSelectionSlider(QtGui.QSlider):
+class SpikeSelectionSlider(QtWidgets.QSlider):
     """Make ENTER key event activate the plot button"""
     def keyPressEvent(self, event):
         if event.key() in [Qt.Key_Enter, Qt.Key_Return]:
-            self.topLevelWidget().spykewindow.ui.plotButton.click()
+            self.nativeParentWidget().spykewindow.ui.plotButton.click()
         else:
-            QtGui.QSlider.keyPressEvent(self, event) # handle it as usual
+            QtWidgets.QSlider.keyPressEvent(self, event) # handle it as usual
 
 
 class Stack(list):
