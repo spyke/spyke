@@ -2664,7 +2664,7 @@ or remove all duplicate spikes from selected neurons
  <connections>
   <connection>
    <sender>xDimComboBox</sender>
-   <signal>triggered(int)</signal>
+   <signal>currentIndexChanged(int)</signal>
    <receiver>plotButton</receiver>
    <slot>click()</slot>
    <hints>
@@ -2680,7 +2680,7 @@ or remove all duplicate spikes from selected neurons
   </connection>
   <connection>
    <sender>yDimComboBox</sender>
-   <signal>triggered(int)</signal>
+   <signal>currentIndexChanged(int)</signal>
    <receiver>plotButton</receiver>
    <slot>click()</slot>
    <hints>
@@ -2696,7 +2696,7 @@ or remove all duplicate spikes from selected neurons
   </connection>
   <connection>
    <sender>zDimComboBox</sender>
-   <signal>triggered(int)</signal>
+   <signal>currentIndexChanged(int)</signal>
    <receiver>plotButton</receiver>
    <slot>click()</slot>
    <hints>
@@ -2712,7 +2712,7 @@ or remove all duplicate spikes from selected neurons
   </connection>
   <connection>
    <sender>componentAnalysisComboBox</sender>
-   <signal>triggered(int)</signal>
+   <signal>currentIndexChanged(int)</signal>
    <receiver>plotButton</receiver>
    <slot>click()</slot>
    <hints>
