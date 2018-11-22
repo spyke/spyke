@@ -384,8 +384,8 @@ class SpykeListView(QtGui.QListView):
         if self.nrows < MAXNROWSLISTSELECTION:
             QtGui.QListView.selectionChanged(self, selected, deselected)
         panel = self.sortwin.panel
-        addis = [ i.data().toInt()[0] for i in selected.indexes() ]
-        remis = [ i.data().toInt()[0] for i in deselected.indexes() ]
+        addis = [ qvar2int(i.data()) for i in selected.indexes() ]
+        remis = [ qvar2int(i.data()) for i in deselected.indexes() ]
         panel.removeItems([ prefix+str(i) for i in remis ])
         # for speed, don't allow more than MAXNSPIKEPLOTS spikes to be plotted in sort panel:
         if prefix == 's':
@@ -516,7 +516,7 @@ class NList(SpykeListView):
 
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='n')
-        selnids = [ i.data().toInt()[0] for i in self.selectedIndexes() ]
+        selnids = [ qvar2int(i.data()) for i in self.selectedIndexes() ]
         #if 1 <= len(selnids) <= 3: # populate nslist if exactly 1, 2 or 3 neurons selected
         self.sortwin.nslist.neurons = [ self.sortwin.sort.neurons[nid] for nid in selnids ]
         #else:
@@ -586,7 +586,7 @@ class NSList(SpykeListView):
         for neuron in self.neurons:
             allrows = self.sids.searchsorted(neuron.sids)
             nsamples = min(nsamples, len(allrows))
-            rows = random.sample(allrows, nsamples)
+            rows = np.random.choice(allrows, nsamples, replace=False)
             self.selectRows(rows, scrollTo=False)
 
 
@@ -2016,16 +2016,26 @@ def write_ks_chanmap_mat(stream, fname):
     scipy.io.savemat(fname, matd)
     print('Wrote KiloSort chanmap file %r' % fname)
 
+
+## TODO: these should be deprecated after moving to Py3 and/or Qt5:
+
 def qvar2list(qvar):
     """Deal with Qt4 QVariant in Python 2 vs 3"""
     try:
-        return qvar.toList() # Py2
+        return qvar.toList() # Py2 + Qt4
     except AttributeError:
-        return qvar # Py3
+        return qvar # Py3 and/or Qt5
 
 def qvar2str(qvar):
     """Deal with Qt4 QVariant in Python 2 vs 3"""
     try:
-        return str(qvar.toString()) # Py2
+        return str(qvar.toString()) # Py2 + Qt4
     except AttributeError:
-        return qvar # Py3
+        return str(qvar) # Py3 and/or Qt5
+
+def qvar2int(qvar):
+    """Deal with Qt4 QVariant in Python 2 vs 3"""
+    try:
+        return qvar.toInt()[0] # Py2 + Qt4
+    except AttributeError:
+        return qvar # Py3 and/or Qt5

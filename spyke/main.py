@@ -64,7 +64,7 @@ from .gac import gac # .pyx file
 from . import core
 from .core import (toiter, tocontig, intround, intceil, printflush, lstrip, matlabize,
                    g, dist, iterable, ClusterChange, SpykeToolWindow, DJS,
-                   qvar2list, qvar2str, merge_intervals)
+                   qvar2list, qvar2str, qvar2int, merge_intervals)
 from . import dat, nsx, surf, stream, probes
 from .stream import SimpleStream, MultiStream
 from .sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES, NPCSPERCHAN
@@ -2260,7 +2260,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def GetClusterIDs(self):
         """Return list of IDs of currently selected clusters, in norder"""
         sw = self.windows['Sort']
-        cids = [ i.data().toInt()[0] for i in sw.nlist.selectedIndexes() ]
+        cids = [ qvar2int(i.data()) for i in sw.nlist.selectedIndexes() ]
         #cids.sort() # don't do regular sort, sort by norder
         ciis = np.argsort([ self.sort.norder.index(cid) for cid in cids ])
         return [ cids[cii] for cii in ciis ] # in norder
