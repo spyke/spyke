@@ -2035,21 +2035,21 @@ def write_ks_chanmap_mat(stream, fname):
 ## TODO: these should be deprecated after moving to Py3 and/or Qt5:
 
 def qvar2list(qvar):
-    """Deal with Qt4 QVariant in Python 2 vs 3"""
+    """Convert Py2 + Qt4 QVariant to a list"""
     try:
         return qvar.toList() # Py2 + Qt4
     except AttributeError:
         return qvar # Py3 and/or Qt5
 
 def qvar2str(qvar):
-    """Deal with Qt4 QVariant in Python 2 vs 3"""
+    """Convert Py2 + Qt4 QVariant to a string"""
     try:
         return str(qvar.toString()) # Py2 + Qt4
     except AttributeError:
         return str(qvar) # Py3 and/or Qt5
 
 def qvar2int(qvar):
-    """Deal with Qt4 QVariant in Python 2 vs 3"""
+    """Convert Py2 + Qt4 QVariant to an int"""
     try:
         return qvar.toInt()[0] # Py2 + Qt4
     except AttributeError:
