@@ -140,8 +140,8 @@ blank periods, representing the time in between recordings in the track. You can
 with Filtering, CAR (common average reference) and Sampling settings in the menu (although
 these are all ignored during raw data export). Notice how CAR can make quite a difference in
 the noise level. If you use CAR->Median (the default), the noise is reduced without really
-changing any spike amplitudes. Disable any channels you think are faulty by right-clicking on
-them. If you right-click on a channel again, it's re-enabled.
+changing any spike amplitudes. Disable any channels you think are faulty or irrelevant by
+right-clicking on them. If you right-click on a channel again, it's re-enabled.
 
 3. File->Save Track Channels to save any channel selections you may have made. These
 selections are saved to the `.track` file, which you can inspect with a plain text editor.
