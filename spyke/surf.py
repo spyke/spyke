@@ -376,7 +376,7 @@ class File(object):
 
         NumSamples = np.unique(self.lowpassrecords['NumSamples'])
         if len(NumSamples) > 1:
-            raise RuntimeError("Don't know how to deal with lowpass records that are of "
+            raise RuntimeError("Don't know how to handle lowpass records that are of "
                                "different lengths. NumSamples = %r" % NumSamples)
 
         self.nlowpassmultichanrecords = nrepeats
@@ -437,7 +437,7 @@ class File(object):
                 ADchan = layout.ADchanlist[0]
                 ADchanlist.append(ADchan)
             else:
-                raise ValueError('cannot parse LFP chan from probe description: %r' %
+                raise ValueError('Cannot parse LFP chan from probe description: %r' %
                                  layout.probe_descrip)
         chans = self.fixLFPlabels(chans, hplayout.electrode_name)
         lpmclayout.chans = np.asarray(chans)
@@ -495,7 +495,7 @@ class File(object):
                 thisstream.f = self # rebind self to other's non-None streams
         for name in other.__dict__:
             if name == 'f': # there should never be an other.f attrib
-                raise ValueError("pickled srff in .parse shouldn't have an .f attrib!")
+                raise ValueError("Pickled srff in .parse shouldn't have an .f attrib!")
             # don't overwrite fnames, fnames in .track files have a leading '../'
             if name not in ['fname', 'parsefname', 'path']:
                 setattr(self, name, getattr(other, name))

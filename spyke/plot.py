@@ -506,7 +506,7 @@ class PlotPanel(FigureCanvas):
         elif ref == 'Caret':
             self._add_caret()
         else:
-            raise ValueError('invalid ref: %r' % ref)
+            raise ValueError('Invalid ref: %r' % ref)
 
     def show_ref(self, ref, enable=True):
         """Helper method for external use"""
@@ -519,7 +519,7 @@ class PlotPanel(FigureCanvas):
         elif ref == 'Caret':
             self._show_caret(enable)
         else:
-            raise ValueError('invalid ref: %r' % ref)
+            raise ValueError('Invalid ref: %r' % ref)
         self.draw_refs()
 
     def draw_refs(self):
@@ -838,7 +838,7 @@ class PlotPanel(FigureCanvas):
         of the spike to chan. Since this is happening in a DataWindow, it's safe
         to assume that a .srf or .track file is open"""
         #if srff not open:
-        #    print("can't align selected spike without .srf file(s)")
+        #    print("Can't align selected spike without .srf file(s)")
         spw = self.topLevelWidget().parent() # spyke window
         spikes = spw.sort.spikes
         try:
@@ -877,7 +877,7 @@ class PlotPanel(FigureCanvas):
         except AttributeError:
             abort = True
         if abort:
-            print("new primary and secondary peaks need to be set before "
+            print("New primary and secondary peaks need to be set before "
                   "reloading selected spike")
             return
         t = spw.primarypeakt
@@ -933,7 +933,7 @@ class PlotPanel(FigureCanvas):
         
         # seek to new timepoint, this also automatically updates the raster line
         spw.seek(t)
-        print('realigned and reloaded spike %d to t=%d on chan %d' % (sid, t, chan))
+        print('Realigned and reloaded spike %d to t=%d on chan %d' % (sid, t, chan))
         
     '''
     def OnPick(self, evt):
@@ -1045,7 +1045,7 @@ class SpikePanel(PlotPanel):
         hchans = self.probe.chans_btlr
         # chans ordered left to right, then bottom to top
         vchans = self.probe.chans_lrbt
-        #print('horizontal ordered chans in Spikepanel:\n%r' % hchans)
+        #print('Horizontal ordered chans in Spikepanel:\n%r' % hchans)
         # x origin is somewhere in between the xlimits. xlimits are asymmetric
         # if self.tw is asymmetric:
         self.ax.set_xlim(self.um2us(self.siteloc[hchans[0]][0]) + self.tw[0],
@@ -1248,7 +1248,7 @@ class SortPanel(PlotPanel):
             self.background = self.copy_from_bbox(self.ax.bbox)
             # add the single item, save reference to its plot:
             self.qrplt = self.addItem(items[0])
-            #print('saved quick remove plot %r' % self.qrplt)
+            #print('Saved quick remove plot %r' % self.qrplt)
         else:
             self.background = None
             # add all items
@@ -1315,7 +1315,7 @@ class SortPanel(PlotPanel):
             self.restore_region(self.reflines_background)
         elif len(items) == 1 and plt == self.qrplt and self.background != None:
             # remove the last added plot if a saved bg is available
-            #print('quick removing plot %r' % self.qrplt)
+            #print('Quick removing plot %r' % self.qrplt)
             self.restore_region(self.background) # restore saved bg
         else:
             # remove more than one, but not all items
@@ -1379,7 +1379,7 @@ class SortPanel(PlotPanel):
             return
         plt0 = self.used_plots[items[0]]
         if len(items) == 1 and plt0 != None and plt0 == self.qrplt and self.background != None:
-            #print('quick removing and replotting plot %r' % self.qrplt)
+            #print('Quick removing and replotting plot %r' % self.qrplt)
             self.restore_region(self.background) # restore saved bg
             self.updateItem(items[0])
         else: # update and redraw all items

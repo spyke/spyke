@@ -206,7 +206,7 @@ class WaveForm(object):
             try:
                 chanis = argmatch(self.chans, keys)
             except ValueError:
-                raise IndexError('invalid index %r' % key)
+                raise IndexError('Invalid index %r' % key)
             data = self.data[chanis] # grab the appropriate rows of data
             if self.std is None:
                 std = None
@@ -393,8 +393,8 @@ class SpykeListView(QtGui.QListView):
             # note that self.nrowsSelected seems to report nrows selected *including* those
             # added and removed by the current selection event
             net = len(addis) - len(remis)
-            print('num selected %d' % self.nrowsSelected)
-            print('net change is %d' % net)
+            print('nselected: %d' % self.nrowsSelected)
+            print('Net change: %d' % net)
             nwereselected = self.nrowsSelected - net
             print('num were selected is %d' % nwereselected)
             maxnadd = max(MAXNSPIKEPLOTS - nwereselected + len(remis), 0)
@@ -418,7 +418,7 @@ class SpykeListView(QtGui.QListView):
         #t0 = time.time()
         panel.addItems([ prefix+str(i) for i in addis ])
         #print('addItems took %.3f sec' % (time.time()-t0))
-        #print("done selchanged, %r, addis=%r, remis=%r" % (prefix, addis, remis))
+        #print("Done selchanged, %r, addis=%r, remis=%r" % (prefix, addis, remis))
 
     def updateAll(self):
         self.model().updateAll()
@@ -899,7 +899,7 @@ class Stack(list):
     """A list that doesn't allow -ve indices"""
     def __getitem__(self, key):
         if key < 0:
-            raise IndexError('stack index %d out of range' % key)
+            raise IndexError('Stack index %d out of range' % key)
         return list.__getitem__(self, key)
 
 
@@ -1073,9 +1073,9 @@ def argmatch(a, v):
     """
     a, v = np.ravel(a), np.ravel(v)
     if len(a) != len(np.unique(a)):
-        raise ValueError("values in `a` must be unique for unambiguous results")
+        raise ValueError("Values in `a` must be unique for unambiguous results")
     if not np.in1d(v, a).all():
-        raise ValueError("values array %s is not a subset of input array %s" % (v, a))
+        raise ValueError("Values array %s is not a subset of input array %s" % (v, a))
     asortis = a.argsort()
     return asortis[a.searchsorted(v, sorter=asortis)]
 
@@ -1381,7 +1381,7 @@ def concatenate_destroy(arrs):
     Doesn't duplicate everything in arrays, as does numpy.concatenate. Only
     temporarily duplicates one array at a time, saving memory"""
     if type(arrs) != list:
-        raise TypeError('arrays must be in a list')
+        raise TypeError('Arrays must be in a list')
     #arrs = list(arrs) # don't do this! this prevents destruction of the original arrs
     nrows = 0
     subshape = arrs[0].shape[1::] # dims excluding concatenation dim
@@ -1390,10 +1390,10 @@ def concatenate_destroy(arrs):
     for i, a in enumerate(arrs):
         nrows += len(a)
         if a.shape[1::] != subshape:
-            raise TypeError("array %d has subshape %r instead of %r" %
+            raise TypeError("Array %d has subshape %r instead of %r" %
                            (i, a.shape[1::], subshape))
         if a.dtype != dtype:
-            raise TypeError("array %d has dtype %r instead of %r" % (i, a.dtype, dtype))
+            raise TypeError("Array %d has dtype %r instead of %r" % (i, a.dtype, dtype))
     subshape = list(subshape)
     shape = [nrows] + subshape
 
@@ -1765,7 +1765,7 @@ def filterord(data, sampfreq=1000, f0=300, f1=None, order=4, rp=None, rs=None,
         assert btype == 'lowpass'
         fn = f1
     else: # neither f0 nor f1 are specified
-        raise ValueError('at least one of f0 or f1 have to be specified')
+        raise ValueError('At least one of f0 or f1 have to be specified')
     wn = fn / (sampfreq / 2) # wn can be either a scalar or a length 2 vector
     b, a = scipy.signal.iirfilter(order, wn, rp=rp, rs=rs, btype=btype, analog=0,
                                   ftype=ftype, output='ba')

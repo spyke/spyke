@@ -43,7 +43,7 @@ class Probe(object):
         if len(sep) == 0:
             return 0
         elif len(sep) > 1:
-            raise ValueError("non-uniform spacing along axis %r" % axis)
+            raise ValueError("Non-uniform spacing along axis %r" % axis)
             # take mean maybe?
         return sep[0] # pull scalar out of array
 
@@ -112,7 +112,7 @@ class Probe(object):
 
         chans = self.chans # sorted
         xy = self.siteloc_arr() # chan coords in chan order
-        #print('initial:')
+        #print('Initial:')
         #for (x, y), chan in zip(xy, chans):
         #    print('%3d, %3d, %3d' % (x, y, chan))
         for ax, rev in zip(axis, reverse):
@@ -124,7 +124,7 @@ class Probe(object):
                 chanis = chanis[::-1]
             chans = chans[chanis]
             xy = xy[chanis]
-            #print('after axis', ax)
+            #print('After axis', ax)
             #for (x, y), chan in zip(xy, chans):
             #    print('%3d, %3d, %3d' % (x, y, chan))
         return chans
@@ -852,7 +852,7 @@ def getprobe(name):
         probe = probetype()
         if probe.name == name or probe.layout == name:
             return probe
-    raise ValueError("unknown probe name or layout %r" % name)
+    raise ValueError("Unknown probe name or layout %r" % name)
 
 def findprobe(siteloc):
     """Return instantiation of first probe type whose layout matches siteloc"""
@@ -1262,4 +1262,4 @@ def getadapter(name):
         adapter = adaptertype()
         if adapter.name == name:
             return adapter
-    raise ValueError("unknown adapter name %r" % name)
+    raise ValueError("Unknown adapter name %r" % name)

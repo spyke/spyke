@@ -74,7 +74,7 @@ class Cluster(object):
         nspikes = len(sids)
         if nsamples and nspikes > nsamples: # subsample spikes
             step = nspikes // nsamples + 1 
-            print('neuron %d: update_pos() sampling every %d spikes instead of all %d'
+            print('n%d: update_pos() sampling every %d spikes instead of all %d'
                   % (self.id, step, nspikes))
             sids = sids[::step]
             nspikes = len(sids) # update
@@ -132,7 +132,7 @@ class Cluster(object):
         nspikes = len(mysids)
         if nsamples and nspikes > nsamples: # subsample spikes
             step = nspikes // nsamples + 1 
-            print('neuron %d: update_comppos() sampling every %d spikes instead '
+            print('n%d: update_comppos() sampling every %d spikes instead '
                   'of all %d in last CA' % (self.id, step, nspikes))
             mysids = mysids[::step]
             nspikes = len(mysids) # update
@@ -584,7 +584,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         if not multiple:
             ri = np.where(hitpix.ravel())[0][0] # get ravelled index of first hit
             i, j = np.unravel_index(ri, dims=hitpix.shape) # unravel to 2D index
-            #print('hit at %d, %d' % (i, j))
+            #print('Hit at %d, %d' % (i, j))
             return self.decodeRGB(backbuffer[i, j]) # should be a valid sid
         ijs = zip(*np.where(hitpix)) # list of ij tuples
         return np.asarray([ self.decodeRGB(backbuffer[i, j]) for i, j in ijs ])

@@ -384,7 +384,7 @@ class Sort(object):
 
     def exporttschid(self, basepath):
         """Export int64 (timestamp, channel, neuron id) 3 tuples to binary file"""
-        raise NotImplementedError('needs to be redone to work with multiple streams')
+        raise NotImplementedError('Needs to be redone to work with multiple streams')
         spikes = self.spikes[self.spikes['nid'] > 0] # don't export unsorted/multiunit spikes
         dt = str(datetime.datetime.now()) # get an export timestamp
         dt = dt.split('.')[0] # ditch the us
@@ -520,7 +520,7 @@ class Sort(object):
         elif format == 'text':
             np.savetxt(fname, data, fmt='%d', delimiter=',') # data should be int
         else:
-            raise ValueError('unknown format: %r' % format)
+            raise ValueError('Unknown format: %r' % format)
         print('Exported %d spikes on chans=%r and tis=%r to %s'
               % (nspikes, list(chans), list(tis), fname))
         
@@ -554,7 +554,7 @@ class Sort(object):
             elif dim == 'RMSerror':
                 data.append( np.float32(rms) )
             else:
-                raise RuntimeError('unknown dim %r' % dim)
+                raise RuntimeError('Unknown dim %r' % dim)
         # np.column_stack returns a copy, not modifying the original array
         data = np.column_stack(data)
         if scale:
@@ -641,9 +641,9 @@ class Sort(object):
                 pca = PCA(n_components=5)
                 X = pca.fit_transform(data) # do both the fit and the transform
             else:
-                raise ValueError('invalid PCALIB %r' % PCALIB)
+                raise ValueError('Invalid PCALIB %r' % PCALIB)
             if X.shape[1] < minncomp:
-                raise RuntimeError("can't satisfy minncomp=%d request" % minncomp)
+                raise RuntimeError("Can't satisfy minncomp=%d request" % minncomp)
         elif kind == 'sPCA': # sparse principal components analysis
             from sklearn.decomposition import SparsePCA
             n_components = 5
@@ -681,9 +681,9 @@ class Sort(object):
             # ensure nspikes >= ndims**2 for good ICA convergence
             maxncomp = intround(np.sqrt(nspikes))
             if maxncomp < minncomp:
-                raise RuntimeError("can't satisfy minncomp=%d request" % minncomp)
+                raise RuntimeError("Can't satisfy minncomp=%d request" % minncomp)
             if data.shape[0] <= data.shape[1]:
-                raise RuntimeError('need more observations than dimensions for ICA')
+                raise RuntimeError('Need more observations than dimensions for ICA')
             # limit number of PCs to feed into ICA, keep up to npcsperchan components per
             # chan on average:
             ncomp = min((self.npcsperchan*nchans, maxncomp, data.shape[1]))
@@ -720,9 +720,9 @@ class Sort(object):
                 #pm = fastica.components_
                 print('fastica niters: %d' % (fastica.n_iter_))
             else:
-                raise ValueError('invalid ICALIB %r' % ICALIB)
+                raise ValueError('Invalid ICALIB %r' % ICALIB)
             if X.shape[1] < 3:
-                raise RuntimeError('need at least 3 columns')
+                raise RuntimeError('Need at least 3 columns')
 
             # Sort ICs by decreasing kurtosis or negentropy. For kurtosis, see Scholz2004 (or
             # rather, opposite to their approach, which picked ICs with most negative
@@ -732,7 +732,7 @@ class Sort(object):
             # sort by abs(kurtosis) of each IC (column)
             k = scipy.stats.kurtosis(X, axis=0)
             ki = abs(k).argsort()[::-1] # decreasing order of abs(kurtosis)
-            print('sort by abs(kurtosis):')
+            print('Sort by abs(kurtosis):')
             print(k[ki])
             X = X[:, ki] # sort the ICs
             '''
@@ -741,7 +741,7 @@ class Sort(object):
             ne = core.negentropy(X, axis=0)
             assert (ne > 0).all()
             nei = ne.argsort()[::-1] # decreasing order of negentropy
-            print('sort by negentropy:')
+            print('Sort by negentropy:')
             print(ne[nei])
             X = X[:, nei] # sort the ICs
             '''
@@ -760,7 +760,7 @@ class Sort(object):
             pl.title('decreasing negentropy projmatrix')
             '''
         else:
-            raise ValueError('unknown kind %r' % kind)
+            raise ValueError('Unknown kind %r' % kind)
         print('Output shape for %s: %r' % (kind, X.shape))
         self.X[Xhash] = X # cache for fast future retrieval
         print('%s took %.3f sec' % (kind, time.time()-t0))
@@ -991,7 +991,7 @@ class Sort(object):
         """Align sids by their min or max. Return those that were actually moved
         and therefore need to be marked as dirty"""
         if not self.stream.is_open():
-            raise RuntimeError("no open stream to reload spikes from")
+            raise RuntimeError("No open stream to reload spikes from")
         spikes = self.spikes
         V0s = spikes['V0'][sids]
         V1s = spikes['V1'][sids]
@@ -1003,7 +1003,7 @@ class Sort(object):
         elif to == 'max':
             i = Vss[b] < 0 # indices into sids of spikes aligned to the min peak
         else:
-            raise ValueError('unknown to %r' % to)
+            raise ValueError('Unknown to %r' % to)
         sids = sids[i] # sids that need realigning
         nspikes = len(sids)
         print("Realigning %d spikes" % nspikes)
@@ -1055,7 +1055,7 @@ class Sort(object):
         print('(Re)loading %d spikes' % nsids)
         stream = self.stream
         if not stream.is_open():
-            raise RuntimeError("no open stream to reload spikes from")
+            raise RuntimeError("No open stream to reload spikes from")
         spikes = self.spikes
         det = self.detector
         ver_lte_03 = float(self.__version__) <= 0.3
@@ -1213,7 +1213,7 @@ class Sort(object):
                         odinndi = odinndis[0] # pull it out
                         dnt = odinndi - lefti # num timepoints to correct by, signed
                     else:
-                        raise RuntimeError("multiple hits of old data in new, don't know "
+                        raise RuntimeError("Multiple hits of old data in new, don't know "
                                            "how to reload spike %d" % sid)
                     if dnt != 0:
                         dt = intround(dnt * self.tres) # time to correct by, signed, in us
@@ -1545,8 +1545,7 @@ class Neuron(object):
         sort = self.sort
         spikes = sort.spikes
         if len(self.sids) == 0: # no member spikes, perhaps I should be deleted?
-            raise RuntimeError("neuron %d has no spikes and its waveform can't be updated"
-                               % self.id)
+            raise RuntimeError("n%d has no spikes and its waveform can't be updated" % self.id)
         meanwave = sort.get_mean_wave(self.sids, nid=self.id)
 
         # update self's Waveform object
@@ -1569,7 +1568,7 @@ class Neuron(object):
         requiring that both include the other's maxchan"""
         chans = np.intersect1d(self.chans, otherchans, assume_unique=True)
         if len(chans) == 0:
-            raise ValueError('no common chans')
+            raise ValueError('No common chans')
         if self.chan not in chans or otherchan not in chans:
             raise ValueError("maxchans aren't part of common chans")
         selfchanis = self.chans.searchsorted(chans)
@@ -2763,7 +2762,7 @@ class SortWindow(SpykeToolWindow):
             self._cmpid += 1
         elif which == 'previous':
             self._cmpid -= 1
-        else: raise ValueError('unknown which: %r' % which)
+        else: raise ValueError('Unknown which: %r' % which)
         self._cmpid = max(self._cmpid, 0)
         self._cmpid = min(self._cmpid, len(dests)-1)
 

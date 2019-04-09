@@ -39,7 +39,7 @@ cdef short select_short(short *a, int l, int r, int k):
     cdef int i, j
     cdef short v, temp
     if r < l:
-        raise ValueError('bad pointer range in select()')
+        raise ValueError('Bad pointer range in select()')
     while r > l:
         v = a[r]
         i = l-1
@@ -199,16 +199,16 @@ def sharpness2D(np.ndarray[int16_t, ndim=2] signal):
             if abs(now) > fabs(ext): # found new biggest extremum so far for this segment
                 extti = ti # store its timepoint
                 ext = now # update for this segment
-                #print('found new biggest local ext=%f at ci=%d, ti=%d' % (ext, ci, extti))
+                #print('Found new biggest local ext=%f at ci=%d, ti=%d' % (ext, ci, extti))
             if cross:
                 # 0-cross coming up, calculate sharpness of extremum in this segment
-                #print('reached end of segment')
-                #print('using npoints=%d for sharpness calc' % npoints)
+                #print('Reached end of segment')
+                #print('Using npoints=%d for sharpness calc' % npoints)
                 # square height, normalize by peak width
                 ext *= fabs(ext) # maintain extremum sign
                 ext /= npoints
                 sharp[ci, extti] = ext # store
-                #print('sharpness is %f at ci=%d, extti=%d' % (ext, ci, extti))
+                #print('Sharpness is %f at ci=%d, extti=%d' % (ext, ci, extti))
                 ext = 0.0 # reset biggest max/min so far for new segment
                 # increment extti so that even if next segment only has ext=0 and npoints=1,
                 # sharp[ci, extti] of the current segment isn't overwritten with a 0:

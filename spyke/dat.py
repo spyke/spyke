@@ -159,7 +159,7 @@ class FileHeader(object):
         self.tres = 1 / self.sampfreq * 1e6 # float us
         self.dtype = j['dtype']
         if self.dtype != 'int16':
-            raise ValueError('only int16 sample data type is supported, got %r' % dtype)
+            raise ValueError('Only int16 sample data type is supported, got %r' % dtype)
         self.AD2uVx = j['uV_per_AD']
         try:
             self.probename = j['probe_name'] # new name

@@ -327,7 +327,7 @@ class SpykeWindow(QtGui.QMainWindow):
             return
         trackfname = os.path.join(self.streampath, stream.fname)
         if not os.path.isfile(trackfname):
-            raise RuntimeError('somehow the current MultiStream has no existing .track file')
+            raise RuntimeError('Somehow the current MultiStream has no existing .track file')
         trackstr = ''
         allchans = np.sort(stream.streams[0].f.fileheader.chans)
         if len(stream.chans) != len(allchans):
@@ -447,7 +447,7 @@ class SpykeWindow(QtGui.QMainWindow):
         elif format == 'text':
             ext = '.spikes.csv'
         else:
-            raise ValueError("invalid format: %r" % format)
+            raise ValueError("Invalid format: %r" % format)
         defaultfname = os.path.join(self.sortpath, self.sort.fname)
         if defaultfname == '': # sort hasn't been previously saved
             # generate default fname with hpstream.fname and datetime
@@ -857,7 +857,7 @@ class SpykeWindow(QtGui.QMainWindow):
         v = float(s.__version__) # sort version
         lv = float(__version__) # latest version
         if v > lv:
-            raise RuntimeError('versioning error')
+            raise RuntimeError('Versioning error')
         if v == lv:
             print('No update necessary')
             return
@@ -1000,7 +1000,7 @@ class SpykeWindow(QtGui.QMainWindow):
             del stream.srffnames
             stream.fnames = fnames
         else:
-            raise RuntimeError("don't know how to upgrade stream type %r" % classname)
+            raise RuntimeError("Don't know how to upgrade stream type %r" % classname)
         try:
             s.npcsperchan
         except AttributeError:
@@ -1054,9 +1054,9 @@ class SpykeWindow(QtGui.QMainWindow):
         s.spikes = newspikes # overwrite
 
         from pprint import pprint
-        print('old dtype:')
+        print('Old dtype:')
         pprint(olddtype)
-        print('new dtype:')
+        print('New dtype:')
         pprint(s.spikes.dtype.descr)
 
         # add new detector.lockrx attrib, supercedes detector.lockr attrib
@@ -1582,7 +1582,7 @@ class SpykeWindow(QtGui.QMainWindow):
         for comboi, chancombo in enumerate(uchancombos):
             nids[(chans == chancombo).all(axis=1)] = comboi + 1
         if (nids == 0).any():
-            raise RuntimeError("there shouldn't be any unclustered points from chancombosplit")
+            raise RuntimeError("There shouldn't be any unclustered points from chancombosplit")
         print('chancombosplit took %.3f sec' % (time.time()-t0))
         self.apply_clustering(oldclusters, sids, nids, verb='chancombo split')
 
@@ -1606,7 +1606,7 @@ class SpykeWindow(QtGui.QMainWindow):
         for maxchani, maxchan in enumerate(umaxchans):
             nids[maxchans == maxchan] = maxchani + 1
         if (nids == 0).any():
-            raise RuntimeError("there shouldn't be any unclustered points from maxchansplit")
+            raise RuntimeError("There shouldn't be any unclustered points from maxchansplit")
         print('maxchansplit took %.3f sec' % (time.time()-t0))
         self.apply_clustering(oldclusters, sids, nids, verb='maxchan split')
 
@@ -1677,7 +1677,7 @@ class SpykeWindow(QtGui.QMainWindow):
         for i, destsubsids in enumerate(destsubsidss):
             nids[sids.searchsorted(destsubsids)] = i + 1
         if (nids == 0).any():
-            raise RuntimeError("there shouldn't be any unclustered points from randomsplit")
+            raise RuntimeError("There shouldn't be any unclustered points from randomsplit")
         self.apply_clustering(oldclusters, sids, nids, verb='randomly split')
 
     def gac(self, sids, dims):
@@ -1722,8 +1722,8 @@ class SpykeWindow(QtGui.QMainWindow):
         # Euclidean chan distances from meanpos:
         d = np.sqrt(np.sum((chanpos - meanpos)**2, axis=1))
         selchans = sorted(dm.chans[d <= sx]) # chans within sx of meanpos
-        print('selection center: %.1f, %.1f um' % (meanpos[0], meanpos[1]))
-        print('selection radius: %.1f um' % sx)
+        print('Selection center: %.1f, %.1f um' % (meanpos[0], meanpos[1]))
+        print('Selection radius: %.1f um' % sx)
         panel.chans_selected = selchans
         panel.update_selvrefs()
         panel.draw_refs()
@@ -1855,7 +1855,7 @@ class SpykeWindow(QtGui.QMainWindow):
             sids = self.GetAllSpikes() # only selected spikes
         if len(sids) == 0: # if none selected
             if comps: # if component analysis selected
-                raise RuntimeError('need non-empty spike selection to do component analysis')
+                raise RuntimeError('Need non-empty spike selection to do component analysis')
             else: # return all spike ids
                 sids = self.sort.spikes['id']
         kind = None
@@ -1960,7 +1960,7 @@ class SpykeWindow(QtGui.QMainWindow):
         a.plot(ris, gauss, '-') # plot Gaussian on top of density histogram
         a.set_title('%dD cluster density histogram, DJS = %.3f' % (ndims, djs))
         a.set_xlabel('nstdevs')
-        a.set_ylabel('normalized density')
+        a.set_ylabel('Normalized density')
         mplw.f.tight_layout(pad=0.3) # crop figure to contents
         mplw.figurecanvas.draw()
 
@@ -2026,10 +2026,10 @@ class SpykeWindow(QtGui.QMainWindow):
         f.canvas.parent().setWindowTitle('cluster %d rmserror histogram' % cid)
         binsize = self.ui.matchErrorPlotBinSizeSpinBox.value()
         pl.hist(errs, bins=np.arange(0, 50, binsize))
-        pl.title('rmserrors between cluster %d and %d unsorted spikes' %
+        pl.title('RMS error between cluster %d and %d unsorted spikes' %
                  (cid, len(errs)))
-        pl.xlabel('rmserror (uV)')
-        pl.ylabel('count')
+        pl.xlabel('RMS error (uV)')
+        pl.ylabel('Count')
         
     @QtCore.pyqtSlot()
     def on_matchButton_clicked(self):
@@ -2068,7 +2068,7 @@ class SpykeWindow(QtGui.QMainWindow):
             autocorr = False
             ysids = clusters[1].neuron.sids
         else:
-            raise NotImplementedError("can't deal with more than one xcorr for now")
+            raise NotImplementedError("Can't handle more than one xcorr for now")
         xspikets = self.sort.spikes['t'][xsids]
         yspikets = self.sort.spikes['t'][ysids]
 
@@ -2171,7 +2171,7 @@ class SpykeWindow(QtGui.QMainWindow):
                     rmsid = sid
                 """
                 rmsids.append(rmsid)
-            print('neuron %d: %r' % (nid, rmsids))
+            print('n%d: %r' % (nid, rmsids))
             rmsidss[nid] = rmsids
         nrm = sum([ len(rmsids) for rmsids in rmsidss.values() ])
         print('Found %d duplicate spikes' % nrm)
@@ -2238,7 +2238,7 @@ class SpykeWindow(QtGui.QMainWindow):
         sids = self.GetSpikes()
         nselected = len(sids)
         if nselected != 1:
-            raise RuntimeError("can't figure out which of the %d selected spike IDs you want"
+            raise RuntimeError("Can't figure out which of the %d selected spike IDs you want"
                                % nselected)
         return sids[0]
 
@@ -2275,7 +2275,7 @@ class SpykeWindow(QtGui.QMainWindow):
         clusters = self.GetClusters()
         nselected = len(clusters)
         if nselected != 1:
-            raise RuntimeError("can't figure out which of the %d selected clusters you want"
+            raise RuntimeError("Can't figure out which of the %d selected clusters you want"
                                % nselected)
         return clusters[0]
 
@@ -2330,7 +2330,7 @@ class SpykeWindow(QtGui.QMainWindow):
             csids = np.intersect1d(csids, selsids, assume_unique=True) # to remove
             allcsids = np.setdiff1d(csids, selsids, assume_unique=True) # final
         else:
-            raise ValueError("invalid 'on' value: %r" % on)
+            raise ValueError("Invalid 'on' value: %r" % on)
         if len(csids) == 0:
             return # no clustered spikes to add or remove
         newunids = np.unique(self.sort.spikes['nid'][allcsids]) # excludes cluster 0
@@ -2483,7 +2483,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # now do some final updates
         self.UpdateClustersGUI()
         self.ColourPoints(oldclusters)
-        #print('applying clusters to plot took %.3f sec' % (time.time()-t0))
+        #print('Applying clusters to plot took %.3f sec' % (time.time()-t0))
         # select newly recreated oldclusters
         self.SelectClusters(oldclusters)
         # restore bystander selections
@@ -2631,7 +2631,7 @@ class SpykeWindow(QtGui.QMainWindow):
                         f = surf.File(fn, self.streampath)
                         f.parse()
                     else:
-                        raise ValueError('unknown extension %r' % fext)
+                        raise ValueError('Unknown extension %r' % fext)
                     fs.append(f) # build up list of open and parsed data file objects
             self.hpstream = MultiStream(fs, fname, kind='highpass')
             self.lpstream = MultiStream(fs, fname, kind='lowpass')
@@ -2642,7 +2642,7 @@ class SpykeWindow(QtGui.QMainWindow):
             self.hpstream = self.OpenQuirogaMATFile(fname)
             ext = '.srf' # use same *tw variables as for .srf
         else:
-            raise ValueError('unknown extension %r' % ext)
+            raise ValueError('Unknown extension %r' % ext)
 
         # if a sort is already open, try rebinding new stream to the sort. If they don't match,
         # abort opening of the new stream:
@@ -2687,7 +2687,7 @@ class SpykeWindow(QtGui.QMainWindow):
         if enabledchans is None:
             self.chans_enabled = self.hpstream.chans
         else:
-            print('setting enabled chans = %s' % enabledchans)
+            print('Setting enabled chans = %s' % enabledchans)
             self.chans_enabled = enabledchans
 
         self.trange = self.hpstream.t0, self.hpstream.t1 # us
@@ -2972,11 +2972,11 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # check for mandatory fields:
         if sampfreq is None:
-            raise ValueError('missing sampfreq')
+            raise ValueError('Missing sampfreq')
         if uVperAD is None:
-            raise ValueError('missing uVperAD')
+            raise ValueError('Missing uVperAD')
         if wavedata is None:
-            raise ValueError('missing wavedata')
+            raise ValueError('Missing wavedata')
 
         # pull singleton values out of numpy array:
         sampfreq = float(sampfreq)
@@ -2988,7 +2988,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # handle optional fields:
         if chanpos is None:
             if maxnchans > 1:
-                raise ValueError('multiple chans per event, chanpos should be specified')
+                raise ValueError('Multiple chans per event, chanpos should be specified')
             chanpos = np.array([[0, 0]]) # treat events as single channel
         if t is None: # create artificial event timestamps at 1 ms intervals
             t = np.arange(nevents) * 1000 # us
@@ -3075,11 +3075,11 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # check for mandatory fields:
         if spikets is None:
-            raise ValueError('missing spikets')
+            raise ValueError('Missing spikets')
         if maxchans is None:
-            raise ValueError('missing maxchans')
+            raise ValueError('Missing maxchans')
         if nids is None:
-            raise ValueError('missing nids')
+            raise ValueError('Missing nids')
         assert len(spikets) == len(maxchans) == len(nids)
         nspikes = len(spikets)
 

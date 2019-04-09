@@ -173,14 +173,14 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     # pre-calc exp function:
     #t0 = time.time()
     cdef double *exps = <double *>malloc(lenexps*sizeof(double)) # pre-calced exp function
-    if not exps: raise MemoryError("can't allocate exps\n")
+    if not exps: raise MemoryError("Can't allocate exps\n")
     for i in range(lenexps): ## TODO: could use prange here
         exps[i] = exp(-<double>i / lenexps * rneigh02) # watch out for int div
     #print('exps malloc took %.3f sec' % (time.time()-t0))
     
     # working list for keeping track of pending scout merges
     cdef int *mlist = <int *>malloc((M+1)*sizeof(int))
-    if not mlist: raise MemoryError("can't allocate mlist\n")
+    if not mlist: raise MemoryError("Can't allocate mlist\n")
 
     IF SORTDIMSBYVARIANCE:
         # sort data along dimension of max variance, ostensibly the one with most information
@@ -216,7 +216,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
     # declare and init scouts, normalize data:
     cdef Scout *scouts = <Scout *>malloc(N*sizeof(Scout))
-    if not scouts: raise MemoryError("can't allocate scouts\n")
+    if not scouts: raise MemoryError("Can't allocate scouts\n")
     for i in range(N): ## TODO: could use prange here
         scouti = scouts+i
         scouti.id = i
@@ -231,7 +231,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
     # init a shrinking view of scouts, s:
     cdef Scout **s = <Scout **>malloc(N*sizeof(Scout *)) # array of pointers to Scout pointers
-    if not s: raise MemoryError("can't allocate s\n")
+    if not s: raise MemoryError("Can't allocate s\n")
     for i in range(M): ## TODO: could use prange here
         s[i] = scouts+i
 
@@ -285,7 +285,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         if allstill:
             break
         '''
-        printf('before qsort:\n')
+        printf('Before qsort:\n')
         for i in range(M):
             printf('%.3f, ', s[i].pos[0])
         printf('\n')
@@ -295,10 +295,10 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         '''
         for i in range(1, M):
             if s[i].pos[0] < s[i-1].pos[0]:
-                printf('error: scouts aren't sorted along dimension 0\n')
+                printf('Error: scouts aren't sorted along dimension 0\n')
                 return
 
-        printf('after qsort:\n')
+        printf('After qsort:\n')
         for i in range(M):
             printf('%.3f, ', s[i].pos[0])
         printf('\n')
@@ -306,10 +306,10 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         
     printf('\n')
     IF PROFILE:
-        printf('merge scouts: %.9f sec\n', MERGESCOUTSTIME)
+        printf('Merge scouts: %.9f sec\n', MERGESCOUTSTIME)
         printf('     merge(): %.9f sec\n', MERGETIME)
-        printf(' move scouts: %.9f sec\n', MOVESCOUTSTIME)
-        printf('       total: %.9f sec\n', MERGESCOUTSTIME+MOVESCOUTSTIME)
+        printf(' Move scouts: %.9f sec\n', MOVESCOUTSTIME)
+        printf('       Total: %.9f sec\n', MERGESCOUTSTIME+MOVESCOUTSTIME)
 
     cids = walkscouts(scouts, N) # build cids from merge history in scouts
 
@@ -318,7 +318,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     npointsremoved = 0
     for i in range(M):
         if s[i].size < minpoints:
-            #printf('cluster %d has only %d points', cid, npoints)
+            #printf('Cluster %d has only %d points', cid, npoints)
             # remove cluster cid by merging it into "cluster" -1
             mlist[nm] = i
             nm += 1

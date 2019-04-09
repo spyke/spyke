@@ -129,7 +129,7 @@ class Stream(object):
     def set_shcorrect(self, shcorrect):
         """On .shcorrect change, delete .kernels (if set)"""
         if shcorrect == True and self.masterclockfreq == None:
-            raise ValueError("can't sample & hold correct data stream with no master "
+            raise ValueError("Can't sample & hold correct data stream with no master "
                              "clock frequency")
         self._shcorrect = shcorrect
         try:
@@ -158,7 +158,7 @@ class Stream(object):
         indicating start and end timepoints in us wrt t=0. Return the corresponding WaveForm
         object with the full set of chans"""
         if key.step not in [None, 1]:
-            raise ValueError('unsupported slice step size: %s' % key.step)
+            raise ValueError('Unsupported slice step size: %s' % key.step)
         return self(key.start, key.stop, self.chans)
 
     def resample(self, rawdata, rawts, chans):
@@ -169,11 +169,11 @@ class Stream(object):
         rawtres = self.rawtres # float us
         tres = self.tres # float us
         if self.sampfreq % self.rawsampfreq != 0:
-            raise ValueError('only integer multiples of rawsampfreq allowed for interpolated '
+            raise ValueError('Only integer multiples of rawsampfreq allowed for interpolated '
                              'sampfreq')
         # resample factor: n output resampled points per input raw point:
         resamplex = intround(self.sampfreq / self.rawsampfreq)
-        assert resamplex >= 1, 'no decimation allowed'
+        assert resamplex >= 1, 'No decimation allowed'
         N = KERNELSIZE
         #print('N = %d' % N)
 
@@ -236,12 +236,12 @@ class Stream(object):
                 # raw data's convolutions, since interpolated values have to be bounded on both
                 # sides by raw values?
                 data[chani, ti0::resamplex] = row[rowti0:]
-        #print('convolve loop took %.3f sec' % (time.time()-tconvolve))
-        #print('convolve calls took %.3f sec total' % (tconvolvesum))
+        #print('Convolve loop took %.3f sec' % (time.time()-tconvolve))
+        #print('Convolve calls took %.3f sec total' % (tconvolvesum))
         #tundoscaling = time.time()
         # undo kernel scaling, shift 16 bits right in place, same as //= 2**16, leave as int32
         data >>= 16
-        #print('undo kernel scaling took %.3f sec total' % (time.time()-tundoscaling))
+        #print('Undo kernel scaling took %.3f sec total' % (time.time()-tundoscaling))
         return data, ts
 
     def get_kernels(self, resamplex, N, chans, ADchans=None):
@@ -407,7 +407,7 @@ class DATStream(Stream):
             # where to find requested chans in enabled self.chans:
             chanis = core.argmatch(self.chans, chans)
         except ValueError:
-            raise IndexError("requested chans %r are not a subset of available enabled "
+            raise IndexError("Requested chans %r are not a subset of available enabled "
                              "chans %r in %s stream" % (chans, self.chans, kind))
         # NOTE: because CAR needs to average across as many channels as possible, keep
         # the full self.chans (which are the chans enabled in the stream) until the very end,
@@ -425,7 +425,7 @@ class DATStream(Stream):
             assert self.rawsampfreq % self.sampfreq == 0
             decimatex = intround(self.rawsampfreq / self.sampfreq)
         else:
-            raise ValueError('unknown stream kind %r' % kind)
+            raise ValueError('Unknown stream kind %r' % kind)
 
         # excess data to get at either end, to eliminate filtering and interpolation
         # edge effects:
@@ -527,7 +527,7 @@ class DATStream(Stream):
             ## low spike distortion
             dataxs = WMLDR(dataxs)
         else:
-            raise ValueError('unknown filter method %s' % self.filtmeth)
+            raise ValueError('Unknown filter method %s' % self.filtmeth)
 
         # do common average reference (CAR): remove correlated noise by subtracting the
         # average across all channels (Ludwig et al, 2009, Pachitariu et al, 2016):
@@ -762,7 +762,7 @@ class SurfStream(Stream):
             chans = self.chans
         kind = self.kind
         if not set(chans).issubset(self.chans):
-            raise ValueError("requested chans %r are not a subset of available enabled "
+            raise ValueError("Requested chans %r are not a subset of available enabled "
                              "chans %r in %s stream" % (chans, self.chans, self.kind))
         nchans = len(chans)
         tres, rawtres = self.tres, self.rawtres # float us
@@ -990,7 +990,7 @@ class SimpleStream(Stream):
             chans = self.chans
         kind = self.kind
         if not set(chans).issubset(self.chans):
-            raise ValueError("requested chans %r are not a subset of available enabled "
+            raise ValueError("Requested chans %r are not a subset of available enabled "
                              "chans %r in %s stream" % (chans, self.chans, kind))
         nchans = len(chans)
         chanis = self.ADchans.searchsorted(chans)
@@ -1090,7 +1090,7 @@ class MultiStream(object):
 
         datetimes = [stream.datetime for stream in streams]
         if not (np.diff(datetimes) >= timedelta(0)).all():
-            raise RuntimeError("files aren't in temporal order")
+            raise RuntimeError("Files aren't in temporal order")
 
         try: self.layout = streams[0].layout # assume they're identical
         except AttributeError: pass
@@ -1100,7 +1100,7 @@ class MultiStream(object):
             gains = np.asarray([ stream.converter.AD2uVx for stream in streams ])
         if max(gains) != min(gains):
             import pdb; pdb.set_trace() # investigate which are the deviant files
-            raise NotImplementedError("not all files have the same gain")
+            raise NotImplementedError("Not all files have the same gain")
             # TODO: find recording with biggest intgain, call that value maxintgain. For each
             # recording, scale its AD values by its intgain/maxintgain when returning a slice
             # from its stream. Note that this ratio should always be a factor of 2, so all you
@@ -1120,9 +1120,9 @@ class MultiStream(object):
         probe = streams[0].probe
         adapter = streams[0].adapter
         if not np.all([type(probe) == type(stream.probe) for stream in streams]):
-            raise RuntimeError("some files have different probe types")
+            raise RuntimeError("Some files have different probe types")
         if not np.all([type(adapter) == type(stream.adapter) for stream in streams]):
-            raise RuntimeError("some files have different adapter types")
+            raise RuntimeError("Some files have different adapter types")
         self.probe = probe # they're identical
         self.adapter = adapter # they're identical
 
@@ -1301,7 +1301,7 @@ class MultiStream(object):
         indicating start and end timepoints in us. Returns the corresponding WaveForm
         object with the full set of chans"""
         if key.step not in [None, 1]:
-            raise ValueError('unsupported slice step size: %s' % key.step)
+            raise ValueError('Unsupported slice step size: %s' % key.step)
         return self(key.start, key.stop, self.chans)
 
     def __call__(self, start=None, stop=None, chans=None, checksat=False):
@@ -1317,7 +1317,7 @@ class MultiStream(object):
         if chans is None:
             chans = self.chans
         if not set(chans).issubset(self.chans):
-            raise ValueError("requested chans %r are not a subset of available enabled "
+            raise ValueError("Requested chans %r are not a subset of available enabled "
                              "chans %r in %s stream" % (chans, self.chans, self.kind))
 
         #print('*** new MultiStream.__call__()')

@@ -284,7 +284,7 @@ class Detector(object):
             for i in range(nblocks):
                 #blocki, blockspikes, blockwavedata = dp.q.get() # defaults to block=True
                 blocki, blockspikes, blockwavedata = _eintr_retry_call(dp.q.get)
-                #print('got block %d results' % blocki)
+                #print('Got block %d results' % blocki)
                 spikes[blocki] = blockspikes
                 wavedata[blocki] = blockwavedata
             for dp in dps:
@@ -739,7 +739,7 @@ class Detector(object):
         bs = abs(bs)
         bx = abs(bx)
         if not self.trange[0] <= self.trange[1]: # not a forward search
-            raise RuntimeError('backward detection not allowed')
+            raise RuntimeError('Backward detection not allowed')
 
         tranges = stream.tranges
         # pick out all tranges that overlap with self.trange
@@ -808,7 +808,7 @@ class Detector(object):
 
     def get_noise(self, data):
         """Calculates noise over last dim in data (time), using .noisemethod"""
-        #print('calculating noise')
+        #print('Calculating noise')
         #ncores = mp.cpu_count()
         #pool = threadpool.Pool(ncores)
         if self.noisemethod == 'median':

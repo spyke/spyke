@@ -191,7 +191,7 @@ class FileHeader(dat.FileHeader):
             ref = c0.units, c0.maxaval, c0.minaval, c0.maxdval, c0.mindval
             for c in chanheaders.values():
                 if (c.units, c.maxaval, c.minaval, c.maxdval, c.mindval) != ref:
-                    raise ValueError('not all chans have the same AD2V params')
+                    raise ValueError('Not all chans have the same AD2V params')
             # calculate AD2uV/AD2mV conversion factor:
             if chantype == 'ephys':
                 self.AD2uVx = (c0.maxaval-c0.minaval) / float(c0.maxdval-c0.mindval)
