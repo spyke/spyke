@@ -29,6 +29,9 @@ class File(object):
         self.t1i = self.t0i + self.nt - 1
         self.t0 = self.t0i * self.fileheader.tres # us
         self.t1 = self.t1i * self.fileheader.tres # us
+        self._bind_streams()
+
+    def _bind_streams(self):
         self.hpstream = DATStream(self, kind='highpass')
         self.lpstream = DATStream(self, kind='lowpass')
 
@@ -201,7 +204,7 @@ class FileHeader(object):
         # offset of first timepoint wrt t=0, in number of samples:
         self.t0i = j.get('nsamples_offset', 0)
         assert type(self.t0i) == int
-        self.datetimestr = j.get('datetime') # ISO 8601 datetime wrt t=0, local time, no TZ
+        self.datetimestr = j.get('datetime') # ISO 8601 datetime at t=0, local time, no TZ
         if self.datetimestr:
             self.datetime = datetime.datetime.strptime(self.datetimestr, "%Y-%m-%dT%H:%M:%S.%f")
         else:

@@ -841,8 +841,113 @@ class H3(Probe):
         self.check()
 
 
-PROBETYPES = [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b, pt16a_HS27, pt16b_HS27,
-              single, IMEC30, A1x32, A1x32_edge, A1x64, H3]
+## TODO: these less commonly used probes are incomplete:
+
+class A1x16(Probe):
+    """A1x16. Incomplete"""
+    def __init__(self):
+        ## TODO: there are multiple A1x16 layouts that need to be distinguished:
+        self.layout = 'A1x16-3mm-50-177-A16'
+        self.name = 'A1x16'
+        self.nchans = 16
+        #self.ncols = 1
+        sl = {}
+        self.SiteLoc = sl
+
+
+class A2x16(Probe):
+    """A2x16. Incomplete"""
+    def __init__(self):
+        self.layout = 'A2x16-10mm-50-500-177-A32'
+        self.name = 'A2x16'
+        self.nchans = 32
+        #self.ncols = 2 #?
+        sl = {}
+        self.SiteLoc = sl
+
+
+class A2x2_tet(Probe):
+    """A2x2_tet. Incomplete"""
+    def __init__(self):
+        self.layout = 'A2x2-tet-3mm-150-150-121-A16'
+        self.name = 'A2x2_tet'
+        self.nchans = 16
+        #self.ncols = 8 #?
+        sl = {}
+        self.SiteLoc = sl
+
+
+class A2x32(Probe):
+    """A2x32. Incomplete"""
+    def __init__(self):
+        self.layout = 'A2x32-5mm-25-200-177-A64'
+        self.name = 'A2x32'
+        self.nchans = 64
+        #self.ncols = 2 #?
+        sl = {}
+        self.SiteLoc = sl
+
+
+class A4x1_tet(Probe):
+    """A4x1_tet. Incomplete"""
+    def __init__(self):
+        self.layout = 'A4x1-tet-3mm-150-312-A16'
+        self.name = 'A4x1_tet'
+        self.nchans = 16
+        #self.ncols = 4 #?
+        sl = {}
+        self.SiteLoc = sl
+
+
+class A4x2_tet(Probe):
+    """A4x2_tet. Incomplete"""
+    def __init__(self):
+        self.layout = 'A4x2-tet-5mm-150-200-121-A32'
+        self.name = 'A4x2_tet'
+        self.nchans = 32
+        #self.ncols = 8 #?
+        sl = {}
+        self.SiteLoc = sl
+
+
+class A4x4(Probe):
+    """A4x4. Incomplete"""
+    def __init__(self):
+        self.layout = 'A4x4-3mm-50-125-177-A16'
+        self.name = 'A4x4'
+        self.nchans = 16
+        #self.ncols = 8 #?
+        sl = {}
+        self.SiteLoc = sl
+
+
+class Buzsaki32(Probe):
+    """Buzsaki32. Incomplete"""
+    def __init__(self):
+        self.layout = 'Buzsaki32-A32'
+        self.name = 'Buzsaki32'
+        self.nchans = 32
+        #self.ncols = 1 #?
+        sl = {}
+        self.SiteLoc = sl
+
+
+class H2(Probe):
+    """Cambridge Neurotech H2 probe. Incomplete"""
+    def __init__(self):
+        self.layout = 'H2'
+        self.name = 'H2'
+        self.nchans = 64
+        #self.ncols = 2 #?
+        sl = {}
+        self.SiteLoc = sl
+
+
+COMMONPROBETYPES = [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b,
+                    pt16a_HS27, pt16b_HS27, single, IMEC30,
+                    A1x32, A1x32_edge, A1x64, H3]
+UNCOMMONPROBETYPES = [A1x16, A2x16, A2x2_tet, A2x32, A4x1_tet, A4x2_tet, A4x4, Buzsaki32, H2]
+PROBETYPES = COMMONPROBETYPES + UNCOMMONPROBETYPES
 
 
 def getprobe(name):

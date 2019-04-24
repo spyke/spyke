@@ -11,46 +11,26 @@ from __future__ import print_function
 
 __authors__ = ['Martin Spacek']
 
-import numpy as np
 import os
 from struct import unpack
 import datetime
 import json
 
-from .core import NULL, rstripnonascii, intround, write_dat_json
+import numpy as np
+import matplotlib.pyplot as plt
+
+from .core import NULL, rstripnonascii
 from . import dat # for inheritance
-from .stream import NSXStream
 from . import probes
+from .stream import NSXStream
 
 
 class File(dat.File):
     """Open an .nsx file and expose its header fields and data as attribs"""
-    def __init__(self, fname, path=None):
-        if path is None:
-            path, fname = os.path.split(fname) # separate path from fname
-        self.fname, self.path = fname, path
-        self.filesize = os.stat(self.join(fname)).st_size # in bytes
-        self.open() # calls parse() and load()
 
-        self.datapacketoffset = self.datapacket.offset # save for unpickling
-        self.t0i, self.nt = self.datapacket.t0i, self.datapacket.nt # copy for convenience
-        self.t1i = self.t0i + self.nt - 1
-        self.t0 = self.t0i * self.fileheader.tres # us
-        self.t1 = self.t1i * self.fileheader.tres # us
+    def _bind_streams(self):
         self.hpstream = NSXStream(self, kind='highpass')
         self.lpstream = NSXStream(self, kind='lowpass')
-
-    def open(self):
-        """(Re)open previously closed file"""
-        # the 'b' for binary is only necessary for MS Windows:
-        self.f = open(self.join(self.fname), 'rb')
-        # parse file and load datapacket here instead of in __init__, because during
-        # multiprocess detection, __init__ isn't called on unpickle, but open() is:
-        try:
-            self.f.seek(self.datapacketoffset) # skip over FileHeader
-        except AttributeError: # hasn't been parsed before, self.datapacketoffset is missing
-            self.parse()
-        self.load()
 
     def _parseFileHeader(self):
         """Parse the file header"""
@@ -83,7 +63,7 @@ class File(dat.File):
                              % (chan, datarowis))
         return datarowis[0]
 
-    def getchantype(self, chan):
+    def get_chantype(self, chan):
         """Return the type ('ephys' or 'aux') of chan. chan can be either an integer id
         or a string label."""
         chantypes = []
@@ -95,27 +75,52 @@ class File(dat.File):
         if len(chantypes) == 0:
             raise ValueError("Can't find chan %r" % chan)
         elif len(chantypes) > 1:
-            raise ValueError("Found mutliple types for chan %r: %r" % (chan, chantypes))
+            raise ValueError("Found multiple types for chan %r: %r" % (chan, chantypes))
         return chantypes[0]
 
-    def getchanAD(self, chan):
+    def get_chanAD(self, chan):
         """Return AD data for a single chan. chan can be either an integer id
         or a string label. To convert to voltage, use the appropriate multiplier
         (AD2uVx for ephys chans, AD2mVx for aux chans)"""
         datarowi = self.chan2datarowi(chan)
         return self.datapacket._data[datarowi]
 
-    def getchanV(self, chan):
+    def get_chanV(self, chan):
         """Return data for a single chan, in volts. chan can be either an integer id
         or a string label"""
-        AD = self.getchanAD(chan)
-        chantype = self.getchantype(chan)
+        AD = self.get_chanAD(chan)
+        chantype = self.get_chantype(chan)
         if chantype == 'ephys':
             return AD * self.fileheader.AD2uVx / 1000000 # convert uV to V
         elif chantype == 'aux':
             return AD * self.fileheader.AD2mVx / 1000 # convert mV to V
         else:
             raise ValueError('Unknown chantype %r' % chantype)
+
+    def plot_chanV(self, chan, trange=None, figsize=(16, 10), maximize=True, fmt='.-',
+                   linewidth=1, markersize=3, color='k', alpha=0.2):
+        """Plot chan voltage as a function of time. chan can be either an integer id
+        or a string label. trange is window time range, in sec"""
+        f, a = plt.subplots(figsize=figsize)
+        t = self.tsec
+        V = self.get_chanV(chan)
+        if trange:
+            assert len(trange) == 2
+            t0i, t1i = np.searchsorted(t, trange)
+            t = t[t0i:t1i]
+            V = V[t0i:t1i]
+        a.plot(t, V, fmt, linewidth=linewidth, markersize=markersize,
+               color=color, alpha=alpha)
+        a.set_xlabel('Time (s)')
+        a.set_ylabel('Voltage (V)')
+        f.canvas.set_window_title(self.fname)
+        if maximize:
+            win = f.canvas.window() # possibly a Qt window
+            try:
+                win.showMaximized() # Qt specific method
+            except AttributeError:
+                pass # not using Qt backend?
+        return a
 
 
 class FileHeader(dat.FileHeader):
