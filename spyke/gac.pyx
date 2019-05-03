@@ -130,7 +130,7 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         double sigma=0.25, double rmergex=0.25, double rneighx=4,
         double alpha=2.0, int maxgrad=1000,
         double minmovex=0.00001, int maxnnomerges=1000, int minpoints=5,
-        bint returncpos=False):
+        bint returncpos=False, bint verbose=True):
     """Nicholas Swindale's gradient ascent clustering (GAC) algorithm, a variant
     of the mean-shift algorithm"""
     cdef Py_ssize_t i, j, k, cid
@@ -257,7 +257,8 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
 
         if newM != M: # at least one merger happened on this iter
             M = newM
-            printf('%d', M) # print the value of M
+            if verbose:
+                printf('%d', M) # print the value of M
             nnomerges = 0 # reset
         else: # no mergers happened on this iter
             nnomerges += 1 # inc
@@ -273,7 +274,8 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
                 move_scout(scouti, scouts, exps, maxgrad,
                            N, ndims, alpha, rneigh, rneigh2, minmove2)
         IF PROFILE: MOVESCOUTSTIME += (<double>time.time() - t0)
-        printf('.')
+        if verbose:
+            printf('.')
 
         iteri += 1
 
@@ -304,7 +306,8 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
         printf('\n')
         '''
         
-    printf('\n')
+    if verbose:
+        printf('\n')
     IF PROFILE:
         printf('Merge scouts: %.9f sec\n', MERGESCOUTSTIME)
         printf('     merge(): %.9f sec\n', MERGETIME)
@@ -325,9 +328,10 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
             npointsremoved += s[i].size
     if nm > 0:
         M = merge(junk, mlist, nm, s, M)
- 
-    printf('%d points (%.1f%%) and %d clusters deleted for having less than %d points each\n',
-           npointsremoved, npointsremoved/(<double>N)*100, nm, minpoints)
+
+    if verbose:
+        printf('%d points (%.1f%%) and %d clusters deleted for having < %d points each\n',
+               npointsremoved, npointsremoved/(<double>N)*100, nm, minpoints)
 
     # sort s by decreasing cluster size and relabel scouts in that order
     qsort(s, M, sizeof(Scout *), cmp_scouts_decsize)
@@ -356,15 +360,16 @@ def gac(np.ndarray[np.float32_t, ndim=2, mode='c'] data,
     for i in range(M): ## TODO: could use prange here
         if not s[i].still:
             nmoving += 1
-    printf('niters: %d\n', iteri)
-    printf('nclusters: %d\n', M)
-    printf('sigma: %.3f, rneigh: %.3f, rmerge: %.3f, alpha: %.3f, maxgrad: %d\n',
-           sigma, rneigh, rmerge, alpha, maxgrad)
-    printf('nmoving: %d, minmove: %f\n', nmoving, minmove)
-    printf('still flags:\n[')
-    for i in range(M):
-        printf('%d, ', s[i].still)
-    printf(']\n')
+    if verbose:
+        printf('niters: %d\n', iteri)
+        printf('nclusters: %d\n', M)
+        printf('sigma: %.3f, rneigh: %.3f, rmerge: %.3f, alpha: %.3f, maxgrad: %d\n',
+               sigma, rneigh, rmerge, alpha, maxgrad)
+        printf('nmoving: %d, minmove: %f\n', nmoving, minmove)
+        printf('still flags:\n[')
+        for i in range(M):
+            printf('%d, ', s[i].still)
+        printf(']\n')
 
     free(dims)
     free(ndi)
