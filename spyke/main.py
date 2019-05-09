@@ -92,7 +92,7 @@ LFPTW = -500000, 500000
 SATURATIONWINDOW = 500000 # us
 
 # shift imported KiloSort spike times by this much for better positioning in sort window:
-KILOSORTSHIFTCORRECT = -50 # us
+KILOSORTSHIFTCORRECT = -(66+2.0/3) # us, multiple of both 16.67 or 33.33 .ns6 tres
 
 # spatial channel layout:
 # UVPERUM affects vertical channel spacing and voltage gain (which is further multiplied by
@@ -3305,7 +3305,7 @@ class SpykeWindow(QtGui.QMainWindow):
         spikets = intround(s.t0 + spiketis / s.rawsampfreq * 1e6) # us
 
         # shift KiloSort spike times:
-        print('Shifting KiloSort spike times by %d us for better positioning in sort window'
+        print('Shifting KiloSort spike times by %g us for better positioning in sort window'
               % KILOSORTSHIFTCORRECT)
         spikets = spikets + KILOSORTSHIFTCORRECT
 
