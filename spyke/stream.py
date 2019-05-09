@@ -48,7 +48,7 @@ from .core import (WaveForm, EmptyClass, intround, lrstrip,
 from .core import (DEFHPRESAMPLEX, DEFLPSAMPLFREQ, DEFHPSRFSHCORRECT,
                    DEFHPDATSHCORRECT, DEFDATFILTMETH, DEFHPNSXSHCORRECT, DEFNSXFILTMETH,
                    DEFCAR, BWHPF0, BWLPF1, BWHPORDER, BWLPORDER, LOWPASSFILTERLPSTREAM,
-                   SRFNCHANSPERBOARD, KERNELSIZE, XSWIDEBANDPOINTS)
+                   SRFNCHANSPERBOARD, KERNELSIZE, XSWIDEBANDPOINTS, DATSAMPLEERRPCT)
 
 
 class FakeStream(object):
@@ -413,6 +413,24 @@ class DATStream(Stream):
         # the full self.chans (which are the chans enabled in the stream) until the very end,
         # and only then slice out what is potentially a subset of self.chans using `chans`
         tres, rawtres = self.tres, self.rawtres # float us
+
+        # Only allow start and stop time requests that deviate up to DATSAMPLEERRPCT from the
+        # nearest actual sample timepoint. This avoids roundoff errors for time requests that
+        # fall exactly in between (50%) sample timepoints:
+        # convert to multiples of sample timepoints:
+        floatstarti = start / rawtres
+        floatstopi = stop / rawtres
+        starterrpct = abs(intround(floatstarti) - floatstarti) * 100
+        stoperrpct = abs(intround(floatstopi) - floatstopi) * 100
+        if starterrpct > DATSAMPLEERRPCT:
+            raise ValueError("Requested start time %g us falls too far (%g%%) between actual "
+                             "timepoints sampled at %g us resolution"
+                             % (start, starterrpct, rawtres))
+        if stoperrpct > DATSAMPLEERRPCT:
+            raise ValueError("Requested stop time %g us falls too far (%g%%) between actual "
+                             "timepoints sampled at %g us resolution"
+                             % (stop, stoperrpct, rawtres))
+
         # mintres handles both high-pass data where tres < rawtres, and low-pass decimated
         # data where tres > rawtres:
         mintres = min(tres, rawtres)
