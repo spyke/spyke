@@ -43,9 +43,9 @@ UNIXEPOCH = datetime.datetime(1970, 1, 1, 0, 0, 0) # UNIX epoch: Jan 1, 1970
 
 NULL = b'\x00'
 
-# For .dat and .ns6 files, only allow start and stop time requests that deviate up to
-# DATSAMPLEERRPCT from the nearest actual sample timepoint. This avoids roundoff errors for
-# time requests that fall exactly in between (50%) sample timepoints:
+# For .dat and .nsx files, only allow start and stop time requests that deviate up to
+# DATSAMPLEERRPCT from the nearest (re)sample timepoint. This avoids roundoff errors for
+# time requests that fall exactly in between (50%) (re)sample timepoints:
 DATSAMPLEERRPCT = 40 # percent
 
 DEFDATFILTMETH = 'BW' # default .dat filter method: None, 'BW', 'WMLDR'

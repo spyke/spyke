@@ -418,18 +418,16 @@ class DATStream(Stream):
         # nearest actual sample timepoint. This avoids roundoff errors for time requests that
         # fall exactly in between (50%) sample timepoints:
         # convert to multiples of sample timepoints:
-        floatstarti = start / rawtres
-        floatstopi = stop / rawtres
+        floatstarti = start / tres
+        floatstopi = stop / tres
         starterrpct = abs(intround(floatstarti) - floatstarti) * 100
         stoperrpct = abs(intround(floatstopi) - floatstopi) * 100
         if starterrpct > DATSAMPLEERRPCT:
-            raise ValueError("Requested start time %g us falls too far (%g%%) between actual "
-                             "timepoints sampled at %g us resolution"
-                             % (start, starterrpct, rawtres))
+            raise ValueError("Requested start time %g us falls too far (%g%%) between "
+                             "timepoints at %g us resolution" % (start, starterrpct, tres))
         if stoperrpct > DATSAMPLEERRPCT:
-            raise ValueError("Requested stop time %g us falls too far (%g%%) between actual "
-                             "timepoints sampled at %g us resolution"
-                             % (stop, stoperrpct, rawtres))
+            raise ValueError("Requested stop time %g us falls too far (%g%%) between "
+                             "timepoints at %g us resolution" % (stop, stoperrpct, tres))
 
         # mintres handles both high-pass data where tres < rawtres, and low-pass decimated
         # data where tres > rawtres:
