@@ -53,6 +53,8 @@ NPCSPERCHAN = 7
 PCALIB = 'mdp'
 ICALIB = 'sklearn'
 
+DEFMINISI = 50 # default minimum ISI to check for on export, us
+
 MAXGROUPISI = 100000 # us (100 ms)
 MAXGROUPDT = 100000000 # us (100 s)
 
@@ -297,8 +299,28 @@ class Sort(object):
         std = std[chanis]
         return WaveForm(data=data, std=std, chans=chans)
 
+    def check_ISIs(self, nids='good'):
+        """Check that interspike interval of spikes in each nid never falls below DEFMINISI"""
+        if nids == 'good':
+            nids = self.good
+        elif nids == 'all':
+            nids = self.nids
+        for nid in nids:
+            neuron = self.neurons[nid]
+            spikets = self.spikes['t'][neuron.sids] # should be a sorted copy
+            assert spikets.flags['OWNDATA'] # safe to modify in place
+            spikets.sort() # just in case it isn't perfectly sorted
+            ndupl = (np.diff(spikets) < DEFMINISI).sum()
+            if ndupl > 0:
+                msg = ('n%d has %d duplicate spikes (given DEFMINISI=%d us).\n'
+                       'Remove duplicate spikes with the ISI tool in the Verify tab'
+                       % (nid, ndupl, DEFMINISI))
+                raise RuntimeError(msg)
+
     def exportptcsfiles(self, basepath, sortpath):
         """Export spike data to binary .ptcs files under basepath, one file per recording"""
+        # First check to make sure various things are OK before exporting:
+        self.check_ISIs()
         spikes = self.spikes
         exportdt = str(datetime.datetime.now()) # get an export datetime stamp
         exportdt = exportdt.split('.')[0] # ditch the us
