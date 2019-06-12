@@ -46,7 +46,7 @@ NULL = b'\x00'
 # For .dat and .nsx files, only allow start and stop time requests that deviate up to
 # DATSAMPLEERRPCT from the nearest (re)sample timepoint. This avoids roundoff errors for
 # time requests that fall exactly in between (50%) (re)sample timepoints:
-DATSAMPLEERRPCT = 40 # percent
+DATSAMPLEERRPCT = 49.9 # percent
 
 DEFDATFILTMETH = 'BW' # default .dat filter method: None, 'BW', 'WMLDR'
 DEFNSXFILTMETH = 'BW' # default .nsx filter method: None, 'BW', 'WMLDR'
