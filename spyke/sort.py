@@ -341,10 +341,10 @@ class Sort(object):
             self.exportptcsfile(stream, basepath, dt, exportdt, sortpath)
 
     def exportptcsfile(self, stream, basepath, dt, exportdt, sortpath):
-        """Export spike data to binary .ptcs file in basepath. Constrain to spikes in
-        stream, and undo any time delta in spike times. dt is the integer
-        time difference between start of stream and start of first stream in the track,
-        rounded to the nearest us (spike times are stored as int64 us in .ptcs)"""
+        """Export spike data of all "good" spikes to binary .ptcs file in basepath.
+        Constrain to spikes in stream, and undo any time delta in spike times.
+        dt is the integer time difference between start of stream and start of first stream in
+        the track, rounded to the nearest us (spike times are stored as int64 us in .ptcs)"""
 
         # build up list of PTCSNeuronRecords that have spikes in this stream,
         # and tally their spikes
@@ -369,7 +369,7 @@ class Sort(object):
             nspikes += len(spikets)
         nneurons = len(nrecs)
 
-        # create the header and write everything to file
+        # create the header and write everything to file:
         path = os.path.join(basepath, stream.srcfnameroot)
         try: os.mkdir(path)
         except OSError: pass # path already exists?
