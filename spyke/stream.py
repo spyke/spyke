@@ -1227,11 +1227,7 @@ class MultiStream(object):
 
     def get_ext(self):
         """Get file extension of data source"""
-        try:
-            fnames = self.fnames
-        except AttributeError:
-            fnames = self.srffnames # for .srf-based MultiStream in older sorts
-        return os.path.splitext(fnames[0])[-1] # take extension of first fname
+        return os.path.splitext(self.fnames[0])[-1] # take extension of first fname
 
     ext = property(get_ext)
 

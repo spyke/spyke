@@ -183,10 +183,10 @@ class Detector(object):
 
     chans = property(get_chans, set_chans)
 
-    def get_srffnames(self):
-        return self.sort.stream.srffnames
+    def get_fnames(self):
+        return self.sort.stream.fnames
 
-    srffnames = property(get_srffnames)
+    fnames = property(get_fnames)
 
     def predetect(self, logpath=''):
         """Prepare for spike detection, save log in logpath, defaults to spyke folder

@@ -230,24 +230,10 @@ class Sort(object):
         chans = spikes['chans'][sid, :nchans]
         t0 = spikes['t0'][sid]
         t1 = spikes['t1'][sid]
-        try:
-            wavedata = self.wavedata[sid, 0:nchans]
-            ts = np.arange(t0, t1, self.tres) # build them up
-            return WaveForm(data=wavedata, ts=ts, chans=chans, tres=self.tres)
-        except AttributeError: pass
+        wavedata = self.wavedata[sid, 0:nchans]
+        ts = np.arange(t0, t1, self.tres) # build them up
+        return WaveForm(data=wavedata, ts=ts, chans=chans, tres=self.tres)
 
-        # try getting it from the stream
-        if self.stream == None:
-            raise RuntimeError("No stream open, can't get wave for %s %d" %
-                               (spikes[sid], sid))
-        det = self.detector
-        if det.srffname != self.stream.srffname:
-            msg = ("Spike %d was extracted from .srf file %s.\n"
-                   "The currently opened .srf file is %s.\n"
-                   "Can't get spike %d's wave" %
-                   (sid, det.srffname, self.stream.srffname, sid))
-            raise RuntimeError(msg)
-        return self.stream(t0, t1, chans)
 
     def get_mean_wave(self, sids, nid=None):
         """Return the mean and std waveform of spike waveforms in sids"""
@@ -1522,7 +1508,7 @@ class Neuron(object):
         self.plt = None # Plot currently holding self
         self.cluster = None
         self.good = False # user can mark this neuron as "good" if so desired
-        #self.srffname # not here, let's allow neurons to have spikes from different files?
+        #self.fname # not here, let's allow neurons to have spikes from different files?
 
     def get_chans(self):
         if self.wave.data is None:
