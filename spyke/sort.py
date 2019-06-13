@@ -345,11 +345,37 @@ class Sort(object):
                        'Shift it closer and try again' % (nid, dti))
                 raise RuntimeError(msg)
 
+    def check_wavepadding(self, nids='good', npad=2):
+        """Check if any spikes are edge padded, presumably due to being shifted but not
+        reloaded. For robustness, check for consistent signs of padding across all channels.
+        An edge is considered padded if it does not change over npad datapoints"""
+        print('Checking spike waveform padding')
+        assert npad >= 2 # need at least 2 points to do a diff
+        if nids == 'good':
+            nids = self.good
+        elif nids == 'all':
+            nids = self.nids
+        for nid in nids:
+            neuron = self.neurons[nid]
+            for sid in neuron.sids:
+                wd = self.wavedata[sid] # multichannel waveform data
+                # are left and right edges of wavedata identical for npad number of points?
+                l, r = wd[:, :npad], wd[:, -npad:] # shape (nchans, npad)
+                leftpadded = (np.diff(l, axis=1) == 0).all()
+                rightpadded = (np.diff(r, axis=1) == 0).all()
+                if leftpadded or rightpadded:
+                    msg = ('n%d has s%d that looks like it has been padded.\n'
+                           'leftpadded, rightpadded = %r, %r\n'
+                           'Reload s%d or n%d or all spikes and try again'
+                           % (nid, sid, leftpadded, rightpadded, sid, nid))
+                    raise RuntimeError(msg)
+
     def exportptcsfiles(self, basepath, sortpath):
         """Export spike data to binary .ptcs files under basepath, one file per recording"""
         # First check to make sure various things are OK before exporting:
         self.check_ISIs()
         self.check_wavealign()
+        self.check_wavepadding()
         spikes = self.spikes
         exportdt = str(datetime.datetime.now()) # get an export datetime stamp
         exportdt = exportdt.split('.')[0] # ditch the us
