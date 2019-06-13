@@ -300,7 +300,8 @@ class Sort(object):
         return WaveForm(data=data, std=std, chans=chans)
 
     def check_ISIs(self, nids='good'):
-        """Check that interspike interval of spikes in each nid never falls below DEFMINISI"""
+        """Check that interspike intervals of spikes in each nid never fall below DEFMINISI"""
+        print('Checking inter-spike intervals')
         if nids == 'good':
             nids = self.good
         elif nids == 'all':
@@ -1554,9 +1555,11 @@ class Neuron(object):
 
     def get_wave(self):
         """Check for valid mean and std waveform before returning it"""
-        # many neuron waveforms saved in old .sort files won't have a wave.std field
-        try: self.wave.std
-        except AttributeError: return self.update_wave()
+        # many neuron waveforms saved in old .sort files won't have a wave.std field:
+        try:
+            self.wave.std
+        except AttributeError:
+            return self.update_wave()
         if self.wave == None or self.wave.data is None or self.wave.std is None:
             return self.update_wave()
         else:

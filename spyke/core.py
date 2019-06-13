@@ -1926,6 +1926,7 @@ class SpykeUnpickler(pickle.Unpickler):
         exec('import %s' % newmod)
         return eval('%s.%s' % (newmod, newcls))
 
+
 def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=None,
                    chan_order=None, envelope=None, adaptername=None):
     """Write .json metadata file as a companion to stream's file. For now, stream should be
