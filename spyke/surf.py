@@ -470,14 +470,13 @@ class File(object):
     def pickle(self):
         """Pickle self to a .parse file"""
         print('Saving parse info to %r' % self.parsefname)
-        pf = open(self.join(self.parsefname), 'wb') # can also compress pickle with gzip
-        self._pickle_all_records = True # signal to __getstate__ to pickle all records
-        wasopen = self.is_open()
-        if wasopen:
-            self.close()
-        # pickle self to .parse file, use most efficient (least human readable) protocol:
-        pickle.dump(self, pf, protocol=-1)
-        pf.close()
+        with open(self.join(self.parsefname), 'wb') as pf: # can also compress pickle w/ gzip
+            self._pickle_all_records = True # signal to __getstate__ to pickle all records
+            wasopen = self.is_open()
+            if wasopen:
+                self.close()
+            # pickle self to .parse file, use most efficient (least human readable) protocol:
+            pickle.dump(self, pf, protocol=-1)
         if wasopen:
             self.open() # reopen it
         self._pickle_all_records = False # reset to not pickle all records by default
@@ -486,11 +485,9 @@ class File(object):
     def unpickle(self):
         """Unpickle self from a .parse file"""
         print('Trying to recover parse info from %r' % self.parsefname)
-        pf = open(self.join(self.parsefname), 'rb') # can also uncompress pickle with gzip
-        #self = pickle.load(pf) # NOTE: this doesn't work as intended
-        other = pickle.load(pf)
-        pf.close()
-        for thisstream in [other.hpstream, other.lpstream]: # can't use module name `stream`
+        with open(self.join(self.parsefname), 'rb') as pf: # can also uncompress pickle w/ gzip
+            other = pickle.load(pf)
+        for thisstream in [other.hpstream, other.lpstream]: # avoid using module name `stream`
             if thisstream:
                 thisstream.f = self # rebind self to other's non-None streams
         for name in other.__dict__:

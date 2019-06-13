@@ -2808,7 +2808,8 @@ class SpykeWindow(QtGui.QMainWindow):
         assume wavedata already has the correct 0 voltage offset (i.e., is signed), assume no
         bitshift is required (data is 16 bit, not 12). Assume wavedata is wideband, containing
         both spike and LFP data"""
-        try: f = open(os.path.join(self.streampath, fname), 'rb')
+        try:
+            f = open(os.path.join(self.streampath, fname), 'rb')
         except IOError:
             print("Can't find file %r" % fname)
             return
@@ -2860,7 +2861,8 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def OpenTSFFile_1000(self, fname):
         """Open TSF file, version 1000. Assume wavedata is highpass spike data only"""
-        try: f = open(os.path.join(self.streampath, fname), 'rb')
+        try:
+            f = open(os.path.join(self.streampath, fname), 'rb')
         except IOError:
             print("Can't find file %r" % fname)
             return
@@ -3342,16 +3344,11 @@ class SpykeWindow(QtGui.QMainWindow):
         self.DeleteSort() # delete any existing Sort
         print('Opening sort file %r' % fname)
         t0 = time.time()
-        f = open(os.path.join(self.sortpath, fname), 'rb')
-        #pstring = f.read()
-        #pbytes = bytes(pstring, encoding='latin1')
-        #sort = pickle.loads(pstring, encoding='bytes')
-        #unpickler = core.SpykeUnpickler(f, encoding='latin1', errors='surrogateescape')
-        unpickler = core.SpykeUnpickler(f)
-        sort = unpickler.load()
-        print('Done opening sort file, took %.3f sec' % (time.time()-t0))
-        print('Sort file was %d bytes long' % f.tell())
-        f.close()
+        with open(os.path.join(self.sortpath, fname), 'rb') as f:
+            unpickler = core.SpykeUnpickler(f)
+            sort = unpickler.load()
+            print('Done opening sort file, took %.3f sec' % (time.time()-t0))
+            print('Sort file was %d bytes long' % f.tell())
         sort.fname = fname # update in case file was renamed
         self.sort = sort
 
@@ -3457,11 +3454,10 @@ class SpykeWindow(QtGui.QMainWindow):
         sort = self.sort
         print('Loading spike file %r' % fname)
         t0 = time.time()
-        f = open(os.path.join(self.sortpath, fname), 'rb')
-        spikes = np.load(f)
-        print('Done opening spike file, took %.3f sec' % (time.time()-t0))
-        print('Spike file was %d bytes long' % f.tell())
-        f.close()
+        with open(os.path.join(self.sortpath, fname), 'rb') as f:
+            spikes = np.load(f)
+            print('Done opening spike file, took %.3f sec' % (time.time()-t0))
+            print('Spike file was %d bytes long' % f.tell())
         sort.spikes = spikes
         # when loading a spike file, make sure the nid field is overwritten
         # in the spikes array. The nids in sort.neurons are always the definitive ones:
@@ -3474,15 +3470,14 @@ class SpykeWindow(QtGui.QMainWindow):
         sort = self.sort
         print('Opening wave file %r' % fname)
         t0 = time.time()
-        f = open(os.path.join(self.sortpath, fname), 'rb')
-        try:
-            del sort.wavedata
-            #gc.collect() # ensure memory is freed up to prepare for new wavedata, necessary?
-        except AttributeError: pass
-        wavedata = np.load(f)
-        print('Done opening wave file, took %.3f sec' % (time.time()-t0))
-        print('Wave file was %d bytes long' % f.tell())
-        f.close()
+        with open(os.path.join(self.sortpath, fname), 'rb') as f:
+            try:
+                del sort.wavedata
+                #gc.collect() # ensure memory is freed up to prepare for new wavedata, necessary?
+            except AttributeError: pass
+            wavedata = np.load(f)
+            print('Done opening wave file, took %.3f sec' % (time.time()-t0))
+            print('Wave file was %d bytes long' % f.tell())
         if len(wavedata) != sort.nspikes:
             critical = QtGui.QMessageBox.critical
             critical(self, "Error",
@@ -3515,9 +3510,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.save_clustering_selections()
         self.save_window_states()
         s.fname = fname # bind it now that it's about to be saved
-        f = open(os.path.join(self.sortpath, fname), 'wb')
-        pickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
-        f.close()
+        with open(os.path.join(self.sortpath, fname), 'wb') as f:
+            pickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
         print('Done saving sort file, took %.3f sec' % (time.time()-t0))
         self.updateTitle()
         self.updateRecentFiles(os.path.join(self.sortpath, fname))
@@ -3568,9 +3562,8 @@ class SpykeWindow(QtGui.QMainWindow):
             self.dirtysids.clear() # no longer dirty
         print('Saving spike file %r' % fname)
         t0 = time.time()
-        f = open(os.path.join(self.sortpath, fname), 'wb')
-        np.save(f, s.spikes)
-        f.close()
+        with open(os.path.join(self.sortpath, fname), 'wb') as f:
+            np.save(f, s.spikes)
         print('Done saving spike file, took %.3f sec' % (time.time()-t0))
         s.spikefname = fname # used to indicate that the spikes have been saved
 
@@ -3588,9 +3581,8 @@ class SpykeWindow(QtGui.QMainWindow):
             sids = None # resave all of them for speed
         if sids is None: # write the whole file
             print('Updating all %d spikes in wave file %r' % (s.nspikes, fname))
-            f = open(os.path.join(self.sortpath, fname), 'wb')
-            np.save(f, s.wavedata)
-            f.close()
+            with open(os.path.join(self.sortpath, fname), 'wb') as f:
+                np.save(f, s.wavedata)
         else: # write only sids
             print('Updating %d spikes in wave file %r' % (len(sids), fname))
             core.updatenpyfilerows(os.path.join(self.sortpath, fname), sids, s.wavedata)
