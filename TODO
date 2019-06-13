@@ -1,5 +1,3 @@
-- add F5 (and CTRL+F5) shortcut for spike waveform reload
-
 - add ability to export 0tranges.npy files to each cooked subfolder if 0tranges.npy file exists in .track folder - this allows to later throw out trials with saturation
 
 - WaveForm() object: store timestamps as integer timepoint indices instead of time in us. This fixes occasional roundoff error in searchsorted when slicing by time. Means we also need to store Wave.tres
@@ -1451,6 +1449,7 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
     - ensure minimum ISI to check for duplicate spikes
     - ensure each cluster's primary peak on the max chan is close to t=0 alignment point
     - ensure that none of the spikes of good clusters need reloading
+- add F5 (and CTRL+F5) shortcut for spike waveform reload
 
 
 
