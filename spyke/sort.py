@@ -1169,8 +1169,7 @@ class Sort(object):
         ts = spikes[sids]['t'] # noncontig, not a copy
         # ensure they're in temporal order:
         if not (np.diff(ts) >= 0).all():
-            print("reload_spikes(): sids aren't in temporal order, might slow things down "
-                  "or cause indexing problems, sorting by time...")
+            print("Selected sids aren't in temporal order, sorting by time...")
             tsis = ts.argsort()
             sids = sids[tsis]
             print("Done sorting sids by time")
@@ -2135,8 +2134,9 @@ class SortWindow(SpykeToolWindow):
         toolbar.addAction(actionFindNextMostSimilar)
 
         actionReloadSpikes = QAction(QIcon('res/view-refresh.svg'), 'Reload', self)
-        tt = ('<nobr>Reload selected spikes. If none selected, reload all</nobr>\n'
-              '<nobr><b>CTRL</b> &nbsp; Use mean waveform to choose chans to reload</nobr>')
+        tt = ('<nobr><b>F5</b> &nbsp; Reload waveforms of selected spikes. '
+              'If none selected, reload all</nobr>\n'
+              '<nobr><b>CTRL+F5</b> &nbsp; Use mean waveform to choose chans to reload</nobr>')
         actionReloadSpikes.setToolTip(tt)
         self.connect(actionReloadSpikes, QtCore.SIGNAL('triggered()'),
                      self.on_actionReloadSpikes_triggered)
@@ -2223,6 +2223,8 @@ class SortWindow(SpykeToolWindow):
             self.on_actionFindPrevMostSimilar_triggered()
         elif key == Qt.Key_Period: # ignored in SpykeListViews
             self.on_actionFindNextMostSimilar_triggered()
+        elif key == Qt.Key_F5: # ignored in SpykeListViews
+            self.on_actionReloadSpikes_triggered()
         elif  key == Qt.Key_E: # ignored in SpykeListViews
             if ctrl:
                 self.actionToggleErrors.toggle()
