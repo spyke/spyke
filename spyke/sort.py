@@ -234,6 +234,19 @@ class Sort(object):
         ts = np.arange(t0, t1, self.tres) # build them up
         return WaveForm(data=wavedata, ts=ts, chans=chans, tres=self.tres)
 
+    def get_maxchan_wavedata(self, sid=None, nid=None):
+        """Return wavedata of maxchan of spike sid or neuron nid"""
+        if sid != None:
+            assert nid == None
+            chani = self.spikes['chani'][sid]
+            return self.wavedata[sid, chani]
+        elif nid != None:
+            assert sid == None
+            neuron = self.neurons[nid]
+            chani, = np.where(neuron.chans == neuron.chan)
+            assert len(chani) == 1
+            chani = chani[0] # pull out of length 1 array
+            return neuron.wave.data[chani]
 
     def get_mean_wave(self, sids, nid=None):
         """Return the mean and std waveform of spike waveforms in sids"""
@@ -304,10 +317,39 @@ class Sort(object):
                        % (nid, ndupl, DEFMINISI))
                 raise RuntimeError(msg)
 
+    def check_wavealign(self, nids='good', maxdti=1):
+        """Check that each neurons's primary peak on the max chan is no more than +/- maxdti
+        timepoints away from the t=0 alignment timepoint"""
+        print('Checking neuron mean waveform alignment')
+        if nids == 'good':
+            nids = self.good
+        elif nids == 'all':
+            nids = self.nids
+        nt = self.twi[1] - self.twi[0] + 1 # expected number of points of each chan's wavedata
+        for nid in nids:
+            neuron = self.neurons[nid]
+            wd = self.get_maxchan_wavedata(nid=nid)
+            assert len(wd) == nt
+            # find max and min peaks, check which comes first, ensure the primary peak
+            # is within maxdti of t=0 alignment timepoint
+            mini, maxi = wd.argmin(), wd.argmax()
+            if mini < maxi:
+                peak1 = mini
+            else:
+                peak1 = maxi
+            alignti = 0 - self.twi[0] # +ve
+            dti = peak1 - alignti
+            #print("n%d: dti=%d" % (nid, dti))
+            if abs(dti) > maxdti:
+                msg = ('n%d is %+d timepoints away from the t=0 alignment point. '
+                       'Shift it closer and try again' % (nid, dti))
+                raise RuntimeError(msg)
+
     def exportptcsfiles(self, basepath, sortpath):
         """Export spike data to binary .ptcs files under basepath, one file per recording"""
         # First check to make sure various things are OK before exporting:
         self.check_ISIs()
+        self.check_wavealign()
         spikes = self.spikes
         exportdt = str(datetime.datetime.now()) # get an export datetime stamp
         exportdt = exportdt.split('.')[0] # ditch the us
