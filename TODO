@@ -1,3 +1,5 @@
+- add F5 (and CTRL+F5) shortcut for spike waveform reload
+
 - add ability to export 0tranges.npy files to each cooked subfolder if 0tranges.npy file exists in .track folder - this allows to later throw out trials with saturation
 
 - WaveForm() object: store timestamps as integer timepoint indices instead of time in us. This fixes occasional roundoff error in searchsorted when slicing by time. Means we also need to store Wave.tres
@@ -28,8 +30,6 @@
 - do whitening of raw data? done by Kilosort and spyking-circus
 
 - add export of .clu, .spk and .res files
-
-- add CTRL+R shortcut for spike waveform reload
 
 - try memmaping the .wave file to save RAM
     - open in copy-on-write mode in np.load(mmap_mode='c')?
@@ -1447,6 +1447,10 @@ rename MEANWAVESAMPLESIZE to MEANWAVEMAXSAMPLES, set to 2000, and subsample by s
 - export time ranges of the zeroed out data, if any
     - save 2D array to .npy file?
 - update TUTORIAL.md for new high-pass export to KiloSort
+- add checks on export to ptcs and raise error if they fail
+    - ensure minimum ISI to check for duplicate spikes
+    - ensure each cluster's primary peak on the max chan is close to t=0 alignment point
+    - ensure that none of the spikes of good clusters need reloading
 
 
 
