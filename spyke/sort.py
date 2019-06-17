@@ -330,19 +330,29 @@ class Sort(object):
             neuron = self.neurons[nid]
             wd = self.get_maxchan_wavedata(nid=nid)
             assert len(wd) == nt
-            # find max and min peaks, check which comes first, ensure the primary peak
-            # is within maxdti of t=0 alignment timepoint
-            mini, maxi = wd.argmin(), wd.argmax()
-            if mini < maxi:
-                peak1 = mini
-            else:
-                peak1 = maxi
+            # find biggest positive and negative peaks, check which comes first, ensure
+            # the primary peak is within maxdti of t=0 alignment timepoint:
+            ppeakis, _ = scipy.signal.find_peaks(wd) # positive peak indices
+            npeakis, _ = scipy.signal.find_peaks(-wd) # negative peak indices
+            pmaxi = ppeakis[wd[ppeakis].argmax()] # max positive peak index
+            nmaxi = npeakis[wd[npeakis].argmin()] # max negative peak index
+            if nmaxi < pmaxi: # usual case: -ve then +ve peak
+                peak1i = nmaxi
+            else: # less common: +ve then -ve peak, make sure +ve peak is worthy of alignment
+                pmax, nmax = wd[pmaxi], wd[nmaxi]
+                if pmax > abs(nmax): # +ve peak is bigger than -ve peak, align to +ve peak
+                    peak1i = pmaxi
+                else:
+                    peak1i = nmaxi # default to -ve peak
             alignti = 0 - self.twi[0] # +ve
-            dti = peak1 - alignti
-            #print("n%d: dti=%d" % (nid, dti))
+            dti = peak1i - alignti
+            print("n%d: dti=%d" % (nid, dti))
             if abs(dti) > maxdti:
-                msg = ('n%d is %+d timepoints away from the t=0 alignment point. '
-                       'Shift it closer and try again' % (nid, dti))
+                peak1uV = self.converter.AD2uV(wd[peak1i])
+                peak1us = intround(self.tres*(peak1i-alignti))
+                msg = ('Primary peak (%+d uV @ t=%d us) of n%d is %+d timepoints away from '
+                       'the t=0 us alignment point. Shift it closer and try again'
+                       % (peak1uV, peak1us, nid, dti))
                 raise RuntimeError(msg)
 
     def check_wavepadding(self, nids='good', npad=2):
