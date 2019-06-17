@@ -346,7 +346,7 @@ class Sort(object):
                     peak1i = nmaxi # default to -ve peak
             alignti = 0 - self.twi[0] # +ve
             dti = peak1i - alignti
-            print("n%d: dti=%d" % (nid, dti))
+            #print("n%d: dti=%d" % (nid, dti))
             if abs(dti) > maxdti:
                 peak1uV = self.converter.AD2uV(wd[peak1i])
                 peak1us = intround(self.tres*(peak1i-alignti))
