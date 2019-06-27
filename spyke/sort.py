@@ -373,6 +373,14 @@ class Sort(object):
                 l, r = wd[:, :npad], wd[:, -npad:] # shape (nchans, npad)
                 leftpadded = (np.diff(l, axis=1) == 0).all()
                 rightpadded = (np.diff(r, axis=1) == 0).all()
+                # handle case where spike is right after or right before a 0-padded
+                # region of data due to gaps between experiments:
+                if leftpadded:
+                    if (wd[:, 0] == 0).all():
+                        leftpadded = False
+                if rightpadded:
+                    if (wd[:, -1] == 0).all():
+                        rightpadded = False
                 if leftpadded or rightpadded:
                     msg = ('n%d has s%d that looks like it has been padded.\n'
                            'leftpadded, rightpadded = %r, %r\n'
