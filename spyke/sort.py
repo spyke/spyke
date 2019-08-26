@@ -1333,6 +1333,16 @@ class Sort(object):
         if ver_lte_03:
             print('Fixed time values of %d spikes' % nfixed)
         print('(Re)loaded %d spikes, took %.3f sec' % (len(sids), time.time()-treload))
+
+    def reload_spikes_and_templates(self, sids, usemeanchans=False):
+        self.reload_spikes(sids, usemeanchans=usemeanchans)
+        # update neuron templates:
+        unids = np.unique(self.spikes['nid'][sids])
+        unids = unids[unids != 0] # exclude junk cluster, which doesn't have a neuron
+        neurons = [ self.neurons[nid] for nid in unids ]
+        for neuron in neurons:
+            neuron.update_wave() # update affected mean waveforms
+
     '''
     def get_component_matrix(self, dims=None, weighting=None):
         """Convert spike param matrix into pca/ica data for clustering"""
@@ -2751,16 +2761,10 @@ class SortWindow(SpykeToolWindow):
         usemeanchans = False
         if QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
             usemeanchans = True
-        self.sort.reload_spikes(sids, usemeanchans=usemeanchans)
+        sort.reload_spikes_and_templates(sids, usemeanchans=usemeanchans)
         # add sids to the set of dirtysids to be resaved to .wave file:
         spw.update_dirtysids(sids)
-        # update neuron templates:
-        unids = np.unique(sort.spikes['nid'][sids])
-        unids = unids[unids != 0] # exclude junk cluster, which doesn't have a neuron
-        neurons = [ sort.neurons[nid] for nid in unids ]
-        for neuron in neurons:
-            neuron.update_wave() # update affected mean waveforms
-        # auto-refresh all plots
+        # auto-refresh all plots:
         self.panel.updateAllItems()
 
     def on_actionFindPrevMostSimilar_triggered(self):

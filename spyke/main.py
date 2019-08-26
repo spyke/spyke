@@ -3372,7 +3372,28 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # load .wave file of the same base name:
         sort.wavefname = basefname + '.wave' # update in case of renamed basefname
-        sort.wavedata = self.OpenWaveFile(sort.wavefname)
+        try:
+            sort.wavedata = self.OpenWaveFile(sort.wavefname)
+        except IOError as ioerr:
+            print(ioerr)
+            print('Trying to reload missing waveforms from stream')
+            print('Allocating wavedata array')
+            nspikes = len(sort.spikes)
+            det = sort.detector
+            sort.wavedata = np.zeros((nspikes, det.maxnchansperspike, det.maxnt), dtype=np.int16)
+            # Linux has lazy physical memory allocation. See https://stackoverflow.com/a/27582592.
+            # This forces physical memory allocation, though strangely, doesn't seem to speed
+            # up loading of wavedata. It will fail immediately if physical memory can't be
+            # allocated, which is desirable:
+            sort.wavedata[:] = 0
+            print('wavedata.shape:', sort.wavedata.shape)
+            print('wavedata.nbytes: %.3f GiB' % (sort.wavedata.nbytes / 1024**3))
+            # reload all spikes and templates:
+            sids = sort.spikes['id']
+            self.sort.reload_spikes_and_templates(sids, usemeanchans=False)
+            # add sids to the set of dirtysids to be resaved to .wave file:
+            self.update_dirtysids(sids)
+            print("Don't forget to resave the .sort to generate missing .wave file!")
 
         # try auto-updating sort to latest version:
         if float(sort.__version__) < float(__version__):
