@@ -1374,8 +1374,8 @@ class SpykeWindow(QtGui.QMainWindow):
         <h2><a href=http://spyke.github.io>spyke</a> %s</h2>
         <p>A tool for neuronal waveform visualization and spike sorting</p>
 
-        <p>Copyright &copy; 2008-2017 <a href=http://mspacek.github.io>Martin Spacek</a>,
-                                                                       Reza Lotun<br>
+        <p>Copyright &copy; 2008-2019 <a href=https://mspacek.github.io>Martin Spacek</a>,
+                                                                        Reza Lotun<br>
            <a href=http://swindale.ecc.ubc.ca>Swindale</a> Lab,
            University of British Columbia, Vancouver, Canada<br>
            
