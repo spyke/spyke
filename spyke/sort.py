@@ -22,6 +22,7 @@ from PyQt4.QtGui import QAction, QIcon, QApplication
 
 import numpy as np
 import scipy
+import scipy.signal
 #from scipy.cluster.hierarchy import fclusterdata
 
 import pylab as pl
