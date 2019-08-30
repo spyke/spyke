@@ -368,7 +368,7 @@ class SpykeListView(QtGui.QListView):
         modifiers = event.modifiers()
         ctrldown = bool(modifiers & Qt.ControlModifier)
         ctrlup = not ctrldown
-        if (key in [Qt.Key_A, Qt.Key_N, Qt.Key_M, Qt.Key_G,
+        if (key in [Qt.Key_A, Qt.Key_X, Qt.Key_N, Qt.Key_M, Qt.Key_G,
                     Qt.Key_Equal, Qt.Key_Minus, Qt.Key_Slash,
                     Qt.Key_P, Qt.Key_Backslash, Qt.Key_NumberSign, Qt.Key_F, Qt.Key_R,
                     Qt.Key_E, Qt.Key_B, Qt.Key_BracketLeft, Qt.Key_BracketRight,

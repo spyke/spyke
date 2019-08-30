@@ -1170,6 +1170,8 @@ class SpykeWindow(QtGui.QMainWindow):
             QtGui.QMainWindow.keyPressEvent(self, event) # pass it on
         if key == Qt.Key_A:
             self.ui.plotButton.click()
+        elif key == Qt.Key_X:
+            self.ui.plotXcorrsButton.click()
         elif key == Qt.Key_N:
             self.ui.normButton.click()
         elif key in [Qt.Key_Escape, Qt.Key_E]:

@@ -763,12 +763,12 @@ class GLWidget(QtOpenGL.QGLWidget):
                 self.lookUpZAxis()
             else:
                 self.lookDownZAxis()
-        elif key == Qt.Key_X: # make x axis point out
-            self.rotateXOut()
-        elif key == Qt.Key_Y: # make y axis point right
-            self.rotateYRight()
-        elif key == Qt.Key_Z: # make z axis point up
-            self.rotateZUp()
+        #elif key == Qt.Key_X: # make x axis point out
+        #    self.rotateXOut()
+        #elif key == Qt.Key_Y: # make y axis point right
+        #    self.rotateYRight()
+        #elif key == Qt.Key_Z: # make z axis point up
+        #    self.rotateZUp()
         elif key == Qt.Key_S:
             if event.isAutoRepeat():
                 return # event.ignore()?
@@ -790,8 +790,8 @@ class GLWidget(QtOpenGL.QGLWidget):
             sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
         elif key == Qt.Key_F11:
             self.parent().keyPressEvent(event) # pass it on to parent Cluster window
-        elif key in [Qt.Key_A, Qt.Key_N, Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M, Qt.Key_G,
-                     Qt.Key_Equal, Qt.Key_Minus,
+        elif key in [Qt.Key_A, Qt.Key_X, Qt.Key_N, Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M,
+                     Qt.Key_G, Qt.Key_Equal, Qt.Key_Minus,
                      Qt.Key_Slash, Qt.Key_P, Qt.Key_Backslash, Qt.Key_NumberSign, Qt.Key_R,
                      Qt.Key_Space, Qt.Key_B, Qt.Key_Comma, Qt.Key_Period, Qt.Key_F5,
                      Qt.Key_E, Qt.Key_C, Qt.Key_T, Qt.Key_W]:

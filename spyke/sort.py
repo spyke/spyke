@@ -2208,6 +2208,8 @@ class SortWindow(SpykeToolWindow):
         spw = self.spykewindow
         if key == Qt.Key_A: # ignored in SpykeListViews
             spw.ui.plotButton.click() # same as hitting ENTER in nslist
+        elif key == Qt.Key_X: # ignored in SpykeListViews
+            spw.ui.plotXcorrsButton.click()
         elif key == Qt.Key_N: # ignored in SpykeListViews
             spw.ui.normButton.click()
         elif key == Qt.Key_Escape: # deselect all spikes and all clusters

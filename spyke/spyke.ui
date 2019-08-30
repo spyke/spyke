@@ -1627,7 +1627,7 @@ forget to recalc when you merge/delete/split/renumber clusters!</string>
           </rect>
          </property>
          <property name="toolTip">
-          <string>If 2 neurons selected, plot crosscorrelogram
+          <string>&lt;b&gt;X&lt;/b&gt; &amp;nbsp; If 2 neurons selected, plot crosscorrelogram.
 If 1 neuron selected, plot autocorrelogram</string>
          </property>
          <property name="text">
