@@ -46,7 +46,7 @@ config.TerminalInteractiveShell.pdb = True
 ipshell = InteractiveShellEmbed(display_banner=False, config=config)
 
 from PyQt4 import QtCore, QtGui, uic
-from PyQt4.QtCore import Qt
+from PyQt4.QtCore import Qt, QByteArray
 getSaveFileName = QtGui.QFileDialog.getSaveFileName
 getExistingDirectory = QtGui.QFileDialog.getExistingDirectory
 SpykeUi, SpykeUiBase = uic.loadUiType('spyke.ui')
@@ -3564,8 +3564,10 @@ class SpykeWindow(QtGui.QMainWindow):
         s.windowStates = {}
         for wintype, window in self.windows.items():
             #print('saving state of %s window' % wintype)
-            s.windowGeometries[wintype] = window.saveGeometry()
-            s.windowStates[wintype] = window.saveState()
+            # for compatibility with jsonpickle, instead of saving the QByteArray to the sort,
+            # save its raw data as a (byte) string:
+            s.windowGeometries[wintype] = window.saveGeometry().data()
+            s.windowStates[wintype] = window.saveState().data()
 
     def SaveSpikeFile(self, fname):
         """Save spikes to a .spike file. fname is assumed to be relative to self.sortpath"""
@@ -3744,8 +3746,10 @@ class SpykeWindow(QtGui.QMainWindow):
                                    size=(self.size().width(), self.size().width()))
             self.windows[wintype] = window
             try: # try and load saved window geometry and state from sort
-                window.restoreGeometry(self.sort.windowGeometries[wintype])
-                window.restoreState(self.sort.windowStates[wintype])
+                # for compatibility with jsonpickle, instead of directly loading a QByteArray
+                # from the sort, load its raw data as a (byte) string, then convert:
+                window.restoreGeometry(QByteArray(self.sort.windowGeometries[wintype]))
+                window.restoreState(QByteArray(self.sort.windowStates[wintype]))
             except (AttributeError, KeyError):
                 pass
         self.ShowWindow(wintype) # just show it
