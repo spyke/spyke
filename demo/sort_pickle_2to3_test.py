@@ -1,12 +1,5 @@
-pstring = f.read()
-pbytes = bytes(pstring, encoding='latin1')
-pickle.loads(pbytes, encoding='bytes')
-
-
-#############
-
-
-
+"""Demo typical problems when loading Python2-pickled sort in Python3,
+and working cross-Python solution using jsonpickle"""
 
 def get_data():
     import numpy as np

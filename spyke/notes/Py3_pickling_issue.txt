@@ -1,0 +1,5 @@
+https://stackoverflow.com/questions/24805105/unpickling-python2-datetime-under-python3
+https://www.c-tanzer.at/articles/breaking_py2_pickles_in_py3.html
+https://bugs.python.org/issue22005 - datetime.__setstate__ fails decoding python2 pickle
+https://stackoverflow.com/questions/33596082/load-gensim-word2vec-computed-in-python-2-in-python-3
+https://stackoverflow.com/questions/11305790/pickle-incompatibility-of-numpy-arrays-between-python-2-and-3/11314602#11314602
