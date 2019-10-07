@@ -129,7 +129,7 @@ class File(object):
     datetime = property(get_datetime)
 
     def __getstate__(self):
-        """Don't pickle open .srf file handle on pickle. Also, save space (for .sort files)
+        """Don't pickle open .srf file handle on pickle. Also, save space (for sort files)
         by not pickling all records unless explicitly signalled to do so (for .parse files)
         """
         d = self.__dict__.copy() # copy it cuz we'll be making changes
@@ -143,7 +143,7 @@ class File(object):
             for key in keys:
                 if key in d:
                     del d[key]
-                # else self was probably restored from a .sort, so all of these attribs have
+                # else self was probably restored from a sort, so all of these attribs have
                 # probably already been stripped
         # leave the streams be, since you need them for their enabled chans info
         return d

@@ -824,7 +824,7 @@ class PlotPanel(FigureCanvas):
                 spw.seek(t) # seek to t
             elif button == 3: # right click
                 if spw.has_sort:
-                    print("Channel toggling is disabled when .sort is open")
+                    print("Channel toggling is disabled when sort is open")
                 else:
                     # toggle closest chan, but only when there's no sort:
                     if chan not in spw.chans_enabled: # enable chan

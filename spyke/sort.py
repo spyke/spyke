@@ -62,7 +62,8 @@ MAXGROUPDT = 100000000 # us (100 s)
 
 class Sort(object):
     """A spike sorting session, in which you can detect spikes and sort them into Neurons.
-    A .sort file is a single pickled Sort object"""
+    A .sort file is a single Python2-pickled Sort object. A .json file is a
+    jsonpickle-pickled Sort object"""
     def __init__(self, detector=None, stream=None, tw=None):
         self.__version__ = __version__
         self.fname = ''
@@ -202,7 +203,7 @@ class Sort(object):
         # usids and PCs/ICs can be regenerated from the spikes array.
         for attr in ['spikes', 'wavedata', 'usids', 'X', 'Xhash']:
             # keep _stream during normal pickling for multiprocessing, but remove it
-            # manually when pickling to .sort
+            # manually when pickling to sort file
             try: del d[attr]
             except KeyError: pass
         return d

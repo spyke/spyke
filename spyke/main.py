@@ -24,6 +24,11 @@ import platform
 import time
 import datetime
 import gc
+
+import jsonpickle
+import jsonpickle.ext.numpy as jsonpickle_numpy
+jsonpickle_numpy.register_handlers()
+
 try:
     import cPickle as pickle
 except ImportError:
@@ -262,8 +267,8 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionOpen_triggered(self):
         getOpenFileName = QtGui.QFileDialog.getOpenFileName
-        filter = (".dat, .ns6, .srf, .track, .tsf, .mat, .event & .sort files "
-                  "(*.dat *.ns6 *.srf *.track *.tsf *.mat *.event*.zip *.sort );;"
+        filter = (".dat, .ns6, .srf, .track, .tsf, .mat, .event, .sort & .json files "
+                  "(*.dat *.ns6 *.srf *.track *.tsf *.mat *.event*.zip *.sort *.json);;"
                   "All files (*.*)")
         fname = getOpenFileName(self, caption="Open stream or sort",
                                 directory=self.streampath,
@@ -285,9 +290,9 @@ class SpykeWindow(QtGui.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_actionSaveSortAs_triggered(self):
-        """Save sort to new .sort file"""
-        defaultfname = os.path.join(self.sortpath, self.sort.fname)
-        if self.sort.fname == '': # sort hasn't been previously saved
+        """Save sort to new .sort/.json file"""
+        fname = self.sort.fname
+        if fname == '': # sort hasn't been previously saved
             # generate default fname with hpstream.fname:
             fname = self.hpstream.fname.replace(' ', '_')
             # and datetime:
@@ -295,17 +300,18 @@ class SpykeWindow(QtGui.QMainWindow):
             #dt = dt.split('.')[0] # ditch the us
             #dt = dt.replace(' ', '_')
             #dt = dt.replace(':', '.')
-            #defaultfname += fname + '_' + dt + '.sort'
-            defaultfname += fname + '.sort'
+            #fname += '_' + dt
+            fname += '.json' # add default sort fname extension
+        defaultfname = os.path.join(self.sortpath, fname)
         fname = getSaveFileName(self, caption="Save sort As",
                                 directory=defaultfname,
-                                filter="Sort files (*.sort);;"
+                                filter="Sort files (*.sort *.json);;"
                                        "All files (*.*)")
         fname = str(fname)
         if fname:
             base, ext = os.path.splitext(fname)
-            if ext != '.sort':
-                fname = base + '.sort' # make sure it has .sort extension
+            if ext not in ['.sort', '.json']:
+                raise ValueError('Sort file extension (.sort or .json) must be specified')
             head, tail = os.path.split(fname)
             self.sortpath = head # update sort path
             # make way for new .spike and .wave files
@@ -405,7 +411,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Export "good" spikes to .csv file"""
         sortfname = os.path.join(self.sortpath, self.sort.fname)
         if sortfname == '': # sort hasn't been previously saved
-            raise ValueError('Please save .sort file before exporting to .csv')
+            raise ValueError('Please save sort file before exporting to .csv')
         # generate default fname with sort fname + datetime:
         sortfname = sortfname.replace(' ', '_')
         dt = str(datetime.datetime.now()) # get an export timestamp
@@ -2578,13 +2584,13 @@ class SpykeWindow(QtGui.QMainWindow):
                 self.OpenEventWavesFile(tail)
             elif subext == '.events':
                 self.OpenEventsFile(tail)
-        elif ext == '.sort':
+        elif ext in ['.sort', '.json']:
             self.sortpath = head
             self.OpenSortFile(tail)
         else:
             critical = QtGui.QMessageBox.critical
             critical(self, "Error", "%s is not a .dat, .ns6, .srf, .track, .tsf, .mat, "
-                                    ".event*.zip or .sort file" % fname)
+                                    ".event*.zip, .sort or .json file" % fname)
 
     def OpenStreamFile(self, fname):
         """Open a stream (.dat, .ns6, .srf, .track, or .tsf file) and update display
@@ -2679,7 +2685,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.ui.dynamicNoiseXSpinBox.setValue(DYNAMICNOISEX[ext])
         self.ui.dtSpinBox.setValue(DT[ext])
 
-        # if a .sort file is already open, enable only those channels that were used
+        # if a sort file is already open, enable only those channels that were used
         # by the sort's Detector:
         try:
             enabledchans = self.sort.detector.chans
@@ -3341,16 +3347,26 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Done converting KiloSort events')
 
     def OpenSortFile(self, fname):
-        """Open a Sort from a .sort and .spike and .wave file with the same base name,
+        """Open a sort from a .sort/.json and .spike and .wave file with the same base name,
         restore the stream"""
         self.DeleteSort() # delete any existing Sort
         print('Opening sort file %r' % fname)
+        base, ext = os.path.splitext(fname)
         t0 = time.time()
-        with open(os.path.join(self.sortpath, fname), 'rb') as f:
-            unpickler = core.SpykeUnpickler(f)
-            sort = unpickler.load()
-            print('Done opening sort file, took %.3f sec' % (time.time()-t0))
-            print('Sort file was %d bytes long' % f.tell())
+        if ext == '.sort':
+            if sys.version_info.major > 2:
+                raise RuntimeError('Can only open old Python2-pickled .sort files in Python2')
+            with open(os.path.join(self.sortpath, fname), 'rb') as f:
+                unpickler = core.SpykeUnpickler(f)
+                sort = unpickler.load()
+                nbytes = f.tell()
+        elif ext == '.json':
+            with open(os.path.join(self.sortpath, fname), 'r') as f:
+                sort = jsonpickle.decode(f.read(), keys=True)
+                nbytes = f.tell()
+        print('Done opening sort file, took %.3f sec' % (time.time()-t0))
+        print('Sort file was %d bytes long' % nbytes)
+
         sort.fname = fname # update in case file was renamed
         self.sort = sort
 
@@ -3362,18 +3378,16 @@ class SpykeWindow(QtGui.QMainWindow):
             except AssertionError: # from sort.set_stream()
                 self.DeleteSort() # delete the non-matching sort
                 raise RuntimeError("Open stream doesn't match the one specified in sort")
-        else: # no open stream, need to set uVperum and usperum according to sort type:
-            ext = sort.stream.ext
-            self.uVperum = UVPERUM[ext]
-            self.usperum = USPERUM[ext]
+        else: # no open stream, set uVperum and usperum according to sort's stream type:
+            self.uVperum = UVPERUM[sort.stream.ext]
+            self.usperum = USPERUM[sort.stream.ext]
 
-        basefname = os.path.splitext(fname)[0]
         # load .spike file of the same base name:
-        sort.spikefname = basefname + '.spike' # update in case of renamed basefname
+        sort.spikefname = base + '.spike' # update in case of renamed base fname
         self.OpenSpikeFile(sort.spikefname)
 
         # load .wave file of the same base name:
-        sort.wavefname = basefname + '.wave' # update in case of renamed basefname
+        sort.wavefname = base + '.wave' # update in case of renamed base fname
         try:
             sort.wavedata = self.OpenWaveFile(sort.wavefname)
         except IOError as ioerr:
@@ -3395,7 +3409,7 @@ class SpykeWindow(QtGui.QMainWindow):
             self.sort.reload_spikes_and_templates(sids, usemeanchans=False)
             # add sids to the set of dirtysids to be resaved to .wave file:
             self.update_dirtysids(sids)
-            print("Don't forget to resave the .sort to generate missing .wave file!")
+            print("Don't forget to resave the sort to generate missing .wave file!")
 
         # try auto-updating sort to latest version:
         if float(sort.__version__) < float(__version__):
@@ -3443,26 +3457,26 @@ class SpykeWindow(QtGui.QMainWindow):
         try:
             i = self.ui.componentAnalysisComboBox.findText(s.selCA)
             self.ui.componentAnalysisComboBox.setCurrentIndex(i)
-        except AttributeError: pass # wasn't saved, loading from old .sort file
+        except AttributeError: pass # wasn't saved, loading from old sort file
         # try and restore saved cluster selection:
         try: self.SelectClusters(s.selnids)
-        except AttributeError: pass # wasn't saved, loading from old .sort file
+        except AttributeError: pass # wasn't saved, loading from old sort file
         # try and restore saved sort window channel selection, and manual selection flag:
         try:
             sw.panel.chans_selected = s.selchans
             sw.panel.manual_selection = s.selchansmanual
             # don't save x, y, z dimension selection, leave it at default xyVpp
             # for maximum speed when loading sort file
-        except AttributeError: pass # wasn't saved, loading from old .sort file
+        except AttributeError: pass # wasn't saved, loading from old sort file
         # try and restore saved inclt selection:
         try:
             i = sw.incltComboBox.findText(s.selinclt)
             sw.incltComboBox.setCurrentIndex(i)
-        except AttributeError: pass # wasn't saved, loading from old .sort file
+        except AttributeError: pass # wasn't saved, loading from old sort file
         # try and restore saved npcsperchan selection:
         try:
             sw.nPCsPerChanSpinBox.setValue(s.npcsperchan)
-        except AttributeError: pass # wasn't saved, loading from old .sort file
+        except AttributeError: pass # wasn't saved, loading from old sort file
 
         sw.panel.update_selvrefs()
         sw.panel.draw_refs() # update
@@ -3518,23 +3532,35 @@ class SpykeWindow(QtGui.QMainWindow):
         return self.sort
 
     def SaveSortFile(self, fname):
-        """Save sort to a .sort file. fname is assumed to be relative to self.sortpath"""
-        s = self.sort
-        try: s.spikes
+        """Save sort to .sort/.json file. fname is assumed to be relative to self.sortpath"""
+        sort = self.sort
+        try: sort.spikes
         except AttributeError: raise RuntimeError("Sort has no spikes to save")
-        if not os.path.splitext(fname)[1]: # if it doesn't have an extension
-            fname = fname + '.sort'
-        try: s.spikefname
+        base, ext = os.path.splitext(fname)
+        if ext not in ['.sort', '.json']:
+            raise ValueError('fname missing .sort or .json extension: %r' % fname)
+        try: sort.spikefname
         except AttributeError: # corresponding .spike filename hasn't been generated yet
-            s.spikefname = os.path.splitext(fname)[0] + '.spike'
-        self.SaveSpikeFile(s.spikefname) # always (re)save .spike when saving .sort
+            sort.spikefname = base + '.spike'
+        self.SaveSpikeFile(sort.spikefname) # always (re)save .spike when saving sort
         print('Saving sort file %r' % fname)
         t0 = time.time()
         self.save_clustering_selections()
         self.save_window_states()
-        s.fname = fname # bind it now that it's about to be saved
-        with open(os.path.join(self.sortpath, fname), 'wb') as f:
-            pickle.dump(s, f, protocol=-1) # pickle with most efficient protocol
+        if ext == '.sort':
+            if sys.version_info.major > 2:
+                raise RuntimeError('Can only save old Python2-pickled .sort files in Python2')
+            sort.fname = fname # bind it now that it's about to be saved
+            with open(os.path.join(self.sortpath, fname), 'wb') as f:
+                pickle.dump(sort, f, protocol=-1) # pickle with most efficient protocol
+        elif ext == '.json':
+            sort.fname = fname # bind it now that it's about to be saved
+            frozen = jsonpickle.encode(sort, keys=True, warn=True)
+            with open(os.path.join(self.sortpath, fname), 'w') as f:
+                f.write(frozen)
+        else:
+            raise ValueError('Unknown sort file type: %r' % ext)
+
         print('Done saving sort file, took %.3f sec' % (time.time()-t0))
         self.updateTitle()
         self.updateRecentFiles(os.path.join(self.sortpath, fname))
@@ -3542,7 +3568,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def save_clustering_selections(self):
         """Save state of last user-selected clustering parameters. Unlike parameters such as
         sort.sigma, these parameters aren't bound to the sort during normal operation
-        yet they're useful to restore when .sort file is reopened"""
+        yet they're useful to restore when sort file is reopened"""
         s = self.sort
         sw = self.windows['Sort'] # should be open if s.spikes exists
         s.selCA = str(self.ui.componentAnalysisComboBox.currentText())
@@ -3558,7 +3584,7 @@ class SpykeWindow(QtGui.QMainWindow):
             pass
 
     def save_window_states(self):
-        """Save window geometries and states (toolbar positions, etc.) to .sort file"""
+        """Save window geometries and states (toolbar positions, etc.) to sort file"""
         s = self.sort
         s.windowGeometries = {}
         s.windowStates = {}
@@ -3571,32 +3597,33 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def SaveSpikeFile(self, fname):
         """Save spikes to a .spike file. fname is assumed to be relative to self.sortpath"""
-        s = self.sort
-        try: s.spikes
+        sort = self.sort
+        try: sort.spikes
         except AttributeError: raise RuntimeError("Sort has no spikes to save")
-        if not os.path.splitext(fname)[1]: # if it doesn't have an extension
-            fname = fname + '.spike'
-        try: s.wavefname
+        base, ext = os.path.splitext(fname)
+        if ext != '.spike':
+            raise ValueError('fname extension must be .spike: %r' % fname)
+        try: sort.wavefname
         except AttributeError: # corresponding .wave file hasn't been created yet
-            wavefname = os.path.splitext(fname)[0] + '.wave'
-            # only write whole .wave file if missing s.wavefname attrib:
+            wavefname = base + '.wave'
+            # only write whole .wave file if missing sort.wavefname attrib:
             self.SaveWaveFile(wavefname)
             self.dirtysids.clear() # shouldn't be any, but clear anyway just in case
         if len(self.dirtysids) > 0:
-            self.SaveWaveFile(s.wavefname, sids=self.dirtysids)
+            self.SaveWaveFile(sort.wavefname, sids=self.dirtysids)
             self.dirtysids.clear() # no longer dirty
         print('Saving spike file %r' % fname)
         t0 = time.time()
         with open(os.path.join(self.sortpath, fname), 'wb') as f:
-            np.save(f, s.spikes)
+            np.save(f, sort.spikes)
         print('Done saving spike file, took %.3f sec' % (time.time()-t0))
-        s.spikefname = fname # used to indicate that the spikes have been saved
+        sort.spikefname = fname # used to indicate that the spikes have been saved
 
     def SaveWaveFile(self, fname, sids=None):
         """Save waveform data to a .wave file. Optionally, update only sids
         in existing .wave file. fname is assumed to be relative to self.sortpath"""
-        s = self.sort
-        try: s.wavedata
+        sort = self.sort
+        try: sort.wavedata
         except AttributeError: return # no wavedata to save
         if not os.path.splitext(fname)[1]: # if it doesn't have an extension
             fname = fname + '.wave'
@@ -3605,14 +3632,14 @@ class SpykeWindow(QtGui.QMainWindow):
         if sids is not None and len(sids) >= NDIRTYSIDSTHRESH:
             sids = None # resave all of them for speed
         if sids is None: # write the whole file
-            print('Updating all %d spikes in wave file %r' % (s.nspikes, fname))
+            print('Updating all %d spikes in wave file %r' % (sort.nspikes, fname))
             with open(os.path.join(self.sortpath, fname), 'wb') as f:
-                np.save(f, s.wavedata)
+                np.save(f, sort.wavedata)
         else: # write only sids
             print('Updating %d spikes in wave file %r' % (len(sids), fname))
-            core.updatenpyfilerows(os.path.join(self.sortpath, fname), sids, s.wavedata)
+            core.updatenpyfilerows(os.path.join(self.sortpath, fname), sids, sort.wavedata)
         print('Done saving wave file, took %.3f sec' % (time.time()-t0))
-        s.wavefname = fname
+        sort.wavefname = fname
 
     def DeleteSort(self):
         """Delete any existing Sort"""
@@ -3907,7 +3934,7 @@ class SpykeWindow(QtGui.QMainWindow):
         except AttributeError: enable = False # self.sort doesn't exist yet
         self.extract_pane.Enable(enable)
         try: self.sort.extractor
-        except AttributeError: enable = False # no params extracted, or .sort doesn't exist
+        except AttributeError: enable = False # no params extracted, or sort doesn't exist
         self.cluster_pane.Enable(enable)
         try:
             if len(self.sort.clusters) == 0: enable = False # no clusters exist yet
