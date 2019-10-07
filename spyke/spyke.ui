@@ -2379,6 +2379,9 @@ or remove all duplicate spikes from selected neurons
    <property name="toolTip">
     <string>Save sort As</string>
    </property>
+   <property name="shortcut">
+    <string>Ctrl+Shift+S</string>
+   </property>
    <property name="iconVisibleInMenu">
     <bool>true</bool>
    </property>
