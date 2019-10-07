@@ -1157,8 +1157,8 @@ class MultiStream(object):
             assert len(stream.tranges) == 1
             t0, t1 = stream.tranges[0]
             streamnt = (t1 - t0) / rawtres
-            assert streamnt % 1 == 0 # ensure integer num of timepoints between t0 and t1
-            streamnt = int(streamnt)
+            assert streamnt % 1 < 1e-6 # ensure very nearly integer nt between t0 and t1
+            streamnt = intround(streamnt)
             t0 = intround(t0 / rawtres) * rawtres
             t1 = t0 + streamnt * rawtres
             tranges.append([dt+t0, dt+t1])
