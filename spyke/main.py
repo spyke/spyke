@@ -4,12 +4,7 @@ from __future__ import division
 from __future__ import print_function
 
 import sys
-if sys.version_info.major > 2:
-    print
-    print("WARNING!!!: You're running spyke in Python 3.x., currently unsupported.\n"
-          "            spyke only saves and loads .sort files correctly in Python 2.7.x,\n"
-          "            don't attempt to do so in Python 3.x!")
-    input('Hit ENTER to continue...')
+print('Running spyke in Python %d.%d' % (sys.version_info.major, sys.version_info.minor))
 
 __authors__ = ['Martin Spacek', 'Reza Lotun']
 
