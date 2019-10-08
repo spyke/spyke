@@ -895,6 +895,8 @@ class SpykeWindow(QtGui.QMainWindow):
             v = self.update_1_2_to_1_3()
         if v == 1.3:
             v = self.update_1_3_to_1_4()
+        if v == 1.4:
+            v = self.update_1_4_to_2_0()
         print('Now save me!')
             
     def update_0_3_to_0_4(self):
@@ -1147,6 +1149,25 @@ class SpykeWindow(QtGui.QMainWindow):
                 wave.tres = tres
         s.__version__ = '1.4' # update
         print('Done updating sort from version 1.3 to 1.4')
+        return float(s.__version__)
+
+
+    def update_1_4_to_2_0(self):
+        """Update sort 1.4 to 2.0:
+            - mostly just to document new support for jsonpickle .json sort files
+            - store window state QByteArray rawdata instead of full object
+        """
+        print('Updating sort from version 1.4 to 2.0')
+        s = self.sort
+        for wintype in s.windowGeometries:
+            # for compatibility with jsonpickle, instead of saving the QByteArray to the sort,
+            # save its raw data as a (byte) string:
+            s.windowGeometries[wintype] = s.windowGeometries[wintype].data()
+            s.windowStates[wintype] = s.windowStates[wintype].data()
+        s.__version__ = '2.0' # update
+        print('Done updating sort from version 1.4 to 2.0.\n'
+              'Consider saving as .json instead of .sort\n'
+              'Click "File->Save Sort As" and then change the extension to .json')
         return float(s.__version__)
 
     @QtCore.pyqtSlot()
