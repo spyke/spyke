@@ -304,16 +304,24 @@ class SpykeWindow(QtGui.QMainWindow):
                                        "All files (*.*)")
         fname = str(fname)
         if fname:
-            base, ext = os.path.splitext(fname)
+            head, tail = os.path.split(fname)
+            base, ext = os.path.splitext(tail)
             if ext not in ['.sort', '.json']:
                 raise ValueError('Sort file extension (.sort or .json) must be specified')
-            head, tail = os.path.split(fname)
-            self.sortpath = head # update sort path
-            # make way for new .spike and .wave files
-            try: del self.sort.spikefname
-            except AttributeError: pass
-            try: del self.sort.wavefname
-            except AttributeError: pass
+            oldsortpath = self.sortpath
+            oldbase, oldext = os.path.splitext(self.sort.fname)
+            # don't force re-creation of new .spike and .wave files if only the extension
+            # has changed from .sort to .json:
+            dotsort2dotjson = (oldext == '.sort' and ext == '.json')
+            if dotsort2dotjson and head == oldsortpath and base == oldbase:
+                pass
+            else: # force re-creation of .spike and .wave files
+                self.sortpath = head # update sort path
+                # make way for new .spike and .wave files:
+                try: del self.sort.spikefname
+                except AttributeError: pass
+                try: del self.sort.wavefname
+                except AttributeError: pass
             self.SaveSortFile(tail)
 
     @QtCore.pyqtSlot()
