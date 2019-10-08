@@ -933,7 +933,7 @@ class Sort(object):
         """Return MD5 hex digest of args, for uniquely identifying the matrix resulting
         from dimension reduction of spike data"""
         h = hashlib.md5()
-        h.update(kind)
+        h.update(kind.encode())
         h.update(sids)
         h.update(tis)
         h.update(chans)
