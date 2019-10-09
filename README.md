@@ -34,6 +34,7 @@ spyke requires recent versions of the following to be installed:
 * [MDP](http://mdp-toolkit.sourceforge.net)
 * [scikit-learn](http://scikit-learn.org)
 * [PyWavelets](http://www.pybytes.com/pywavelets)
+* [jsonpickle](http://jsonpickle.github.io) 1.2
 
 spyke is developed in [Xubuntu](http://xubuntu.org) 16.04. It should work in other Linux
 distributions, and is known to work in OSX. In principle, it should also work in Windows.
