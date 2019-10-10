@@ -1,3 +1,21 @@
+- switch to kilosort2 integration
+
+- add horizontal plane or line in cluster window to show start/end of track/series
+
+- check non alignment sometimes of MPL window bins (autocorr, point distributions, etc.) to ticks and/or 0 timepoint
+
+- export separation/overlap measure for each pair of units
+    - LB: look at Hill2011 again
+    - two birds one stone to make it easy to quickly restore previously manually specified optimal projection of cell pair, and also make it easy to export cell pair separation/overlap metrics:
+        - have some kind of functionality that saves the optimal projection (chans, timepoints, normalization, dimension reduction method) for each cluster pair (say hit the O key?) when comparing two clusters and deciding that you're happy with the separation in that projection, and that projection is what caused you to decide that that pair of clusters is separate enough. Then when you go back later to compare clusters again, you can quickly find the optimal projection (say hit the P key?) without having to manually hunt for it
+        - optimal projections is some dict, say optproj, whose key is the unit ID you're currently comparing to other nearby units, and value is a dict of dicts with keyval pairs
+        {other_nid_1:{'chans':ndarray, 'tis':ndarray, 'dims':list_of_strings', component_analysis:'PCA', 3Dsep':0.989, '1Dsep':1.307, 'overlap_area_ratio':0.086, 'DJS':0.886},
+         other_nid_2:{'3Dsep':0.91, '1Dsep':1.2, 'overlap_area_ratio':0.1, 'DJS':0.82}, ...
+         }
+            - then when the unit identity is changed (split/merge/delete), need to go delete its key in the optproj dict, in addition to clearing its good flag
+        - on export, somehow add this optproj dict to the .ptcs file header as just a string repr, with an associated len field preceding it, as always 8-byte aligned. The the string repr can be eval'd when reading the .ptcs file to reconstruct the pairwise metrics. Could also make it a simpler 2D array, but that would be less explicit
+    - or ditch .ptcs comletely and switch to .json for spike export, even for mean waveforms??? Probably not that much less efficient, but much more readable?
+
 - add ability to export 0tranges.npy files to each cooked subfolder if 0tranges.npy file exists in .track folder - this allows to later throw out trials with saturation
 
 - WaveForm() object: store timestamps as integer timepoint indices instead of time in us. This fixes occasional roundoff error in searchsorted when slicing by time. Means we also need to store Wave.tres
