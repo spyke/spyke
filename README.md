@@ -22,7 +22,7 @@ copied from Ubuntu's [Humanity](http://launchpad.net/humanity) icon theme.
 
 spyke requires recent versions of the following to be installed:
 
-* [Python](http://python.org) (2.7.x, not quite yet compatible with 3.x)
+* [Python](http://python.org) (2.7.x; 3.x works but not fully tested)
 * [IPython](http://ipython.org)
 * [numpy](http://numpy.org) 1.13
 * [scipy](http://scipy.org)
