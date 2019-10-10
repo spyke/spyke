@@ -1,3 +1,6 @@
+- fix mysterious .json sort file cross-machine bug/incompatibility
+    - see: https://github.com/jsonpickle/jsonpickle/issues/182
+
 - switch to kilosort2 integration
 
 - add horizontal plane or line in cluster window to show start/end of track/series
