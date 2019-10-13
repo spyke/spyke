@@ -1659,7 +1659,7 @@ class Neuron(object):
         # update self's Waveform object
         self.wave.data = meanwave.data
         self.wave.std = meanwave.std
-        self.wave.ts = sort.twts # meanwave has no .ts
+        self.wave.ts = sort.twts.copy() # meanwave has no .ts, copy for clean jsonpickle
         self.wave.chans = meanwave.chans
         self.wave.tres = sort.tres # meanwave has no .tres
         return self.wave

@@ -1098,7 +1098,7 @@ def eucd(coords):
     http://aspn.activestate.com/ASPN/Cookbook/Python/Recipe/498246
     on 2006/11/11
     """
-    coords = np.asarray(coords)
+    coords = np.array(coords)
     n, m = coords.shape
     delta = np.zeros((n, n), dtype=np.float64)
     for d in range(m):

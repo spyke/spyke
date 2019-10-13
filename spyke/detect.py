@@ -146,7 +146,7 @@ class DistanceMatrix(object):
         chans_coords = list(SiteLoc.items()) # list of (chan, coords) tuples
         chans_coords.sort() # sort by chan
         # pull out the sorted chans:
-        self.chans = np.asarray([ chan_coord[0] for chan_coord in chans_coords ])
+        self.chans = np.array([ chan_coord[0] for chan_coord in chans_coords ])
         # pull out the coords, now in chan order:
         self.coords = [ chan_coord[1] for chan_coord in chans_coords ]
         self.data = eucd(self.coords)
@@ -203,9 +203,10 @@ class Detector(object):
         self.nspikes = 0
         # get an nchan*2 array of [chani, x/ycoord]:
         xycoords = [ self.enabledSiteLoc[chan] for chan in self.chans ] # (x, y) in chan order
-        xcoords = np.asarray([ xycoord[0] for xycoord in xycoords ])
-        ycoords = np.asarray([ xycoord[1] for xycoord in xycoords ])
-        self.siteloc = np.asarray([xcoords, ycoords]).T # index into with chani to get (x, y)
+        xcoords = np.array([ xycoord[0] for xycoord in xycoords ])
+        ycoords = np.array([ xycoord[1] for xycoord in xycoords ])
+        siteloc = np.array([xcoords, ycoords]).T # index with chani to get (x, y)
+        self.siteloc = siteloc.copy() # for clean jsonpickle
 
         if DEBUG:
             # print detection info and debug msgs to file, and info msgs to screen
@@ -324,11 +325,11 @@ class Detector(object):
         self.logger.debug(msg)
 
     def calc_chans(self):
-        """Calculate lockout and inclusion chan neighbourhoods, max number of chans to use,
-        and define the spike record dtype"""
+        """Calculate inclusion chan neighbourhoods and max number of chans to use per spike"""
         sort = self.sort
         self.enabledSiteLoc = {}
         for chan in self.chans: # for all enabled chans
+            chan = int(chan) # convert from np.int64 for clean jsonpickle
             self.enabledSiteLoc[chan] = sort.stream.probe.SiteLoc[chan] # get its (x, y)
         # distance matrix for the chans enabled for this search, sorted by chans:
         self.dm = DistanceMatrix(self.enabledSiteLoc)
@@ -337,7 +338,8 @@ class Detector(object):
         maxnchansperspike = 0
         for chani, distances in enumerate(self.dm.data): # iterate over rows of distances
             # at what col indices does the returned row fall within inclr?:
-            inclchanis, = np.where(distances <= self.inclr)
+            inclchanis, = np.where(distances <= self.inclr) # doesn't own memory, has .base
+            inclchanis = inclchanis.copy() # for clean jsonpickle
             self.inclnbhdi[chani] = inclchanis
             maxnchansperspike = max(maxnchansperspike, len(inclchanis))
         self.maxnchansperspike = maxnchansperspike
@@ -755,7 +757,7 @@ class Detector(object):
             es = range(t0, t1, bs) # left edges of data blocks
             for e in es:
                 br.append([e-bx, e+bs+bx]) # time range to give to .searchblock()
-            br = np.asarray(br)
+            br = np.array(br)
             # limit br to trange
             br[0, 0], br[-1, 1] = trange[0], trange[1]
             blockranges.append(br)
@@ -763,7 +765,7 @@ class Detector(object):
         blockranges = np.concatenate(blockranges)
         # limit blockranges to self.trange
         blockranges[0, 0], blockranges[-1, 1] = self.trange[0], self.trange[1]
-        return np.asarray(blockranges)
+        return np.array(blockranges)
 
     def get_thresh(self):
         """Return array of thresholds in AD units, one per chan in self.chans,
