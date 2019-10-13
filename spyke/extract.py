@@ -106,8 +106,8 @@ class SpatialLeastSquares(object):
             print(err)
             import pdb; pdb.set_trace()
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-        s, = abs(self.p) # keep sigma +ve
-        self.sx, self.sy = s, s
+        s = abs(self.p) # keep sigma +ve
+        self.sx, self.sy = s[0], s[0] # same vals, unique refs for jsonpickle
         if self.debug:
             print('iters took %.3f sec' % (time.clock()-t0))
             print('p0 = %r' % self.p0)
@@ -128,8 +128,8 @@ class SpatialLeastSquares(object):
             print(err)
             import pdb; pdb.set_trace()
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-        s, = abs(self.p) # keep sigma +ve
-        self.sx, self.sy = s, s
+        s = abs(self.p) # keep sigma +ve
+        self.sx, self.sy = s[0], s[0] # same vals, unique refs for jsonpickle
         if self.debug:
             print('iters took %.3f sec' % (time.clock()-t0))
             print('p0 = %r' % self.p0)
@@ -190,13 +190,13 @@ class SpatialLeastSquares(object):
 
     def model_sy(self, p, f, y):
         """1D Gaussian along y, with s free"""
-        s, = p
-        return self.A * f(self.y0, s, y)
+        sy, = p
+        return self.A * f(self.y0, sy, y)
 
     def model_s(self, p, f, x, y):
         """2D Gaussian, with s (sx == sy) free"""
-        s, = p
-        return self.A * f(self.x0, self.y0, s, s, x, y)
+        sx, sy = p[0], p[0] # same vals, unique refs for jsonpickle
+        return self.A * f(self.x0, self.y0, sx, sy, x, y)
 
     def model_sxsy(self, p, f, x, y):
         """2D Gaussian, with sx and sy free"""
