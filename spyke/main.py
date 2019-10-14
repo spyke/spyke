@@ -312,19 +312,23 @@ class SpykeWindow(QtGui.QMainWindow):
                 raise ValueError('Sort file extension (.sort or .json) must be specified')
             oldsortpath = self.sortpath
             oldbase, oldext = os.path.splitext(self.sort.fname)
-            # don't force re-creation of new .spike and .wave files if only the extension
-            # has changed from .sort to .json:
-            dotsort2dotjson = (oldext == '.sort' and ext == '.json')
-            if dotsort2dotjson and head == oldsortpath and base == oldbase:
+            # Don't force re-creation of new .wave file if the base name and path
+            # are the same and the .wave file already exists. This means that when
+            # overwriting a sort file with SaveAs, its .wave file is untouched:
+            try:
+                wavefileexists = os.path.exists(os.path.join(head, self.sort.wavefname))
+            except AttributeError: # self.sort.wavefname not set
+                wavefileexists = False # at least as far as this Sort is concerned
+            if head == oldsortpath and base == oldbase and wavefileexists:
+                print('Skipping overwriting of existing .wave file: %s' % self.sort.wavefname)
                 pass
-            else: # force re-creation of .spike and .wave files
+            else: # force re-creation of .wave file
                 self.sortpath = head # update sort path
-                # make way for new .spike and .wave files:
-                try: del self.sort.spikefname
-                except AttributeError: pass
-                try: del self.sort.wavefname
-                except AttributeError: pass
-            self.SaveSortFile(tail)
+                try:
+                    del self.sort.wavefname
+                except AttributeError:
+                    pass
+            self.SaveSortFile(tail) # always overwrites any existing .spike file
 
     @QtCore.pyqtSlot()
     def on_actionSaveTrackChans_triggered(self):
