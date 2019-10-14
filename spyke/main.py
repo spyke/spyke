@@ -3573,13 +3573,20 @@ class SpykeWindow(QtGui.QMainWindow):
         t0 = time.time()
         self.save_clustering_selections()
         self.save_window_states()
-        if ext == '.sort':
+        if ext == '.sort': # save sort as Python2 pickle in .sort file
             if sys.version_info.major > 2:
                 raise RuntimeError('Can only save old Python2-pickled .sort files in Python2')
             sort.fname = fname # bind it now that it's about to be saved
             with open(os.path.join(self.sortpath, fname), 'wb') as f:
                 pickle.dump(sort, f, protocol=-1) # pickle with most efficient protocol
-        elif ext == '.json':
+        elif ext == '.json': # save sort as cross-Python jsonpickle .json file
+            """NOTES:
+            - numeric_keys=True has no effect on frozen output, down to the byte
+            - make_refs=False prevents nested objects from being pickled, e.g. get
+              '<spyke.sort.Neuron object at 0x7f4c1118cf90>' as a str instead of obj
+            - reset=False replace object references (with e.g. keys like 'py/id':1234)
+              with proxy repr strings, e.g. '<jsonpickle.unpickler._IDProxy at 0x7ff6d6518190>' instead of an actual value like 56.08
+            """
             sort.fname = fname # bind it now that it's about to be saved
             frozen = jsonpickle.encode(sort, keys=True, warn=True)
             with open(os.path.join(self.sortpath, fname), 'w') as f:
