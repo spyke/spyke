@@ -31,7 +31,7 @@ try:
 except ImportError:
     import pickle
 import random
-from copy import copy
+from copy import copy, deepcopy
 from struct import unpack
 from collections import OrderedDict as odict
 
@@ -3589,10 +3589,12 @@ class SpykeWindow(QtGui.QMainWindow):
             - make_refs=False prevents nested objects from being pickled, e.g. get
               '<spyke.sort.Neuron object at 0x7f4c1118cf90>' as a str instead of obj
             - reset=False replace object references (with e.g. keys like 'py/id':1234)
-              with proxy repr strings, e.g. '<jsonpickle.unpickler._IDProxy at 0x7ff6d6518190>' instead of an actual value like 56.08
+              with proxy repr strings, e.g. '<jsonpickle.unpickler._IDProxy at 0x7ff6d6518190>'
+              instead of an actual value like 56.08
             """
             sort.fname = fname # bind it now that it's about to be saved
-            frozen = jsonpickle.encode(sort, keys=True, warn=True)
+            sortcopy = deepcopy(sort)
+            frozen = jsonpickle.encode(sortcopy, keys=True, warn=True)
             with open(os.path.join(self.sortpath, fname), 'w') as f:
                 f.write(frozen)
         else:

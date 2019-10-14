@@ -9,8 +9,6 @@
     - lots of numpy scalars, would be cleaner to convert to builtin float/int, search for "value":
         - maybe just do a deepcopy of sort on every save
         - lots of float32 values, should convert to float
-    - drop into pdb in jsonpickle/ext/numpy.py to check why big files give error when saving from .sort to .json (but seemingly not when saving from big detection directly to .json):
-        UserWarning: ndarray is defined by reference to an object we do not know how to serialize. A deep copy is serialized instead, breaking memory aliasing.
 
 - switch to kilosort2 integration
 
