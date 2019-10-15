@@ -934,6 +934,7 @@ class ClusterChange(object):
         self.newnorder = copy(newnorder)
         self.newgood = copy(newgood)
 
+
 def get_sha1(fname, blocksize=2**20):
     """Gets the sha1 hash of file designated by fname (with full path)"""
     m = hashlib.sha1()

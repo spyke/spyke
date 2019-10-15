@@ -1163,8 +1163,8 @@ class MultiStream(object):
             t1 = t0 + streamnt * rawtres
             tranges.append([dt+t0, dt+t1])
         self.tranges = np.asarray(tranges)
-        self.t0 = self.tranges[0, 0] # float us
-        self.t1 = self.tranges[-1, 1] # float us
+        self.t0 = float(self.tranges[0, 0]) # us, convert from float64 for clean jsonpickle
+        self.t1 = float(self.tranges[-1, 1]) # us, convert from float64 for clean jsonpickle
 
         # set filtmeth, car, sampfreq, and shcorrect for all streams:
         streamtype = type(streams[0])

@@ -279,11 +279,13 @@ class Extractor(object):
         self.XYmethod = XYmethod # or DEFXYMETHOD
         self.choose_XY_fun()
         self.maxsigma = maxsigma # for sx and sy, in um
+        self.set_fit_objects()
+
+    def set_fit_objects(self):
+        """Set fit objects. Their attribute values are useful only during fitting,
+        afterwards they're no longer relevant and should be reset to default"""
         self.sls = SpatialLeastSquares(self.debug)
         self.tls = TemporalLeastSquares(self.debug)
-        # best wave coeffs according kstest of wavedec of full ptc18.14 sort,
-        # using Haar wavelets:
-        #self.ksis = [41, 11, 39, 40, 20]
 
     def choose_XY_fun(self):
         if self.XYmethod == 'Gaussian 1D':
@@ -301,6 +303,7 @@ class Extractor(object):
             raise ValueError("Unknown XY parameter extraction method %r" % self.XYmethod)
 
     def __getstate__(self):
+        self.set_fit_objects() # ensure fit objects are set to default for clean jsonpickle
         d = self.__dict__.copy() # copy it cuz we'll be making changes
         del d['weights2spatial'] # can't pickle an instance method, not sure why it even tries
         return d

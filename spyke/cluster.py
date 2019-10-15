@@ -50,7 +50,7 @@ class Cluster(object):
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy()
-        # don't save any temporary PCA/ICA positions
+        # don't save any PCA/ICA positions, too transient to be useful:
         pos = self.pos.copy() # don't modify original
         normpos = self.normpos.copy() # don't modify original
         assert sorted(pos) == sorted(normpos) # make sure they have same set of keys
@@ -96,29 +96,32 @@ class Cluster(object):
             # data from neuron's spikes, potentially subsample of them,
             # copied for in-place normalization:
             subdata = np.float64(data[sids].copy())
-            # update unnormalized position
-            self.pos[dim] = np.median(subdata)
-            # calculate mean and std for normalization
-            try: mean = sort.means[dim]
+            # update unnormalized position:
+            self.pos[dim] = float(np.median(subdata)) # from np.float64 for clean jsonpickle
+            # calculate mean and std for normalization:
+            try:
+                mean = sort.means[dim]
             except KeyError:
                 mean = data.mean()
-                sort.means[dim] = mean # save to pre-calc
+                sort.means[dim] = float(mean) # save, from np.float for clean jsonpickle
             if dim in ['x0', 'y0'] and sort.probe.ncols > 1: # norm spatial params by x0 std
-                try: std = sort.stds['x0']
+                try:
+                    std = sort.stds['x0']
                 except KeyError:
                     std = spikes['x0'].std()
-                    sort.stds['x0'] = std # save to pre-calc
+                    sort.stds['x0'] = float(std) # save, from np.float for clean jsonpickle
             else: # normalize all other params by their std
-                try: std = sort.stds[dim]
+                try:
+                    std = sort.stds[dim]
                 except KeyError:
                     std = data.std()
-                    sort.stds[dim] = std # save to pre-calc
-            # now do the actual normalization
+                    sort.stds[dim] = float(std) # save, from np.float for clean jsonpickle
+            # now do the actual normalization:
             subdata -= mean
             if std != 0:
                 subdata /= std
-            # update normalized position
-            self.normpos[dim] = np.median(subdata)
+            # update normalized position:
+            self.normpos[dim] = float(np.median(subdata)) # from float64 for clean jsonpickle
 
     def update_comppos(self, X, sids, nsamples=CLUSTERPARAMMAXSAMPLES):
         """Update unnormalized and normalized component analysis (PCA/ICA) values for

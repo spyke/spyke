@@ -1761,7 +1761,8 @@ class SpykeWindow(QtGui.QMainWindow):
         chanpos = np.asarray(dm.coords) # positions of enabled chans
         # Euclidean chan distances from meanpos:
         d = np.sqrt(np.sum((chanpos - meanpos)**2, axis=1))
-        selchans = sorted(dm.chans[d <= sx]) # chans within sx of meanpos
+        # chans within sx of meanpos:
+        selchans = sorted(dm.chans[d <= sx].tolist()) # from int64 to list for clean jsonpickle
         print('Selection center: %.1f, %.1f um' % (meanpos[0], meanpos[1]))
         print('Selection radius: %.1f um' % sx)
         panel.chans_selected = selchans
@@ -3290,6 +3291,9 @@ class SpykeWindow(QtGui.QMainWindow):
             lockchans = chans[lockchaniis]
             nlockchans = len(lockchans)
             s['lockchans'][:nlockchans], s['nlockchans'] = lockchans, nlockchans
+
+        # spatial localization is done, reset fit objects for clean jsonpickle:
+        sort.extractor.set_fit_objects()
 
         print() # newline
         preject = nreject / nspikes * 100

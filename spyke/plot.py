@@ -1439,7 +1439,7 @@ class SortPanel(PlotPanel):
         potential uses as well"""
         button = evt.button
         if button == 1: # left click
-            chan = self.get_closestchans(evt, n=1)
+            chan = int(self.get_closestchans(evt, n=1)) # from int64 for clean jsonpickle
             if chan not in self.chans_selected: # it's unselected, select it
                 self.chans_selected.append(chan)
             else: # it's selected, unselect it
