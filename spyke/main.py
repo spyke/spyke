@@ -3,10 +3,12 @@
 from __future__ import division
 from __future__ import print_function
 
+__authors__ = ['Martin Spacek', 'Reza Lotun']
+
 import sys
 print('Running spyke in Python %d.%d' % (sys.version_info.major, sys.version_info.minor))
-
-__authors__ = ['Martin Spacek', 'Reza Lotun']
+from .__version__ import check_LIBVERSIONS
+check_LIBVERSIONS(verbose=True)
 
 # set working directory to path of this module instead of path of script that launched python,
 # otherwise Qt4 has problems finding the spyke.ui file:
