@@ -24,7 +24,8 @@ import gc
 
 import jsonpickle
 jsonpickle.set_preferred_backend('simplejson') # make default explicit
-jsonpickle.set_encoder_options('simplejson', indent=1, separators=(',', ':')) # more readable
+jsonpickle.set_encoder_options('simplejson',
+                               indent=1, separators=(',', ':'), sort_keys=True) # more readable
 import jsonpickle.ext.numpy as jsonpickle_numpy
 jsonpickle_numpy.register_handlers()
 
