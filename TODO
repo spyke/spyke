@@ -6,6 +6,8 @@
         have the same id, sy refers to sx, but somehow jsonpickle gets the index into
         _proxies wrong, possibly due to the value being a numpy scalar?
             - note that every time you pull an value out of a numpy array, e.g. a[0], its id is different, maybe because numpy objects are defined in C? Might somehow trigger the IndexError...
+        - maybe the trigger is something like a list or dict of numpy scalars...
+        - same problem in both Py2 and Py3, with latest jsonpickle and simplejson and numpy
 
 - switch to kilosort2 integration
 
