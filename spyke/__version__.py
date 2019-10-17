@@ -95,6 +95,10 @@ def check_LIBVERSIONS(verbose=False):
             if libname in LIBNAME2VERF:
                 sln = ''
             else:
+                if libname == 'sklearn': # library name and pip/conda package name differ
+                    pkgname = 'scikit-learn'
+                else:
+                    pkgname = libname
                 sln = ('Run `sudo pip%d install --upgrade %s` or `conda update %s` '
-                       'at the command line' % (PYVER, libname, libname))
+                       'at the command line' % (PYVER, pkgname, pkgname))
             raise RuntimeError(msg+sln)
