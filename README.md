@@ -23,18 +23,19 @@ copied from Ubuntu's [Humanity](http://launchpad.net/humanity) icon theme.
 spyke requires recent versions of the following to be installed:
 
 * [Python](http://python.org) (2.7.x; 3.x works but not fully tested)
-* [IPython](http://ipython.org)
-* [numpy](http://numpy.org) 1.13
-* [scipy](http://scipy.org)
-* [matplotlib](http://matplotlib.org)
 * [PyQt4](http://www.riverbankcomputing.co.uk/software/pyqt)
   ([PySide](http://pyside.org) will probably work too, but is untested)
 * [PyOpenGL](http://pyopengl.sourceforge.net)
+* [IPython](http://ipython.org)
+* [numpy](http://numpy.org)
+* [scipy](http://scipy.org)
+* [matplotlib](http://matplotlib.org)
 * [Cython](http://cython.org)
 * [MDP](http://mdp-toolkit.sourceforge.net)
 * [scikit-learn](http://scikit-learn.org)
 * [PyWavelets](http://www.pybytes.com/pywavelets)
-* [jsonpickle](http://jsonpickle.github.io) 1.2
+* [jsonpickle](https://github.com/jsonpickle/jsonpickle)
+* [simplejson](https://github.com/simplejson/simplejson)
 
 spyke is developed in [Xubuntu](http://xubuntu.org) 16.04. It should work in other Linux
 distributions, and is known to work in OSX. In principle, it should also work in Windows.
