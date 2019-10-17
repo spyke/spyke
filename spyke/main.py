@@ -22,10 +22,30 @@ import time
 import datetime
 import gc
 
+JSONPICKLENUMERICKEYPREFIX = 'json://'
+LENJSONPICKLENUMERICKEYPREFIX = len(JSONPICKLENUMERICKEYPREFIX)
+
+def sort_numeric_json_keys(keyval):
+    """Process string keys to sort jsonpickle json:// keys properly as int placeholders
+    in natural numeric order (1, 2, 3) instead of alpha order (1, 11, 12, ..., 2, 21, 22...)"""
+    k, v = keyval
+    #if type(k) not in [str, unicode]:
+    #    print('Unexpected key type:', type(k))
+    if k.startswith(JSONPICKLENUMERICKEYPREFIX):
+        k = k[LENJSONPICKLENUMERICKEYPREFIX:] # drop prefix
+        if k.isdigit(): # sort json int keys as natural numbers ahead of string keys
+            k = int(k)
+    #print('%r' % k)
+    return k
+
 import jsonpickle
 jsonpickle.set_preferred_backend('simplejson') # make default explicit
 jsonpickle.set_encoder_options('simplejson',
-                               indent=1, separators=(',', ':'), sort_keys=True) # more readable
+                               indent=' ',
+                               separators=(',', ':'),
+                               #sort_keys=True, # overridden by item_sort_key callable
+                               item_sort_key=sort_numeric_json_keys
+                               )
 import jsonpickle.ext.numpy as jsonpickle_numpy
 jsonpickle_numpy.register_handlers()
 
