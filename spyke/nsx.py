@@ -315,8 +315,28 @@ class DataPacket(object):
         filesize = os.stat(f.name).st_size # in bytes
         expectedfilesize = self.dataoffset + 2*self.nchans*self.nt
         if filesize != expectedfilesize:
-            raise ValueError("Actual (%d) and expected (%d) file sizes don't match, "
-                             "file %s is corrupt?" % (filesize, expectedfilesize, f.name))
+            msg = ("WARNING: Actual (%d) and expected (%d) file sizes don't match, "
+                   "file %s is likely corrupt\n"
+                   "Try and continue anyway? (y/[n]) >> "
+                   % (filesize, expectedfilesize, f.name))
+            response = raw_input(msg)
+            if response != 'y':
+                raise RuntimeError('Stopping')
+            print("Trying to recover whatever data is in the file, assuming missing data "
+                  "is all missing from the end of the file")
+            assert filesize < expectedfilesize
+            # try and memmap with (downward) revised nt:
+            datasize = filesize - self.dataoffset
+            estimatednt = datasize / 2 / self.nchans
+            if estimatednt % 1 != 0.0: # it doesn't divide evenly
+                self.nt = int(np.floor(estimatednt)) # round down
+                ndroppedbytes = datasize - 2*self.nchans*self.nt
+                print('Estimated number of timepoints in file is non-integer: %.3f\n'
+                      'Using only the first %d timepoints, discarding last %d bytes'
+                      % (estimatednt, self.nt, ndroppedbytes))
+            else:
+                self.nt = intround(estimatednt)
+                print('Found %d timepoints' % self.nt)
 
         # load all data into memory using np.fromfile. Time is MSB, chan is LSB:
         #self._data = np.fromfile(f, dtype=np.int16, count=self.nt*nchans)
