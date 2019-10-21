@@ -3085,7 +3085,7 @@ class SortWindow(SpykeToolWindow):
         if calc_measures:
             #title = ("sep index=%.3f, overlap area ratio=%.3f, DJS=%.3f, sqrt(DJS)=%.3f"
             #         % (oneDsep, overlaparearatio, djs, np.sqrt(djs)))
-            title = ("%dDsep=%.3f, 1Dsep=%.3f, overlap area ratio=%.3f, DJS=%.3f"
+            title = ("%dDsep=%.3f, 1Dsep=%.3f, OAR=%.3f, DJS=%.3f"
                      % (ndims, NDsep, oneDsep, overlaparearatio, djs))
             print(title)
             a.set_title(title)
