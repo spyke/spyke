@@ -50,7 +50,8 @@ PYVER2LIBVERSIONS = {2: PY2_LIBVERSIONS,
 LIBVERSIONS = PYVER2LIBVERSIONS[PYVER]
 
 # map library names to pip/conda package names, for those few which are not identical:
-LIBNAME2PKGNAME = {'skimage': 'scikit-image',
+LIBNAME2PKGNAME = {'pywt': 'PyWavelets',
+                   'skimage': 'scikit-image',
                    'sklearn': 'scikit-learn'
                   }
 
