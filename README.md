@@ -37,7 +37,7 @@ spyke requires recent versions of the following to be installed:
 * [jsonpickle](https://github.com/jsonpickle/jsonpickle)
 * [simplejson](https://github.com/simplejson/simplejson)
 
-spyke is developed in [Xubuntu](http://xubuntu.org) 16.04. It should work in other Linux
+spyke is developed in [Xubuntu](http://xubuntu.org) 18.04. It should work in other Linux
 distributions, and is known to work in OSX. In principle, it should also work in Windows.
 
 ### Installation
