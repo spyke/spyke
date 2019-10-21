@@ -49,6 +49,11 @@ PYVER2LIBVERSIONS = {2: PY2_LIBVERSIONS,
                      3: PY3_LIBVERSIONS}
 LIBVERSIONS = PYVER2LIBVERSIONS[PYVER]
 
+# map library names to pip/conda package names, for those few which are not identical:
+LIBNAME2PKGNAME = {'skimage': 'scikit-image',
+                   'sklearn': 'scikit-learn'
+                  }
+
 def get_python_version(libname):
     return os.sys.version.split(' ')[0]
 
@@ -95,8 +100,8 @@ def check_LIBVERSIONS(verbose=False):
             if libname in LIBNAME2VERF:
                 sln = ''
             else:
-                if libname == 'sklearn': # library name and pip/conda package name differ
-                    pkgname = 'scikit-learn'
+                if libname in LIBNAME2PKGNAME: # libname and install package name differ
+                    pkgname = LIBNAME2PKGNAME[libname]
                 else:
                     pkgname = libname
                 sln = ('Run `sudo pip%d install --upgrade %s` or `conda update %s` '
