@@ -325,7 +325,7 @@ class Rasters(object):
         nsegments = spikes['nlockchans'].sum()
         # 2 points per raster line, x vals in col 0, yvals in col 1
         segments = np.zeros((nsegments, 2, 2))
-        colours = np.zeros(nsegments, dtype='|S7') # colours are length-7 strings
+        colours = np.zeros(nsegments, dtype='|U7') # length-7 unicode strings for py2 and py3
         segmenti = 0
         for spike in spikes:
             nchans = spike['nlockchans']
