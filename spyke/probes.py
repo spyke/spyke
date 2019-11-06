@@ -690,7 +690,7 @@ class A1x32_edge(Probe):
 class A1x64(Probe):
     """A1x64, 30-38 um spacing (23 um vertical spacing), 2 column, 1-based channel IDs"""
     def __init__(self):
-        self.layout = 'A1x64_Poly2_6mm_23s_160'
+        self.layout = 'A1x64-Poly2-6mm-23s-160'
         self.name = 'A1x64'
         self.nchans = 64
         self.ncols = 2
