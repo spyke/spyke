@@ -11,6 +11,12 @@ from __future__ import print_function
 
 __authors__ = ['Martin Spacek']
 
+# use raw_input() in Py2, which is simply called input() in Py3:
+try:
+    input = raw_input
+except NameError:
+    pass
+
 import os
 from struct import unpack
 import datetime
@@ -315,16 +321,20 @@ class DataPacket(object):
         filesize = os.stat(f.name).st_size # in bytes
         expectedfilesize = self.dataoffset + 2*self.nchans*self.nt
         if filesize != expectedfilesize:
-            msg = ("WARNING: Actual (%d) and expected (%d) file sizes don't match, "
-                   "file %s is likely corrupt\n"
-                   "Try and continue anyway? (y/[n]) >> "
-                   % (filesize, expectedfilesize, f.name))
-            response = raw_input(msg)
+            raise ValueError("Actual (%d) and expected (%d) file sizes don't match, "
+                             "%s is likely corrupt" % (filesize, expectedfilesize, f.name))
+            '''
+            if filesize > expectedfilesize:
+                raise RuntimeError("*** WARNING: Actual file size (%d) is > expected file "
+                                   "size (%d), don't know how to handle such corruption in "
+                                   "file %s" % (filesize, expectedfilesize, f.name))
+            print("*** WARNING: Actual file size (%d) is < expected file size (%d), "
+                  "file %s is likely corrupt" % (filesize, expectedfilesize, f.name))
+            response = input("Try and continue anyway? (y/[n]) >> ")
             if response != 'y':
                 raise RuntimeError('Stopping')
             print("Trying to recover whatever data is in the file, assuming missing data "
                   "is all missing from the end of the file")
-            assert filesize < expectedfilesize
             # try and memmap with (downward) revised nt:
             datasize = filesize - self.dataoffset
             estimatednt = datasize / 2 / self.nchans
@@ -337,6 +347,7 @@ class DataPacket(object):
             else:
                 self.nt = intround(estimatednt)
                 print('Found %d timepoints' % self.nt)
+            '''
 
         # load all data into memory using np.fromfile. Time is MSB, chan is LSB:
         #self._data = np.fromfile(f, dtype=np.int16, count=self.nt*nchans)
