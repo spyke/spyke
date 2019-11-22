@@ -11,6 +11,17 @@ from __future__ import print_function
 
 __authors__ = ['Martin Spacek']
 
+# When comparing e.g. a Python string to a numpy numeric array with `in` or `==` operators,
+# numpy currently (1.17.4) returns a scalar (True or False), though it would make more sense
+# if it returned an array. This is due to a standoff between Python and numpy devs:
+# https://stackoverflow.com/a/46721064
+# This raises the following annoying warning:
+#     FutureWarning: elementwise comparison failed; returning scalar instead, but in the
+#     future will perform elementwise comparison
+# Suppress with:
+#import warnings
+#warnings.simplefilter(action='ignore', category=FutureWarning)
+
 # use raw_input() in Py2, which is simply called input() in Py3:
 try:
     input = raw_input
@@ -59,9 +70,12 @@ class File(dat.File):
     def chan2datarowi(self, chan):
         """Find row in self.datapacket._data corresponding to chan.
         chan can be either an integer id or a string label"""
-        allchansrowis, = np.where(chan == self.fileheader.allchans)
-        alllabelrowis, = np.where(chan == self.fileheader.alllabels)
-        datarowis = np.concatenate([allchansrowis, alllabelrowis])
+        if type(chan) == int:
+            datarowis, = np.where(chan == self.fileheader.allchans)
+        elif type(chan) == str:
+            datarowis, = np.where(chan == self.fileheader.alllabels)
+        else:
+            raise ValueError("Unexpected type %s for chan %s" % (type(chan), chan))
         if len(datarowis) == 0:
             raise ValueError("Can't find chan %r" % chan)
         elif len(datarowis) > 1:
@@ -74,9 +88,9 @@ class File(dat.File):
         or a string label."""
         chantypes = []
         fh = self.fileheader
-        if chan in fh.chans or chan in fh.ephyschanlabels:
+        if chan in list(fh.chans) or chan in list(fh.ephyschanlabels):
             chantypes.append('ephys')
-        if chan in fh.auxchans or chan in fh.auxchanlabels:
+        if chan in list(fh.auxchans) or chan in list(fh.auxchanlabels):
             chantypes.append('aux')
         if len(chantypes) == 0:
             raise ValueError("Can't find chan %r" % chan)
@@ -180,8 +194,8 @@ class FileHeader(dat.FileHeader):
         assert len(self) == f.tell() # header should be of expected length
 
         # if there's no adapter, AD ephys chans == probe chans:
-        self.chans = np.asarray(sorted(self.chanheaders)) # sorted array of keys
-        self.auxchans = np.asarray(sorted(self.auxchanheaders)) # sorted array of keys
+        self.chans = np.int64(sorted(self.chanheaders)) # sorted array of keys
+        self.auxchans = np.int64(sorted(self.auxchanheaders)) # sorted array of keys
         if len(self.chans) > 0 and len(self.auxchans) > 0:
             # ensure that the last ephys chan comes before the first aux chan:
             assert self.chans[-1] < self.auxchans[0]
@@ -276,12 +290,12 @@ class FileHeader(dat.FileHeader):
         self.check_adapter()
 
     def get_ephyschanlabels(self):
-        return np.asarray([ self.chanheaders[chan].label for chan in self.chans ])
+        return np.array([ self.chanheaders[chan].label for chan in self.chans ], dtype=str)
 
     ephyschanlabels = property(get_ephyschanlabels)
 
     def get_auxchanlabels(self):
-        return np.asarray([ self.auxchanheaders[chan].label for chan in self.auxchans ])
+        return np.array([ self.auxchanheaders[chan].label for chan in self.auxchans ], dtype=str)
 
     auxchanlabels = property(get_auxchanlabels)
 
@@ -348,7 +362,6 @@ class DataPacket(object):
                 self.nt = intround(estimatednt)
                 print('Found %d timepoints' % self.nt)
             '''
-
         # load all data into memory using np.fromfile. Time is MSB, chan is LSB:
         #self._data = np.fromfile(f, dtype=np.int16, count=self.nt*nchans)
         #self._data.shape = -1, self.nchans # reshape, t in rows, chans in columns
