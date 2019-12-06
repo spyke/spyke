@@ -1866,7 +1866,7 @@ class PTCSNeuronRecord(object):
         n = self.neuron
         np.int64(n.id).tofile(f) # nid
         np.uint64(len(self.descr)).tofile(f) # ndescrbytes
-        f.write(self.descr) # descr
+        f.write(self.descr) # descr, bytes
         np.float64(np.nan).tofile(f) # clusterscore
         np.float64(n.cluster.pos['x0']).tofile(f) # xpos (um)
         np.float64(n.cluster.pos['y0']).tofile(f) # ypos (um)

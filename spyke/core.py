@@ -1523,14 +1523,15 @@ def pad(x, align=8):
         raise TypeError('Unhandled type %r in pad()')
 
 def padstr(x, align=8):
-    """Pad string x with null bytes so it's a multiple of align bytes long"""
+    """Pad string x with null bytes so it's a multiple of align bytes long.
+    Return bytes object"""
     nbytes = len(x)
     rem = nbytes % align
     npadbytes = align - rem if rem else 0 # nbytes to pad with for 8 byte alignment
+    x = x.encode('ascii') # ensure it's pure ASCII, where each char is 1 byte
     if npadbytes == 0:
         return x
-    x = x.encode('ascii') # ensure it's pure ASCII, where each char is 1 byte
-    x += '\0' * npadbytes # returns a copy, doesn't modify in place
+    x += NULL * npadbytes # returns a copy, doesn't modify in place
     assert len(x) % align == 0
     return x
 
