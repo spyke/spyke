@@ -79,7 +79,7 @@ class Sort(object):
 
     def get_nextnid(self):
         """nextnid is used to retrieve the next unique single unit ID"""
-        nids = self.neurons.keys()
+        nids = list(self.neurons)
         if len(nids) == 0:
             return 1 # single unit nids start at 1
         else:
@@ -89,7 +89,7 @@ class Sort(object):
 
     def get_nextmuid(self):
         """nextmuid is used to retrieve the next unique multiunit ID"""
-        nids = self.neurons.keys()
+        nids = list(self.neurons)
         if len(nids) == 0:
             return -1 # multiunit ids start at -1
         else:
@@ -110,7 +110,7 @@ class Sort(object):
 
     def set_good(self, good):
         """Set good flag to True for nids in good, False otherwise"""
-        nids = self.neurons.keys()
+        nids = list(self.neurons)
         assert np.all([ nid in nids for nid in good ]) # make sure all nids in good exist
         notgood = np.setdiff1d(nids, good)
         for nid in notgood:
@@ -1484,7 +1484,7 @@ class Sort(object):
         coords = np.asarray(dm.coords)
         xcoords = coords[:, 0]
         ycoords = coords[:, 1]
-        sids = self.spikes.keys() # self.spikes is a dict!
+        sids = list(self.spikes) # self.spikes is a dict!
         sids.sort()
         for sid in sids:
             spike = self.spikes[sid]

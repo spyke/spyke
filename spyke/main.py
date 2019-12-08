@@ -2045,7 +2045,7 @@ class SpykeWindow(QtGui.QMainWindow):
         all unsorted spikes. Also calculate which cluster each unsorted spike matches best"""
         spikes = self.sort.spikes
         wavedata = self.sort.wavedata
-        cids = np.sort(self.sort.clusters.keys())
+        cids = np.sort(list(self.sort.clusters))
         sids = self.sort.usids.copy()
         ncids, nsids = len(cids), len(sids)
         print('Calculating rmserror between all %d clusters and all %d unsorted spikes'
@@ -4153,7 +4153,7 @@ class SpykeWindow(QtGui.QMainWindow):
         """Update the contents of all the data windows, or just specific ones.
         Center each data window on self.t"""
         if wintypes == None: # update all visible windows
-            wintypes = self.windows.keys()
+            wintypes = list(self.windows)
         else: # update only specific windows, if visible
             wintypes = toiter(wintypes)
         # reorder:
