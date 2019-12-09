@@ -1946,7 +1946,7 @@ def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=No
         sampfreq = stream.sampfreq
     sample_rate = sampfreq
     if chans is None:
-        chans = list(stream.chans)
+        chans = stream.chans.tolist() # convert to list of native int, required by Py3 json
     if auxchans is None:
         auxchans = []
     nchans = len(chans) + len(auxchans)
