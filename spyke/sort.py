@@ -390,12 +390,22 @@ class Sort(object):
                            % (nid, sid, leftpadded, rightpadded, sid, nid))
                     raise RuntimeError(msg)
 
+    def check_contiguous_nids(self):
+        """Check that neuron IDs are contiguous (no gaps)"""
+        print('Checking that neuron IDs are contiguous')
+        nids = np.array(list(self.neurons))
+        nids = nids[nids > 0] # only consider +ve nids
+        nids.sort()
+        if (np.diff(nids) != 1).any():
+            raise RuntimeError('Neuron IDs are not contiguous, renumber all and try again')
+
     def exportptcsfiles(self, basepath, sortpath):
         """Export spike data to binary .ptcs files under basepath, one file per recording"""
         # First check to make sure various things are OK before exporting:
         self.check_ISIs()
         self.check_wavealign()
         self.check_wavepadding()
+        self.check_contiguous_nids()
         spikes = self.spikes
         exportdt = str(datetime.datetime.now()) # get an export datetime stamp
         exportdt = exportdt.split('.')[0] # ditch the us
