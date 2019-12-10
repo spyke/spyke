@@ -306,7 +306,7 @@ class Sort(object):
         if nids == 'good':
             nids = self.good
         elif nids == 'all':
-            nids = self.nids
+            nids = sorted(self.neurons)
         for nid in nids:
             neuron = self.neurons[nid]
             spikets = self.spikes['t'][neuron.sids] # should be a sorted copy
@@ -326,7 +326,7 @@ class Sort(object):
         if nids == 'good':
             nids = self.good
         elif nids == 'all':
-            nids = self.nids
+            nids = sorted(self.neurons)
         nt = self.twi[1] - self.twi[0] + 1 # expected number of points of each chan's wavedata
         for nid in nids:
             neuron = self.neurons[nid]
@@ -366,7 +366,7 @@ class Sort(object):
         if nids == 'good':
             nids = self.good
         elif nids == 'all':
-            nids = self.nids
+            nids = sorted(self.neurons)
         for nid in nids:
             neuron = self.neurons[nid]
             for sid in neuron.sids:
