@@ -1,2 +1,2 @@
 #!/bin/sh
-python2 -m spyke.main
+python3 -m spyke.main
