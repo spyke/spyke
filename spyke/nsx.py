@@ -223,7 +223,6 @@ class FileHeader(dat.FileHeader):
             else: # chantype == 'aux'
                 self.AD2mVx = (c0.maxaval-c0.minaval) / float(c0.maxdval-c0.mindval)
 
-
     def parse_json(self, f):
         """Parse potential .nsx.json file for probe name and optional adapter name"""
         fname = os.path.realpath(f.name) # make sure we have the full fname with path
