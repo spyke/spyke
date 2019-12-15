@@ -1858,9 +1858,10 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # now do some final updates
         self.UpdateClustersGUI()
-        if not np.all(sids == spikes['id']): # if clustering only some spikes,
-            self.SelectClusters(newclusters) # select all newly created cluster(s)
-        if np.all(sids == cw.glWidget.sids):
+        if len(sids) != len(spikes) or not np.all(sids == spikes['id']):
+            # if clustering only some spikes, select all newly created cluster(s)
+            self.SelectClusters(newclusters)
+        if len(sids) == len(cw.glWidget.sids) and np.all(sids == cw.glWidget.sids):
             self.ColourPoints(newclusters) # just recolour
         else:
             self.on_plotButton_clicked() # need to do a full replot
