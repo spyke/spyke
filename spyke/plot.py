@@ -142,7 +142,7 @@ class Plot(object):
         nchans, npoints = wave.data.shape
         segments = np.zeros((nchans, npoints, 2)) # x vals in col 0, yvals in col 1
         if wave.ts is not None: # or maybe check if wave.data.size != 0 too
-            if panel.spykewindow.ui.normButton.isChecked():
+            if isinstance(panel, SortPanel) and panel.spykewindow.ui.normButton.isChecked():
                 wave = self.norm_wave(wave)
             x = np.tile(wave.ts-tref, nchans)
             x.shape = nchans, npoints
