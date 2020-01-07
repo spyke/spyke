@@ -2366,7 +2366,7 @@ class SpykeWindow(QtGui.QMainWindow):
         sw.nlist.selectRows(row, on=on)
         return on
 
-    def SelectSpikes(self, sids, on=True):
+    def SelectSpikes(self, sids, on=True, nslistplot=True):
         """Set selection state of given spikes, as well as their current clusters, if any"""
         sw = self.windows['Sort']
         nids = self.sort.spikes['nid'][sids]
@@ -2407,8 +2407,8 @@ class SpykeWindow(QtGui.QMainWindow):
         # now do the clustered spike selection:
         nslistrows = sw.nslist.sids.searchsorted(csids) # nslist.sids is sorted
         #t0 = time.time()
-        sw.nslist.selectRows(nslistrows, on=on)
-        #print('nslist.selectRows took %.3f sec' % (time.time()-t0))
+        sw.nslist.fake_selectRows(nslistrows, on=on, plot=nslistplot)
+        #print('nslist.fake_selectRows took %.3f sec' % (time.time()-t0))
 
     def CreateCluster(self, update=True, id=None, inserti=None):
         """Create a new cluster, add it to the GUI, return it"""

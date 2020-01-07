@@ -87,7 +87,7 @@ XSWIDEBANDPOINTS = 200
 MAXLONGLONG = 2**63-1
 MAXNBYTESTOFILE = 2**31 # max array size safe to call .tofile() on in Numpy 1.5.0 on Windows
 
-MAXNSPIKEPLOTS = 200
+MAXNSPIKEPLOTS = 50
 MAXNROWSLISTSELECTION = 10000
 
 CHANFIELDLEN = 256 # channel string field length at start of .resample file
@@ -417,9 +417,6 @@ class SpykeListView(QtGui.QListView):
                 print('Adding %d randomly sampled plots of %d selected spikes'
                       % (maxnadd, self.nrowsSelected))
                 addis = random.sample(addis, maxnadd)
-                panel.maxed_out = True
-            else:
-                panel.maxed_out = False
         #t0 = time.time()
         panel.addItems([ prefix+str(i) for i in addis ])
         #print('addItems took %.3f sec' % (time.time()-t0))
@@ -433,7 +430,7 @@ class SpykeListView(QtGui.QListView):
 
     nrows = property(get_nrows)
 
-    def selectRows(self, rows, on=True, scrollTo=False):
+    def selectRows(self, rows, on=True):
         """Row selection in listview is complex. This makes it simpler"""
         ## TODO: There's a bug here, where if you select the last two neurons in nlist,
         ## (perhaps these last two need to be near a list edge), merge them, and then
@@ -503,7 +500,7 @@ class SpykeListView(QtGui.QListView):
         nrows = stop - start
         nsamples = min(nsamples, nrows)
         rows = random.sample(range(start, stop), nsamples)
-        self.selectRows(rows, scrollTo=False)
+        self.selectRows(rows)
 
 
 class NList(SpykeListView):
@@ -533,13 +530,69 @@ class NList(SpykeListView):
 
 
 class NSList(SpykeListView):
-    """Spike list view"""
+    """Neuron-Spike list view. Displays spikes of currently selected neuron(s).
+    For high performance when quickly selecting large numbers of points via 'painting'
+    in the cluster window, a 'fake' selection is maintained separately from the actual
+    selection in the list view"""
     def __init__(self, parent):
         SpykeListView.__init__(self, parent)
         self.setModel(NSListModel(parent))
         #self.connect(self, QtCore.SIGNAL("activated(QModelIndex)"),
-        #            self.on_actionItem_triggered)
+        #             self.on_actionItem_triggered)
         self.activated.connect(self.on_actionItem_triggered)
+        self.clear_fake_selection()
+
+    def selectRows(self, rows, on=True):
+        """Normal (manual) row selection"""
+        self.clear_fake_selection()
+        SpykeListView.selectRows(self, rows, on=on)
+
+    def fake_selectRows(self, rows, on=True, plot=True):
+        """Fake row selection, same interface as normal selectRows()"""
+        panel = self.sortwin.panel
+        SpykeListView.clearSelection(self) # clear any manually selected rows
+        if on: # fake select
+            self.fake_selected_rows = np.union1d(self.fake_selected_rows, rows)
+            if plot:
+                # add at most MAXNSPIKEPLOTS to sort panel:
+                nfreeplots = MAXNSPIKEPLOTS - len(panel.used_plots)
+                if nfreeplots < len(rows):
+                    panel.removeAllSpikes()
+                    nfreeplots = MAXNSPIKEPLOTS
+                plot_sids = self.sids[rows[:nfreeplots]]
+                panel.addItems([ 's'+str(sid) for sid in plot_sids ])
+        else: # fake deselect
+            self.fake_selected_rows = np.setxor1d(self.fake_selected_rows, rows)
+            # Remove at most all currently plotted spikes in sort panel.
+            # Not all fake selected spikes are necessarily plotted, and therefore
+            # deselecting fake selected spikes in cluster window won't necessarily
+            # have corresponding spikes to remove from the sort panel:
+            panel.removeItems([ 's'+str(i) for i in self.sids[rows] ])
+            #panel.removeAllSpikes() # more drastic, but less interactive
+
+    def selectedRows(self):
+        """Return selected rows"""
+        real = np.int64([ i.row() for i in self.selectedIndexes() ])
+        fake = self.fake_selected_rows
+        return np.concatenate([real, fake])
+
+    def rowSelected(self, row):
+        """Simple way to check if a row is selected"""
+        return (self.model().index(row) in self.selectedIndexes() or
+                row in self.fake_selected_rows)
+
+    def get_nrowsSelected(self):
+        return len(self.selectedIndexes()) + len(self.fake_selected_rows)
+
+    nrowsSelected = property(get_nrowsSelected)
+
+    def clearSelection(self):
+        SpykeListView.clearSelection(self)
+        self.clear_fake_selection()
+        self.sortwin.panel.removeAllSpikes()
+
+    def clear_fake_selection(self):
+        self.fake_selected_rows = np.array([], dtype=int)
 
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='s')
@@ -592,7 +645,7 @@ class NSList(SpykeListView):
             allrows = self.sids.searchsorted(neuron.sids)
             nsamples = min(nsamples, len(allrows))
             rows = np.random.choice(allrows, nsamples, replace=False)
-            self.selectRows(rows, scrollTo=False)
+            self.selectRows(rows)
 
 
 class USList(SpykeListView):

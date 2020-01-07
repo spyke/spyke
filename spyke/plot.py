@@ -1188,7 +1188,6 @@ class SortPanel(PlotPanel):
     def __init__(self, parent, tw=None):
         PlotPanel.__init__(self, parent, tw=tw)
         self.manual_selection = False
-        self.maxed_out = False # has hit its maximum number of spike plots
         self.enable_fills = False # global enable flag for all fills
         self.sortwin = self.parent()
 
@@ -1331,7 +1330,12 @@ class SortPanel(PlotPanel):
 
     def removeAllItems(self):
         """Shortcut for removing all items from plots"""
-        items = [ plt.id for plt in self.used_plots.values() ]
+        items = list(self.used_plots)
+        self.removeItems(items)
+
+    def removeAllSpikes(self):
+        """Shortcut for removing all spike plots"""
+        items = [ plt_id for plt_id in self.used_plots if plt_id[0] == 's']
         self.removeItems(items)
 
     def removeItem(self, item):

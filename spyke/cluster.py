@@ -200,7 +200,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.focus = np.float32([0, 0, 0]) # init camera focus
         self.axes = 'both' # display both mini and focal xyz axes by default
         self.selecting = None # True (selecting), False (deselecting), or None
-        self.collected_sids = []
+        self.plot_selection = True # plot selection in sort panel? False for quicker selection
         self.update_sigma()
         self.spw.ui.sigmaSpinBox.valueChanged.connect(self.update_focal_axes)
 
@@ -637,9 +637,6 @@ class GLWidget(QtOpenGL.QGLWidget):
         sw = self.spw.windows['Sort']
         button = event.button()
         if button == QtCore.Qt.MiddleButton:
-            if self.collected_sids:
-                self.spw.SelectSpikes(np.hstack(self.collected_sids), on=self.selecting)
-                self.collected_sids = [] # clear it
             self.selecting = None
             self.setMouseTracking(False) # done selecting
         elif button == QtCore.Qt.RightButton:
@@ -776,11 +773,11 @@ class GLWidget(QtOpenGL.QGLWidget):
             if event.isAutoRepeat():
                 return # event.ignore()?
             if shift:
-                self.save()
-            else: # select points under the cursor, if any
-                self.selecting = True
-                self.setMouseTracking(True) # while selecting
-                self.selectPointsUnderCursor()
+                self.plot_selection = False # for quicker selection
+            # select points under the cursor, if any:
+            self.selecting = True
+            self.setMouseTracking(True) # while selecting
+            self.selectPointsUnderCursor()
         elif key == Qt.Key_D: # deselect points under the cursor, if any
             if event.isAutoRepeat():
                 return # event.ignore()?
@@ -806,13 +803,11 @@ class GLWidget(QtOpenGL.QGLWidget):
         key = event.key()
         modifiers = event.modifiers()
         shift = modifiers == Qt.ShiftModifier # only modifier is shift
-        if not event.isAutoRepeat() and not shift and key in [Qt.Key_S, Qt.Key_D]:
-            # stop selecting/deselecting
-            if self.collected_sids:
-                self.spw.SelectSpikes(np.hstack(self.collected_sids), on=self.selecting)
-                self.collected_sids = [] # clear it
+        if not event.isAutoRepeat() and key in [Qt.Key_S, Qt.Key_D]:
+            # stop selecting/deselecting, reset plot_selection flag
             self.selecting = None
             self.setMouseTracking(False)
+            self.plot_selection = True
 
     def save(self):
         """Save cluster plot to file"""
@@ -872,12 +867,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         if sids is None:
             return
         #t0 = time.time()
-        if not sw.panel.maxed_out:
-            spw.SelectSpikes(sids, on=self.selecting)
-        else:
-            # for speed, while the mouse is held down and the sort panel is maxed out,
-            # don't call SelectSpikes, only call it once when the mouse is released
-            self.collected_sids.append(sids)
+        spw.SelectSpikes(sids, on=self.selecting, nslistplot=self.plot_selection)
         #print('SelectSpikes took %.3f sec' % (time.time()-t0))
         if self.selecting == True:
             sat = 0.2 # desaturate

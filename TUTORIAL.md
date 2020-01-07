@@ -89,7 +89,8 @@ axes to be roughly the size of the minimum separation distance between points th
 split. To change the 3D focal point of the cluster window (and hence the position of the
 central axes), hover over a data point and hit the `F` key. To select and deselect points
 under the cursor, use the `S` and `D` keys, respectively. You can do the above while moving
-the mouse, allowing you to "paint" a selection.
+the mouse, allowing you to "paint" a selection. You can paint more quickly by also holding
+down `Shift` to suppress spike plotting.
 
 11. You can compare a given selected cluster to its most similar neighbours by selecting it
 and using the `>` and `<` keys on the keyboard, or the respective buttons in the sort window

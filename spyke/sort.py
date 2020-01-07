@@ -2308,7 +2308,7 @@ class SortWindow(SpykeToolWindow):
         clusters = spw.GetClusters()
         if len(self.uslist.selectedIndexes()) > 0:
             self.uslist.clearSelection()
-        elif len(self.nslist.selectedIndexes()) > 0:
+        elif self.nslist.nrowsSelected > 0:
             self.nslist.clearSelection()
         elif len(clusters) == 2 and self._source in clusters:
             clusters.remove(self._source)
