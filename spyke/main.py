@@ -3786,9 +3786,9 @@ class SpykeWindow(QtGui.QMainWindow):
         self.EnableStreamWidgets(False)
         
     def CloseSortFile(self):
+        self.EnableSortWidgets(False)
         self.DeleteSort()
         self.updateTitle()
-        self.EnableSortWidgets(False)
         
     def RestoreClusters2GUI(self):
         """Stuff that needs to be done to synch the GUI with newly imported clusters"""
