@@ -414,8 +414,8 @@ class SpykeListView(QtGui.QListView):
                 # if we can't add all the requested spikes to the sort panel without
                 # exceeding MAXNSPIKEPLOTS, then randomly sample however many we can still
                 # add (maxnadd), and add them to the sort panel
-                print('Adding %d randomly sampled plots of %d selected spikes'
-                      % (maxnadd, self.nrowsSelected))
+                #print('Adding %d randomly sampled plots of %d selected spikes'
+                #      % (maxnadd, self.nrowsSelected))
                 addis = random.sample(addis, maxnadd)
         #t0 = time.time()
         panel.addItems([ prefix+str(i) for i in addis ])
