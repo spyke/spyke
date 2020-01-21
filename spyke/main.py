@@ -388,13 +388,33 @@ class SpykeWindow(QtGui.QMainWindow):
             print('Only .srf streams have complicated parsings that can be '
                   'saved to a .parse file')
 
+    def getUserInfo(self):
+        """Get user info when exporting spikes"""
+        dlg = uic.loadUi('userinfodialog.ui')
+        dlg.setWindowTitle('Enter optional user initials/name and notes about the sort')
+        sort = self.sort
+        dlg.userLineEdit.insert(sort.user)
+        dlg.notesTextEdit.insertPlainText(sort.notes)
+        if dlg.exec_(): # returns 1 if OK, 0 if Cancel
+            user = str(dlg.userLineEdit.text()).rstrip().upper()
+            notes = str(dlg.notesTextEdit.toPlainText()).rstrip()
+            if not user.isalpha():
+                print('User initials must be alphabetic characters only')
+            sort.user = user
+            sort.notes = notes
+            return user, notes
+
     @QtCore.pyqtSlot()
     def on_actionExportPtcsFiles_triggered(self):
+        userinfo = self.getUserInfo()
+        if userinfo is None:
+            return # cancel
+        user, notes = userinfo
         path = getExistingDirectory(self, caption="Export .ptcs file(s) to",
                                     directory=self.sortpath)
         path = str(path)
         if path:
-            self.sort.exportptcsfiles(path, self.sortpath)
+            self.sort.exportptcsfiles(path, self.sortpath, user=user, notes=notes)
             # don't update path
 
     @QtCore.pyqtSlot()
@@ -926,6 +946,8 @@ class SpykeWindow(QtGui.QMainWindow):
             v = self.update_1_3_to_1_4()
         if v == 1.4:
             v = self.update_1_4_to_2_0()
+        if v == 2.0:
+            v = self.update_2_0_to_2_1()
         print('Now save me!')
             
     def update_0_3_to_0_4(self):
@@ -1197,6 +1219,18 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Done updating sort from version 1.4 to 2.0.\n'
               'Consider saving as .json instead of .sort\n'
               'Click "File->Save Sort As" and then change the extension to .json')
+        return float(s.__version__)
+
+    def update_2_0_to_2_1(self):
+        """Update sort 2.0 to 2.1:
+            - add empty .user and .notes fields for use when exporting spikes
+        """
+        print('Updating sort from version 2.0 to 2.1')
+        s = self.sort
+        s.user = ''
+        s.notes = ''
+        s.__version__ = '2.1' # update
+        print('Done updating sort from version 2.0 to 2.1')
         return float(s.__version__)
 
     @QtCore.pyqtSlot()

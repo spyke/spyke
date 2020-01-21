@@ -67,6 +67,8 @@ class Sort(object):
     def __init__(self, detector=None, stream=None, tw=None):
         self.__version__ = __version__
         self.fname = ''
+        self.user = ''
+        self.notes = ''
         self.detector = detector # this Sort's current Detector object
         self.tw = tw # time window (us) relative to spike time
         self.stream = stream
@@ -399,7 +401,7 @@ class Sort(object):
         if (np.diff(nids) != 1).any():
             raise RuntimeError('Neuron IDs are not contiguous, renumber all and try again')
 
-    def exportptcsfiles(self, basepath, sortpath):
+    def exportptcsfiles(self, basepath, sortpath, user='', notes=''):
         """Export spike data to binary .ptcs files under basepath, one file per recording"""
         # First check to make sure various things are OK before exporting:
         self.check_ISIs()
@@ -423,9 +425,10 @@ class Sort(object):
             # time delta between this stream and first stream, to nearest raw timepoint, us:
             dt = abst0 - t0
             dt = intround(dt) # to nearest int us
-            self.exportptcsfile(stream, basepath, dt, exportdt, sortpath)
+            self.exportptcsfile(stream, basepath, dt, exportdt, sortpath,
+                                user=user, notes=notes)
 
-    def exportptcsfile(self, stream, basepath, dt, exportdt, sortpath):
+    def exportptcsfile(self, stream, basepath, dt, exportdt, sortpath, user='', notes=''):
         """Export spike data of all "good" spikes to binary .ptcs file in basepath.
         Constrain to spikes in stream, and undo any time delta in spike times.
         dt is the integer time difference between start of stream and start of first stream in
@@ -433,7 +436,6 @@ class Sort(object):
 
         # build up list of PTCSNeuronRecords that have spikes in this stream,
         # and tally their spikes
-        userdescr = ''
         nsamplebytes = 4 # float32
         nrecs = []
         nspikes = 0
@@ -460,8 +462,8 @@ class Sort(object):
         except OSError: pass # path already exists?
         fname = stream.srcfnameroot + '.ptcs'
         fullfname = os.path.join(path, fname)
-        header = PTCSHeader(self, sortpath, stream, nneurons, nspikes, userdescr,
-                            nsamplebytes, fullfname, exportdt)
+        header = PTCSHeader(self, sortpath, stream, nneurons, nspikes, nsamplebytes,
+                            fullfname, exportdt, user=user, notes=notes)
         
         with open(fullfname, 'wb') as f:
             header.write(f)
@@ -1777,13 +1779,12 @@ class PTCSHeader(object):
          padded with null bytes if needed for 8 byte alignment)
     """
     FORMATVERSION = 3 # overall .ptcs file format version, not header format version
-    def __init__(self, sort, sortpath, stream, nneurons, nspikes, userdescr,
-                 nsamplebytes, fullfname, exportdt):
+    def __init__(self, sort, sortpath, stream, nneurons, nspikes, nsamplebytes,
+                 fullfname, exportdt, user='', notes=''):
         self.sort = sort
         self.stream = stream
         self.nneurons = nneurons
         self.nspikes = nspikes
-        self.userdescr = userdescr
         self.nsamplebytes = nsamplebytes
         homelessfullfname = lstrip(fullfname, os.path.expanduser('~'))
         sortfname = sort.fname
@@ -1791,20 +1792,13 @@ class PTCSHeader(object):
         sortfmoddt = str(datetime.datetime.fromtimestamp(os.path.getmtime(sortfullfname)))
         sortfmoddt = sortfmoddt.split('.')[0] # ditch the us
         sortfsize = os.path.getsize(sortfullfname) # in bytes
-        # For description dictionary, could create a dict and convert it
-        # to a string, but that wouldn't guarantee key order. Instead,
-        # build string rep of description dict with guaranteed key order:
-        d = ("{'file_type': '.ptcs (polytrode clustered spikes) file', "
-             "'original_fname': %r, 'export_time': %r, "
-             "'sort': {'fname': %r, 'path': %r, 'fmtime': %r, 'fsize': %r}"
-             % (homelessfullfname, exportdt,
-                sortfname, sortpath, sortfmoddt, sortfsize))
-        if userdescr:
-            d += ", 'user_descr': %r" % userdescr
-        d += "}"
-        try: eval(d)
-        except: raise ValueError("descr isn't a valid dictionary:\n%r" % d)
-        self.descr = pad(d, align=8)
+        d = {'file_type': '.ptcs (polytrode clustered spikes) file',
+             'original_fname': homelessfullfname, 'export_time': exportdt,
+             'sort': {'fname': sortfname, 'path': sortpath,
+                      'fmtime': sortfmoddt, 'fsize': sortfsize},
+             'user': user, 'notes': notes}
+        descr = str(d)
+        self.descr = pad(descr, align=8)
         self.srcfname = pad(lstrip(stream.fname, '../'), align=8)
         self.pttype = pad(stream.probe.name, align=8)
         self.dt = stream.datetime

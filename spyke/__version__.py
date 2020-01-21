@@ -7,7 +7,7 @@ import os
 import sys
 from distutils.version import LooseVersion
 
-__version__ = '2.0' # incremented mostly to track significant changes to sort file format
+__version__ = '2.1' # incremented mostly to track significant changes to sort file format
 
 # enforce minimum versions of various required libraries:
 PY2_LIBVERSIONS = {'Python': '2.7.15',
