@@ -3985,6 +3985,7 @@ class SpykeWindow(QtGui.QMainWindow):
             self.EnableFilteringMenu(enable)
             self.EnableCARMenu(enable)
             self.EnableSamplingMenu(enable)
+        self.EnableExportMenu(enable)
         self.EnableConvertMenu(enable)
         self.ui.filePosStartButton.setEnabled(enable)
         self.ui.filePosLineEdit.setEnabled(enable)
@@ -3997,6 +3998,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.EnableFilteringMenu(not enable)
         self.EnableCARMenu(not enable)
         self.EnableSamplingMenu(not enable)
+        self.EnableExportMenu(enable)
+        self.EnableExportSpikesMenu(enable)
         self.ui.actionRasters.setEnabled(enable)
         self.ShowRasters(enable)
         self.ui.tabWidget.setCurrentIndex(int(enable)) # select cluster or detect tab
@@ -4020,8 +4023,20 @@ class SpykeWindow(QtGui.QMainWindow):
         for action in self.ui.menuSampling.actions():
             action.setEnabled(enable)
 
+    def EnableExportMenu(self, enable):
+        """Enable/disable all items in File->Export menu, while still allowing
+        the menu to be opened and its contents viewed"""
+        for action in self.ui.menuExport.actions():
+            action.setEnabled(enable)
+
+    def EnableExportSpikesMenu(self, enable):
+        """Enable/disable all items in File->Export->Spikes menu, while still allowing
+        the menu to be opened and its contents viewed"""
+        for action in self.ui.menuSpikes.actions():
+            action.setEnabled(enable)
+
     def EnableConvertMenu(self, enable):
-        """Enable/disable all items in Convert menu, while still allowing
+        """Enable/disable all items in File->Convert menu, while still allowing
         the menu to be opened and its contents viewed"""
         for action in self.ui.menuConvert.actions():
             action.setEnabled(enable)
