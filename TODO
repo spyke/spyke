@@ -9,6 +9,9 @@
         - maybe the trigger is something like a list or dict of numpy scalars...
         - same problem in both Py2 and Py3, with latest jsonpickle and simplejson and numpy
 
+- is partial least squares a useful alternative here for PCA? Does PLS help find directions of max discriminability better than PCA? Inspired by Rumyantsev2020
+    - see https://scikit-learn.org/stable/modules/cross_decomposition.html
+
 - switch to kilosort2 integration
 
 - add horizontal plane or line in cluster window to show start/end of track/series
