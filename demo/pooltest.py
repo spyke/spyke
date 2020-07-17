@@ -56,7 +56,7 @@ class Detector(object):
         pool.close()
         # results is a list of (spikes, wavedata) tuples, and needs to be unzipped
         spikes, wavedata = zip(*results)
-        print spikes, wavedata
+        print(spikes, wavedata)
 
     def searchblock(self, blockrange):
         #t = np.random.random(1) * 10 # sec

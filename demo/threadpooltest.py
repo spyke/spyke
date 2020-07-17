@@ -35,28 +35,28 @@ def f(x, N):
 def handleOutput(request, output):
     """This f'n, as a callback, is blocking.
     It blocks the whole program, regardless of number of processes or CPUs/cores"""
-    print 'handleOutput got: %r, %r' % (request, output)
+    print('handleOutput got: %r, %r' % (request, output))
     outputs.append(output)
-    #print 'pausing'
+    #print('pausing')
     #for i in xrange(100000000):
     #    pass
 
 if __name__ == '__main__':
     ncpus = processing.cpuCount()
     nthreads = ncpus + 1
-    print 'ncpus: %d, nthreads: %d' % (ncpus, nthreads)
+    print('ncpus: %d, nthreads: %d' % (ncpus, nthreads))
     pool = ThreadPool(nthreads) # create a threading pool
     t0 = time.time()
     #arr = np.random.random(10000000)
     #for i, val in enumerate([1000000000]*10):#range(10):
     for i in range(10):
         args = (i, 1000000000)
-        print 'queueing task %d' % i
+        print('queueing task %d' % i)
         request = WorkRequest(f, args=args, callback=handleOutput)
         # these requests will only multithread if f is a C extension call?? definitely don't multithread if f is pure Python
         pool.putRequest(request)
-    print 'done queueing tasks'
+    print('done queueing tasks')
     pool.wait()
-    print 'tasks took %.3f sec' % time.time()
-    print 'outputs: %r' % outputs
+    print('tasks took %.3f sec' % time.time())
+    print('outputs: %r' % outputs)
     time.sleep(2) # pause so you can watch the parent thread in taskman hang around after worker threads exit

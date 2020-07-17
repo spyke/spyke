@@ -97,7 +97,7 @@ cids, poshist = gac(data, sigma, rmergex=rmergex, rneighx=rneighx,
                     alpha=alpha, maxgrad=maxgrad, minmovex=minmovex,
                     maxnnomerges=maxnnomerges, minpoints=minpoints)
 print('gac took %.3f sec' % (time.time()-t0))
-print cids
+print(cids)
 
 np.save('/home/mspacek/Desktop/poshist_manhattan_real_sigma_0.2.npy', poshist)
 #np.save('/home/mspacek/Desktop/poshist_euclid_real_sigma_0.2.npy', poshist)

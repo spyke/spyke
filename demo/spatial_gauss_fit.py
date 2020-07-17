@@ -28,8 +28,8 @@ class LeastSquares(object):
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
         print('p0 = %r' % self.p0)
         print('p = %r' % self.p)
-        print '%d iterations' % self.infodict['nfev']
-        print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
+        print('%d iterations' % self.infodict['nfev'])
+        print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
     def model(self, p, x, y):
         """2D Gaussian"""

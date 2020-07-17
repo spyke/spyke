@@ -1472,7 +1472,7 @@ class Sort(object):
         """
         spikes = self.get_spikes_sortedby('id')
         X = self.get_component_matrix()
-        print X
+        print(X)
         # try 'weighted' or 'average' with 'mahalanobis'
         cids = fclusterdata(X, t=t, method='single', metric='euclidean')
         n2sids, s2nids = self.get_ids(cids, spikes)
@@ -1599,7 +1599,7 @@ class Sort(object):
                 i = template.err[:, 1].argsort() # row indices that sort by error
                 template.err = template.err[i]
             sys.stdout.write('.')
-        print '\nmatch took %.3f sec' % (time.time()-t0)
+        print('\nmatch took %.3f sec' % (time.time()-t0))
     '''
 
 class Neuron(object):
@@ -1723,7 +1723,7 @@ class Neuron(object):
             weights = np.outer(sweights, tweights) # matrix, outer product of the two
         elif weighting == 'signal':
             weights = None # this is handled by caller
-        #print '\nweights:\n%r' % weights
+        #print('\nweights:\n%r' % weights)
         return weights
 
     def get_gaussian_spatial_weights(self, stdev):

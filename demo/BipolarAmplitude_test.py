@@ -1,5 +1,5 @@
 for i in range(len(s.events)):
-    print s.events[i].id, s.events[i].maxchan, s.events[i].t
+    print(s.events[i].id, s.events[i].maxchan, s.events[i].t)
 
 tlock = 250us
 slock = 175um

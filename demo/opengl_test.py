@@ -296,7 +296,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         nid = sid % len(CMAP)
         color = CMAP[nid]
         print('backbuffer.shape: %r' % (backbuffer.shape,))
-        print rgb
+        print(rgb)
         print('sid, nid, color: %d, %d, %r' % (sid, nid, color))
         '''
         # TODO: this isn't even necessary, since back buffer gets overdrawn anyway on next

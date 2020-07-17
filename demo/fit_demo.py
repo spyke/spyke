@@ -158,7 +158,7 @@ t0 = time.time()
 for i in xrange(100):
     ls.calc()
 
-print '%.3f sec' % (time.time() - t0) # ~2 sec
+print('%.3f sec' % (time.time() - t0)) # ~2 sec
 
 c = Cobyla(p0, t, v)
 
@@ -166,7 +166,7 @@ t0 = time.time()
 for i in xrange(100):
     c.calc()
 
-print '%.3f sec' % (time.time() - t0) # ~12 sec
+print('%.3f sec' % (time.time() - t0)) # ~12 sec
 
 
 ###############################################################
@@ -207,8 +207,8 @@ class LeastSquares(object):
                          maxfev=50, xtol=0.0001,
                          diag=None)
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
-        print '%d iterations' % self.infodict['nfev']
-        print 'mesg=%r, ier=%r' % (self.mesg, self.ier)
+        print('%d iterations' % self.infodict['nfev'])
+        print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
     def model(self, p, t, x, y):
         """Sum of two Gaussians in time, modulated by a 2D spatial Gaussian

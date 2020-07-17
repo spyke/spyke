@@ -116,5 +116,5 @@ def resize_cdef_arr():
 
 if __name__ == '__main__':
     for i in range(20):
-        print resize_cdef_arr()
+        print(resize_cdef_arr())
 
