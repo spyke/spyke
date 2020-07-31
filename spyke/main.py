@@ -32,10 +32,11 @@ def sort_numeric_json_keys(keyval):
     #if type(k) not in [str, unicode]:
     #    print('Unexpected key type:', type(k))
     if k.startswith(JSONPICKLENUMERICKEYPREFIX):
-        k = k[LENJSONPICKLENUMERICKEYPREFIX:] # drop prefix
-        if k.isdigit(): # sort json int keys as natural numbers ahead of string keys
-            k = int(k)
-    #print('%r' % k)
+        newk = k[LENJSONPICKLENUMERICKEYPREFIX:] # left strip prefix
+        if newk.isdigit(): # sort json int keys as natural numbers ahead of string keys
+            newk = int(newk)
+            #print('k=%r, newk=%r' % (k, newk))
+            return newk
     return k
 
 import jsonpickle
