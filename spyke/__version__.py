@@ -108,3 +108,8 @@ def check_LIBVERSIONS(verbose=False):
                 sln = ('Run `sudo pip%d install --upgrade %s` or `conda update %s` '
                        'at the command line' % (PYVER, pkgname, pkgname))
             raise RuntimeError(msg+sln)
+        if libname == 'jsonpickle' and ver != LooseVersion(minver):
+            msg = ('spyke currently requires exactly jsonpickle version %s, version %s is '
+                   'currently installed\n' % (minver, ver))
+            sln = ('Run `sudo pip%d install jsonpickle==%s`'% (PYVER, minver))
+            raise RuntimeError(msg+sln)
