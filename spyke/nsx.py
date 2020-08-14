@@ -332,35 +332,27 @@ class DataPacket(object):
         self.t0i, self.nt = unpack('II', f.read(8))
         self.dataoffset = f.tell()
         filesize = os.stat(f.name).st_size # in bytes
-        expectedfilesize = self.dataoffset + 2*self.nchans*self.nt
-        if filesize != expectedfilesize:
-            raise ValueError("Actual (%d) and expected (%d) file sizes don't match, "
-                             "%s is likely corrupt" % (filesize, expectedfilesize, f.name))
-            '''
-            if filesize > expectedfilesize:
-                raise RuntimeError("*** WARNING: Actual file size (%d) is > expected file "
-                                   "size (%d), don't know how to handle such corruption in "
-                                   "file %s" % (filesize, expectedfilesize, f.name))
-            print("*** WARNING: Actual file size (%d) is < expected file size (%d), "
-                  "file %s is likely corrupt" % (filesize, expectedfilesize, f.name))
+        datasize = filesize - self.dataoffset
+        expectednt = datasize / 2 / self.nchans
+        if self.nt != int(expectednt):
+            print("*** WARNING: Header in file %s says nt=%d, "
+                  "but file size suggests nt=%.3f. Perhaps the nt header field "
+                  "is incorrect/corrupt, but the rest of the file is fine."
+                  % (f.name, self.nt, expectednt))
+            if expectednt % 1 != 0.0: # remaining file size doesn't divide evenly
+                print("*** WARNING: Expected nt=%.3f is non-integer. "
+                      "This means there was an unknown amount of actual data loss, "
+                      "which could have occurred any time during the recording, including "
+                      "somewhere in the middle which would create offset errors with respect "
+                      "to e.g. stimulus data. Use extreme caution!" % expectednt)
             response = input("Try and continue anyway? (y/[n]) >> ")
             if response != 'y':
                 raise RuntimeError('Stopping')
-            print("Trying to recover whatever data is in the file, assuming missing data "
-                  "is all missing from the end of the file")
-            # try and memmap with (downward) revised nt:
-            datasize = filesize - self.dataoffset
-            estimatednt = datasize / 2 / self.nchans
-            if estimatednt % 1 != 0.0: # it doesn't divide evenly
-                self.nt = int(np.floor(estimatednt)) # round down
-                ndroppedbytes = datasize - 2*self.nchans*self.nt
-                print('Estimated number of timepoints in file is non-integer: %.3f\n'
-                      'Using only the first %d timepoints, discarding last %d bytes'
-                      % (estimatednt, self.nt, ndroppedbytes))
             else:
-                self.nt = intround(estimatednt)
-                print('Found %d timepoints' % self.nt)
-            '''
+                self.nt = int(np.floor(expectednt)) # round down
+                ndroppedbytes = datasize - 2*self.nchans*self.nt
+                print('Using only the first %d timepoints, discarding last %d bytes'
+                      % (self.nt, ndroppedbytes))
         # load all data into memory using np.fromfile. Time is MSB, chan is LSB:
         #self._data = np.fromfile(f, dtype=np.int16, count=self.nt*nchans)
         #self._data.shape = -1, self.nchans # reshape, t in rows, chans in columns
