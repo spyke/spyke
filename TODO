@@ -1,4 +1,5 @@
 - jsonpickle:
+    - jsonpickle > 1.2 (or at least 1.4.1) gets entries out of order somehow, causing the wrong objects to be dereferenced on load. Had to revert to exactly version 1.2. Not a result of newer simplejson version number. Might be somehow related to sort_keys
     - report mysterious .json sort file bug
         - see: https://github.com/jsonpickle/jsonpickle/issues/182
         - jsonpickle IndexError into self._objs proxies: maybe triggered by having 2 or more
