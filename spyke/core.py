@@ -50,10 +50,10 @@ DATSAMPLEERRPCT = 49.9 # percent
 
 DEFDATFILTMETH = 'BW' # default .dat filter method: None, 'BW', 'WMLDR'
 DEFNSXFILTMETH = 'BW' # default .nsx filter method: None, 'BW', 'WMLDR'
-BWHPF0 = 300 # butterworth high-pass filter low-frequency cutoff, Hz
-BWLPF1 = 300 # butterworth low-pass filter high-frequency cutoff, Hz
-BWHPORDER = 4 # butterworth high-pass filter order
-BWLPORDER = 4 # butterworth low-pass filter order
+BWHPF0 = 300 # Butterworth high-pass filter low-frequency cutoff, Hz
+BWLPF1 = 300 # Butterworth low-pass filter high-frequency cutoff, Hz
+BWHPORDER = 4 # Butterworth high-pass filter order
+BWLPORDER = 4 # Butterworth low-pass filter order
 # low-pass filter raw data to get low-pass stream?
 # otherwise just decimate, which is simpler and faster, but aliases:
 LOWPASSFILTERLPSTREAM = True
