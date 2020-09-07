@@ -29,7 +29,7 @@ rez = splitAllClusters(rez, 0);
 % decide on cutoff
 rez = set_cutoff(rez);
 
-fprintf('found %d good units\n', sum(rez.good > 0))
+fprintf('Found %d good units\n', sum(rez.good > 0))
 
 % create save folder if it doesn't exist
 if ~isdir(ops.root)
