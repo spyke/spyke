@@ -1,5 +1,5 @@
 % add paths:
-addpath(genpath('~/src/KiloSort2')) % path to KiloSort folder
+addpath(genpath('~/src/Kilosort2')) % path to KiloSort2 folder
 addpath(genpath('~/src/npy-matlab')) % path to npy-matlab scripts
 
 % run config file:
