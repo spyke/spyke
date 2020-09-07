@@ -43,7 +43,7 @@ kcoords   = ones(Nchannels,1); % grouping of channels (i.e. tetrode groups)
 
 fs = 30000; % sampling frequency
 save('ks_A1x32_chanmap_edge.mat', ...
-     'chanMap','connected', 'xcoords', 'ycoords', 'kcoords', 'chanMap0ind', 'fs')
+     'chanMap', 'connected', 'xcoords', 'ycoords', 'kcoords', 'chanMap0ind', 'fs')
 
 % kcoords is used to forcefully restrict templates to channels in the same
 % channel group. An option can be set in the master_file to allow a fraction
