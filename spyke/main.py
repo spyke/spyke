@@ -114,10 +114,10 @@ CHARTTW = {'.dat': (-25000, 25000),
 LFPTW = -500000, 500000
 
 # zero out +/- this amount of time around each saturated timepoint when exporting
-# high-pass data to KiloSort2:
+# high-pass data to Kilosort2:
 SATURATIONWINDOW = 500000 # us
 
-# shift imported KiloSort2 spike times by this much for better positioning in sort window:
+# shift imported Kilosort2 spike times by this much for better positioning in sort window:
 KILOSORT2SHIFTCORRECT = -(66+2.0/3) # us, multiple of both 16.67 or 33.33 .ns6 tres
 
 # spatial channel layout:
@@ -767,7 +767,7 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Done exporting high-pass envelope data')
 
     @QtCore.pyqtSlot()
-    def on_actionExportHighPassDatKiloSort2Files_triggered(self):
+    def on_actionExportHighPassDatKilosort2Files_triggered(self):
         self.export_hp_ks2_dat()
 
     @QtCore.pyqtSlot()
@@ -775,12 +775,12 @@ class SpykeWindow(QtGui.QMainWindow):
         self.export_raw_dat()
 
     def export_hp_ks2_dat(self):
-        """Export high-pass ephys data for use in KiloSort2, while checking
+        """Export high-pass ephys data for use in Kilosort2, while checking
         for and zeroing out any periods of saturation. Exports enabled chans concatenated
         across all files in current track, to .dat file in user-designated path.
         This works by first turning off all filtering, CAR, and resampling, then calling
         self.export_hpstream(), then restoring filtering, CAR, and resampling settings"""
-        print('Exporting high-pass ephys data to .dat file for use in KiloSort2, '
+        print('Exporting high-pass ephys data to .dat file for use in Kilosort2, '
               'removing any saturation')
 
         # save current hpstream filtering CAR and sampling settings:
@@ -823,14 +823,14 @@ class SpykeWindow(QtGui.QMainWindow):
             print('Raw data export cancelled')
             return
 
-        # write KiloSort2 channel map .mat file, indicate which chans are included in the .dat
+        # write Kilosort2 channel map .mat file, indicate which chans are included in the .dat
         datfnameML = matlabize(datfname) # make suitable for use as MATLAB script name
         chanmapfname = datfnameML + '_ks2_chanmap.mat'
         fullchanmapfname = os.path.join(path, chanmapfname)
         core.write_ks2_chanmap_mat(stream, fullchanmapfname)
 
-        # write KiloSort2 config .m file:
-        with open('./templates/kilosort2/ks2_config.m') as templateksconfigf:
+        # write Kilosort2 config .m file:
+        with open('./templates/Kilosort2/ks2_config.m') as templateksconfigf:
             ksconfigstr = templateksconfigf.read()
         ksconfigstr = ksconfigstr.format(DATFNAME=datfname,
                                          KSRESULTSFOLDERNAME=datfname+'.ks2_results',
@@ -842,10 +842,10 @@ class SpykeWindow(QtGui.QMainWindow):
         fullksconfigfname = os.path.join(path, ksconfigfname)
         with open(fullksconfigfname, 'w') as ksconfigf:
             ksconfigf.write(ksconfigstr)
-        print('Wrote KiloSort2 config file %r' % fullksconfigfname)
+        print('Wrote Kilosort2 config file %r' % fullksconfigfname)
 
-        # write KiloSort2 run .m file:
-        with open('./templates/kilosort2/ks2_run.m') as templateksrunf:
+        # write Kilosort2 run .m file:
+        with open('./templates/Kilosort2/ks2_run.m') as templateksrunf:
             ksrunstr = templateksrunf.read()
         # can't use str.format() because the curly bracket field replacement
         # syntax in Python conflicts with Matlab cell array {i} indexing:
@@ -856,7 +856,7 @@ class SpykeWindow(QtGui.QMainWindow):
         fullksrunfname = os.path.join(path, ksrunfname)
         with open(fullksrunfname, 'w') as ksrunf:
             ksrunf.write(ksrunstr)
-        print('Wrote KiloSort2 run file %r' % fullksrunfname)
+        print('Wrote Kilosort2 run file %r' % fullksrunfname)
 
     def export_raw_dat(self):
         """Export raw ephys data of enabled chans concatenated across all files in current
@@ -904,8 +904,8 @@ class SpykeWindow(QtGui.QMainWindow):
             return
 
     @QtCore.pyqtSlot()
-    def on_actionConvertKiloSort2Npy2EventsZip_triggered(self):
-        caption = "Convert relevant KiloSort2 .npy files to a single .events.zip file"
+    def on_actionConvertKilosort2Npy2EventsZip_triggered(self):
+        caption = "Convert relevant Kilosort2 .npy files to a single .events.zip file"
         path = getExistingDirectory(self, caption=caption, directory=self.streampath)
         path = str(path)
         if not path:
@@ -3378,9 +3378,9 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Done importing events from %r' % fullfname)
 
     def convert_kilosort2npy2eventszip(self, path):
-        """Read relevant KiloSort2 .npy results files in path, process them slightly,
+        """Read relevant Kilosort2 .npy results files in path, process them slightly,
         and save them with standard spyke variable names to an ".events.zip" npz file.
-        KiloSort2 .npy results are assumed to correspond to currently open stream."""
+        Kilosort2 .npy results are assumed to correspond to currently open stream."""
         s = self.hpstream
         assert s != None
 
@@ -3389,9 +3389,9 @@ class SpykeWindow(QtGui.QMainWindow):
         nidsfname = os.path.join(path, 'spike_clusters.npy')
         templatesfname = os.path.join(path, 'templates.npy')
         outputfname = os.path.join(path, s.fname + '.events.zip')
-        print('Converting KiloSort2 events to:\n%r' % outputfname)
+        print('Converting Kilosort2 events to:\n%r' % outputfname)
 
-        # load relevant KiloSort2 .npy results files:
+        # load relevant Kilosort2 .npy results files:
         # spike times, sample point integers relative to start of .dat file:
         spiketis = np.load(spiketisfname).ravel()
         nids = np.load(nidsfname).ravel() # 0-based neuron IDs, one per spike
@@ -3405,12 +3405,12 @@ class SpykeWindow(QtGui.QMainWindow):
                                "number of currently enabled chans in stream (%d)"
                                % (nchans, s.nchans))
 
-        # calculate spike times to nearest int64 us, assume KiloSort2 was run on
+        # calculate spike times to nearest int64 us, assume Kilosort2 was run on
         # raw uninterpolated data:
         spikets = intround(s.t0 + spiketis / s.rawsampfreq * 1e6) # us
 
-        # shift KiloSort2 spike times:
-        print('Shifting KiloSort2 spike times by %g us for better positioning in sort window'
+        # shift Kilosort2 spike times:
+        print('Shifting Kilosort2 spike times by %g us for better positioning in sort window'
               % KILOSORT2SHIFTCORRECT)
         spikets = spikets + KILOSORT2SHIFTCORRECT
 
@@ -3428,7 +3428,7 @@ class SpykeWindow(QtGui.QMainWindow):
         maxchans = np.uint8(maxchans) # save space, use same dtype as in SPIKEDTYPE
 
         # convert to 1-based neuron IDs, reserve 0 for unclustered spikes. Note that
-        # KiloSort2's 0-based neuron IDs might have gaps, i.e., they don't necessarily span
+        # Kilosort2's 0-based neuron IDs might have gaps, i.e., they don't necessarily span
         # the range 0..nneurons-1:
         nids += 1
         # check limits, convert nids to int16:
@@ -3439,7 +3439,7 @@ class SpykeWindow(QtGui.QMainWindow):
         assert len(spikets) == len(maxchans) == len(nids)
         with open(outputfname, 'wb') as f:
             np.savez_compressed(f, spikets=spikets, maxchans=maxchans, nids=nids)
-        print('Done converting KiloSort2 events')
+        print('Done converting Kilosort2 events')
 
     def OpenSortFile(self, fname):
         """Open a sort from a .sort/.json and .spike and .wave file with the same base name,

@@ -1809,7 +1809,7 @@ or remove all duplicate spikes from selected neurons
       <property name="title">
        <string>High-pass Data</string>
       </property>
-      <addaction name="actionExportHighPassDatKiloSort2Files"/>
+      <addaction name="actionExportHighPassDatKilosort2Files"/>
       <addaction name="actionExportHighPassDatFiles"/>
       <addaction name="actionExportHighPassEnvelopeDatFiles"/>
       <addaction name="actionExportHighPassBipolarRefEnvelopeDatFiles"/>
@@ -1836,7 +1836,7 @@ or remove all duplicate spikes from selected neurons
      <property name="title">
       <string>Convert</string>
      </property>
-     <addaction name="actionConvertKiloSort2Npy2EventsZip"/>
+     <addaction name="actionConvertKilosort2Npy2EventsZip"/>
     </widget>
     <addaction name="actionNewSort"/>
     <addaction name="actionNewTrack"/>
@@ -2495,12 +2495,12 @@ or remove all duplicate spikes from selected neurons
     <string>Wavelet multi-level decomposition and reconstruction</string>
    </property>
   </action>
-  <action name="actionConvertKiloSort2Npy2EventsZip">
+  <action name="actionConvertKilosort2Npy2EventsZip">
    <property name="text">
-    <string>KiloSort2 .npy to .events.zip</string>
+    <string>Kilosort2 .npy to .events.zip</string>
    </property>
    <property name="toolTip">
-    <string>Convert relevant KiloSort2 .npy files to a single .events.zip file</string>
+    <string>Convert relevant Kilosort2 .npy files to a single .events.zip file</string>
    </property>
   </action>
   <action name="actionCARNone">
@@ -2540,7 +2540,7 @@ or remove all duplicate spikes from selected neurons
     <string>.dat Files</string>
    </property>
    <property name="toolTip">
-    <string>Export raw ephys data to .dat file(s), and KiloSort2 chanmap, config and run files</string>
+    <string>Export raw ephys data to .dat file(s), and Kilosort2 chanmap, config and run files</string>
    </property>
   </action>
   <action name="action120kHz">
@@ -2596,9 +2596,9 @@ or remove all duplicate spikes from selected neurons
     <string>Save Track Channels</string>
    </property>
   </action>
-  <action name="actionExportHighPassDatKiloSort2Files">
+  <action name="actionExportHighPassDatKilosort2Files">
    <property name="text">
-    <string>.dat &amp;&amp; KiloSort2 Files, remove any saturation</string>
+    <string>.dat &amp;&amp; Kilosort2 Files, remove any saturation</string>
    </property>
   </action>
  </widget>

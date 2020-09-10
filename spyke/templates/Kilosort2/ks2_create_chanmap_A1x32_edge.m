@@ -1,4 +1,4 @@
-% create a channel map file for KiloSort
+% create a channel map file for Kilosort
 
 Nchannels = 32;
 connected = true(Nchannels, 1);
