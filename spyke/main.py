@@ -3385,6 +3385,7 @@ class SpykeWindow(QtGui.QMainWindow):
         assert s != None
 
         # build file names:
+        chansfname = os.path.join(path, 'channel_map.npy')
         spiketisfname = os.path.join(path, 'spike_times.npy')
         nidsfname = os.path.join(path, 'spike_clusters.npy')
         templatesfname = os.path.join(path, 'templates.npy')
@@ -3392,6 +3393,18 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Converting Kilosort2 events to:\n%r' % outputfname)
 
         # load relevant Kilosort2 .npy results files:
+        chanis = np.load(chansfname).ravel() # 0-based indices of chans that ks2 didn't ignore
+        # ensure that `chanis` are a subset of 0-based indices of chans enabled in the stream:
+        streamchanis = np.arange(s.nchans)
+        assert (np.isin(chanis, streamchanis)).all()
+        chans = s.chans[chanis] # dereference, chans that ks2 didn't ignore
+        if len(chans) < s.nchans:
+            # Kilosort2 has ignored some chans that are enabled in the stream
+            ignoredchans = np.setdiff1d(s.chans, chans)
+            print('*** NOTE: Kilosort2 ignored channels %s because they have a spike rate\n'
+                  '          that is too low, yet these channels are currently enabled in\n'
+                  '          the open stream. Consider disabling those channels in the open\n'
+                  '          stream to save some space in the sort' % ignoredchans)
         # spike times, sample point integers relative to start of .dat file:
         spiketis = np.load(spiketisfname).ravel()
         nids = np.load(nidsfname).ravel() # 0-based neuron IDs, one per spike
@@ -3400,10 +3413,10 @@ class SpykeWindow(QtGui.QMainWindow):
         templates = np.swapaxes(templates, 1, 2)
         templates = np.ascontiguousarray(templates) # make C contiguous
         ntemplates, nchans, nt = templates.shape
-        if nchans != s.nchans:
+        if nchans != len(chans):
             raise RuntimeError("Number of chans in 'templates.npy' (%d) doesn't match "
-                               "number of currently enabled chans in stream (%d)"
-                               % (nchans, s.nchans))
+                               "number of non-ignored chans in 'channel_map.npy' (%d)"
+                               % (nchans, len(chans)))
 
         # calculate spike times to nearest int64 us, assume Kilosort2 was run on
         # raw uninterpolated data:
@@ -3417,9 +3430,8 @@ class SpykeWindow(QtGui.QMainWindow):
         # find maxchan for each template: find max along time axis of each chan of each
         # template, then find argmax along chan axis of each template:
         templatemaxchanis = abs(templates).max(axis=2).argmax(axis=1) # one per template
-        # get dereferenced maxchan IDs, for example, A1x32 probe has 1-based chans, at
-        # least when recorded with Blackrock NSP. s.chans are *enabled* chans only:
-        templatemaxchans = s.chans[templatemaxchanis] # one per template
+        # get dereferenced maxchan IDs:
+        templatemaxchans = chans[templatemaxchanis] # one per template
         maxchans = templatemaxchans[nids] # one per spike
 
         # check limits, convert maxchans to uint8:
