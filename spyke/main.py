@@ -90,7 +90,7 @@ from .gac import gac # .pyx file
 from . import core
 from .core import (toiter, tocontig, intround, intceil, printflush, lstrip, matlabize,
                    g, dist, iterable, ClusterChange, SpykeToolWindow, DJS,
-                   qvar2list, qvar2str, qvar2int, merge_intervals)
+                   qvar2list, qvar2str, qvar2int, nullwavesat)
 from . import dat, nsx, surf, stream, probes
 from .stream import SimpleStream, MultiStream
 from .sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES, NPCSPERCHAN
@@ -585,7 +585,6 @@ class SpykeWindow(QtGui.QMainWindow):
                     if checksat:
                         satis = wave.satis # should have same shape as data
                         if satis.any():
-                            nt = data.shape[1] # num timepoints in this block
                             wsatis = np.where(satis) # integer row and col indices
                             satchanis = np.unique(wsatis[0]) # indices of rows that saturated
                             satchans = wave.chans[satchanis]
@@ -593,26 +592,7 @@ class SpykeWindow(QtGui.QMainWindow):
                             print('Saturation in block (%d, %d) on chans %s'
                                   % (t0, t1, satchans))
                             ntwin = intround(satwin / hps.tres)
-                            sattis = satis.any(axis=0) # time only, collapse across all chans
-                            edges = np.diff(sattis.astype(int)) # find +ve and -ve edges
-                            onis = np.where(edges > 0)[0] + 1
-                            offis = np.where(edges < 0)[0] + 1
-                            if len(onis) - len(offis) == 1:
-                                offis = np.append(offis, nt) # last off is end of block
-                            elif len(offis) - len(onis) == 1:
-                                onis = np.append(onis, 0) # first on is start of block
-                            # convert to nx2 array, expand window for zeroing around on
-                            # and off index of each saturation:
-                            ztrangeis = np.stack([onis-ntwin, offis+ntwin], axis=1)
-                            ztrangeis = np.asarray(merge_intervals(ztrangeis)) # remove overlap
-                            ztrangeis = ztrangeis.clip(0, nt) # limit to valid slice values
-                            for oni, offi in ztrangeis:
-                                sattis[oni:offi] = True
-                            data[:, sattis] = 0 # zero out data at sattis
-                            ztrangeis = ztrangeis.clip(max=nt-1) # limit to valid index values
-                            ztranges = wave.ts[ztrangeis]
-                            print('Zeroed-out time ranges:')
-                            print(intround(ztranges)) # convert to int for better display
+                            ztranges = nullwavesat(wave, ntwin) # null the saturated periods
                             ztrangess.append(ztranges)
                     #if t0 == t0s[-1]:
                     #    print('last block asked:', t0, t1)
