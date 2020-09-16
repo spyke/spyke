@@ -1809,7 +1809,7 @@ or remove all duplicate spikes from selected neurons
       <property name="title">
        <string>High-pass Data</string>
       </property>
-      <addaction name="actionExportHighPassDatKilosort2Files"/>
+      <addaction name="actionExportWideBandDatKilosort2Files"/>
       <addaction name="actionExportHighPassDatFiles"/>
       <addaction name="actionExportHighPassEnvelopeDatFiles"/>
       <addaction name="actionExportHighPassBipolarRefEnvelopeDatFiles"/>
@@ -2596,7 +2596,7 @@ or remove all duplicate spikes from selected neurons
     <string>Save Track Channels</string>
    </property>
   </action>
-  <action name="actionExportHighPassDatKilosort2Files">
+  <action name="actionExportWideBandDatKilosort2Files">
    <property name="text">
     <string>.dat &amp;&amp; Kilosort2 Files, remove any saturation</string>
    </property>

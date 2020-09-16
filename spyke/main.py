@@ -747,15 +747,15 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Done exporting high-pass envelope data')
 
     @QtCore.pyqtSlot()
-    def on_actionExportHighPassDatKilosort2Files_triggered(self):
-        self.export_hp_ks2_dat()
+    def on_actionExportWideBandDatKilosort2Files_triggered(self):
+        self.export_wb_ks2_dat()
 
     @QtCore.pyqtSlot()
     def on_actionExportRawDataDatFiles_triggered(self):
         self.export_raw_dat()
 
-    def export_hp_ks2_dat(self):
-        """Export high-pass ephys data for use in Kilosort2, while checking
+    def export_wb_ks2_dat(self):
+        """Export wide-band ephys data for use in Kilosort2, while checking
         for and zeroing out any periods of saturation. Exports enabled chans concatenated
         across all files in current track, to .dat file in user-designated path.
         This works by first turning off all filtering, CAR, and resampling, then calling
@@ -763,7 +763,7 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Exporting high-pass ephys data to .dat file for use in Kilosort2, '
               'removing any saturation')
 
-        # save current hpstream filtering CAR and sampling settings:
+        # save current hpstream filtering, CAR, and sampling settings:
         stream = self.hpstream
         if not stream:
             print('First open a stream!')
@@ -773,10 +773,9 @@ class SpykeWindow(QtGui.QMainWindow):
         sampfreq = stream.sampfreq
         shcorrect = stream.shcorrect
 
-        # set hpstream to show high-pass filtered, but otherwise raw, data:
-        print('Temporarily setting filtering to non-causal Butterworth, '
-              'disabling CAR & resampling')
-        self.SetFiltmeth('BWNC')
+        # set hpstream to show raw data:
+        print('Temporarily disabling filtering, CAR, and resampling for raw export')
+        self.SetFiltmeth(None)
         self.SetCAR(None)
         self.SetSampfreq(stream.rawsampfreq)
         if stream.ext != '.srf':
@@ -800,7 +799,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.SetSHCorrect(shcorrect)
 
         if not result:
-            print('Raw data export cancelled')
+            print('Wide-band data export cancelled')
             return
 
         # write Kilosort2 channel map .mat file, indicate which chans are included in the .dat
@@ -845,7 +844,7 @@ class SpykeWindow(QtGui.QMainWindow):
         filtering, CAR, and resampling settings"""
         print('Exporting raw ephys data to .dat file')
 
-        # save current hpstream filtering CAR and sampling settings:
+        # save current hpstream filtering, CAR, and sampling settings:
         stream = self.hpstream
         if not stream:
             print('First open a stream!')
