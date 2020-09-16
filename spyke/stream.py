@@ -387,11 +387,12 @@ class DATStream(Stream):
 
     filtering = property(get_filtering)
 
-    def __call__(self, start=None, stop=None, chans=None, checksat=False):
+    def __call__(self, start=None, stop=None, chans=None, checksat=False, gaps=False):
         """Called when Stream object is called using (). start and stop are timepoints in us
         wrt t=0. Returns the corresponding WaveForm object with just the specified chans.
         If checksat, also returns boolean array of data points of the same shape designating
-        which data points reached saturation in the raw data.
+        which data points reached saturation in the raw data. gaps is for compatibility
+        with MultiStream.__call__() and is ignored.
 
         As of 2017-10-24 I'm not sure if this behaviour qualifies as end-inclusive or not,
         but I suspect not. See how these single Streams are called in MultiStream.__call__
@@ -1317,7 +1318,7 @@ class MultiStream(object):
             raise ValueError('Unsupported slice step size: %s' % key.step)
         return self(key.start, key.stop, self.chans)
 
-    def __call__(self, start=None, stop=None, chans=None, checksat=False):
+    def __call__(self, start=None, stop=None, chans=None, checksat=False, gaps=True):
         """Called when Stream object is called using (). start and stop are
         timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
         specified chans. Figure out which stream(s) the slice spans (usually just one,
@@ -1342,19 +1343,25 @@ class MultiStream(object):
         nt = intround((stop - start) / tres) # in units of tres
         stop = start + nt * tres # in units of tres
         #print('Multi nearest rawtres start, stop', start, stop)
-        streamis = []
-        ## TODO: this could probably be more efficient by not iterating over all streams:
+        streamis = [] # indices of streams that intersect with (start, stop)
+        ## TODO: this could be slightly more efficient by not iterating over all streams:
         for streami, trange in enumerate(self.tranges):
             if (trange[0] <= start < trange[1]) or (trange[0] <= stop < trange[1]):
                 streamis.append(streami)
+        if not gaps:
+            datant = 0 # number of actual data timepoints collected from stream(s)
+            gaplessts = []
+            if len(streamis) == 0: # no actual data to return
+                nt = 0 # don't waste time and space allocating arrays
+        # generate timestamps, including gaps:
         # safer to use linspace than arange in case of float tres, deals with endpoints
         # better and gives slightly more accurate output float timestamps:
         ts = np.linspace(start, start+(nt-1)*tres, nt) # end inclusive
         assert len(ts) == nt
         data = np.zeros((nchans, nt), dtype=np.int16) # any gaps will have zeros
-        satis = None
+        satis = None # default return value in WaveForm
         if checksat:
-            satis = np.zeros((nchans, nt), dtype=bool)
+            satis = np.zeros((nchans, nt), dtype=bool) # any gaps will have zeros
         # iterate over all relevant streams:
         for streami in streamis:
             stream = self.streams[streami]
@@ -1372,16 +1379,31 @@ class MultiStream(object):
             #print('Multi abst0, relt0, st0, st1:', abst0, relt0, st0, st1)
             wave = stream(st0, st1, chans, checksat) # source WaveForm
             sdata, ssatis = wave.data, wave.satis # source data and satis, in units of tres
-            # destination slice indices:
-            dt0i = intround((abst0 + relt0 - start) / tres) # absolute index
-            dt1i = dt0i + sdata.shape[1]
-            #print('Multi dt0i, dt1i', dt0i, dt1i)
+            snt = sdata.shape[1]
             #print('Multi start, stop, tres, sdata, data:\n',
             #      start, stop, tres, sdata.shape, data.shape)
-            data[:, dt0i:dt1i] = sdata # destination data, in units of tres
-            if checksat:
-                satis[:, dt0i:dt1i] = ssatis # destination satis, in units of tres
-            assert data.shape[1] == len(ts)
+            if gaps:
+                # destination slice indices:
+                dt0i = intround((abst0 + relt0 - start) / tres) # absolute index
+                dt1i = dt0i + snt
+                #print('Multi dt0i, dt1i', dt0i, dt1i)
+                data[:, dt0i:dt1i] = sdata # destination data, in units of tres
+                if checksat:
+                    satis[:, dt0i:dt1i] = ssatis # destination satis, in units of tres
+            else: # gapless
+                # destination slice indices, squished right up against previous stream:
+                glt0i, glt1i = datant, datant+snt
+                #print('Multi glt0i, glt1i', glt0i, glt1i)
+                data[:, glt0i:glt1i] = sdata # destination data, in units of tres
+                if checksat:
+                    satis[:, glt0i:glt1i] = ssatis # destination satis, in units of tres
+                gaplessts.append(ts[glt0i:glt1i]) # collect MultiStream timestamps
+                datant = datant + snt # update
+        if not gaps and nt > 0: # gapless, and actual data was collected from stream(s)
+            ts = np.concatenate(gaplessts) # replace gaps ts with gapless ts
+            assert len(ts) == datant
+            data = data[:, :datant] # strip any excess off end
+            satis = satis[:, :datant] # strip any excess off end
         return WaveForm(data=data, ts=ts, chans=chans, tres=tres, satis=satis)
 
     def get_block_tranges(self, bs=10000000):

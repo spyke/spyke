@@ -537,7 +537,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionExportHighPassDatFiles_triggered(self):
         self.export_hpstream()
 
-    def export_hpstream(self, cat=False, checksat=False, satwin=None,
+    def export_hpstream(self, cat=False, gaps=True, checksat=False, satwin=None,
                         export_msg='high-pass', export_ext='.filt.dat'):
         """Export high-pass stream to user-designated path, using current preprocessing
         settings (filtering, CAR, and resampling) and channel selection, to export_ext file(s)
@@ -545,19 +545,21 @@ class SpykeWindow(QtGui.QMainWindow):
         can also be used to export raw data if the hpstream settings for filtering, CAR and
         resampling are set appropriately. Use export_msg and export_ext to communicate this.
         cat controls whether to concatenate all the exported data into a single
-        .dat file. If checksat is true, check for saturation in raw data, then zero out +/-
-        satwin us around any saturated data. This works best if the data is indeed high-pass"""
+        .dat file, and gaps whether to zero-pad gaps between streams in a Multistream.
+        If checksat is true, check for saturation in raw data, then null out +/- satwin us
+        around any saturated data. This works best if the data is indeed high-pass"""
         if not self.hpstream:
             print('First open a stream!')
             return
         if self.hpstream.is_multi(): # self.hpstream is a MultiStream
-            hpstreams = self.hpstream.streams
-            defaultpath = hpstreams[0].f.path # get path of first stream
+            defaultpath = self.hpstream.streams[0].f.path # get path of first stream
             if cat: # export entire MultiStream to one file:
                 hpstreams = [self.hpstream]
+            else: # export each stream in MultiStream to a separate file
+                hpstreams = self.hpstream.streams
         else: # self.hpstream is a single Stream
+            defaultpath = self.hpstream.f.path
             hpstreams = [self.hpstream]
-            defaultpath = hpstreams[0].f.path
             assert cat == False # nonsensical for a single Stream
         caption = "Export %s data to %s files" % (export_msg, export_ext)
         path = str(getExistingDirectory(self, caption=caption, directory=defaultpath))
@@ -580,10 +582,9 @@ class SpykeWindow(QtGui.QMainWindow):
                     t1 = t0 + blocksize
                     #print('%d to %d us' % (t0, t1))
                     printflush('.', end='') # succint progress indicator
-                    wave = hps(t0, t1, checksat=checksat)
-                    data = wave.data
+                    wave = hps(t0, t1, checksat=checksat, gaps=gaps)
                     if checksat:
-                        satis = wave.satis # should have same shape as data
+                        satis = wave.satis # should have same shape as wave.data
                         if satis.any():
                             wsatis = np.where(satis) # integer row and col indices
                             satchanis = np.unique(wsatis[0]) # indices of rows that saturated
@@ -597,9 +598,9 @@ class SpykeWindow(QtGui.QMainWindow):
                     #if t0 == t0s[-1]:
                     #    print('last block asked:', t0, t1)
                     #    print('last block received:', wave.ts[0], wave.ts[-1])
-                    data.T.tofile(datf) # write in column-major (Fortran) order
+                    wave.data.T.tofile(datf) # write in column-major (Fortran) order
                 print() # newline
-                core.write_dat_json(hps, fulljsonfname)
+                core.write_dat_json(hps, fulljsonfname, gaps=gaps)
                 if ztrangess:
                     ztrangess = np.concatenate(ztrangess, axis=0)
                     ztrangesfname = fullfname + '.0tranges.npy'
@@ -757,10 +758,10 @@ class SpykeWindow(QtGui.QMainWindow):
     def export_wb_ks2_dat(self):
         """Export wide-band ephys data for use in Kilosort2, while checking
         for and zeroing out any periods of saturation. Exports enabled chans concatenated
-        across all files in current track, to .dat file in user-designated path.
+        across all files in current track, without gaps, to .dat file in user-designated path.
         This works by first turning off all filtering, CAR, and resampling, then calling
         self.export_hpstream(), then restoring filtering, CAR, and resampling settings"""
-        print('Exporting high-pass ephys data to .dat file for use in Kilosort2, '
+        print('Exporting wide-band gapless ephys data to .dat file for use in Kilosort2, '
               'removing any saturation')
 
         # save current hpstream filtering, CAR, and sampling settings:
@@ -783,11 +784,12 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # do the export:
         if stream.is_multi(): # it's a MultiStream
-            cat = True # concatenate
+            cat, gaps = True, False # concatenate, no gaps
         else: # it's a single Stream
-            cat = False # nothing to concatenate
-        result = self.export_hpstream(cat=cat, checksat=True, satwin=SATURATIONWINDOW,
-                                      export_msg='high-pass', export_ext='.dat')
+            cat, gaps = False, False # nothing to concatenate
+        result = self.export_hpstream(cat=cat, gaps=gaps,
+                                      checksat=True, satwin=SATURATIONWINDOW,
+                                      export_msg='wide-band', export_ext='.dat')
         if result:
             path, datfname = result
 
