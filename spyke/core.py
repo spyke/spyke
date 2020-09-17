@@ -2004,7 +2004,7 @@ class SpykeUnpickler(pickle.Unpickler):
         exec('import %s' % newmod)
         return eval('%s.%s' % (newmod, newcls))
 
-def arr2json(arr, indent=0, ndec=6, max_line_width=80):
+def arr2json(arr, indent=0, ndec=6, max_line_width=75):
     """Convert numpy.ndarray to string suitable for json list. Much nicer formatting
     than Python list. Indent all but the first line with indent spaces"""
     fltfmt = "%." + str(ndec) + 'f'
@@ -2087,8 +2087,9 @@ def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=No
     od['notes'] = notes
 
     od['source_fnames'] = source_fnames
-    if len(source_fnames) > 1:
-        od['gaps'] = gaps # only makes sense for a MultiStream
+    if len(source_fnames) == 1:
+        assert gaps == False
+    od['gaps'] = gaps # only needed for MultiStream, but always include for consistency
     od['tranges'] = 'TRANGESPLACEHOLDER' # 2D array
     od['nulltranges'] = 'NULLTRANGESPLACEHOLDER' # 2D array
 
