@@ -2007,6 +2007,21 @@ class SpykeUnpickler(pickle.Unpickler):
         exec('import %s' % newmod)
         return eval('%s.%s' % (newmod, newcls))
 
+def arr2json(arr, indent=0, ndec=6, max_line_width=80):
+    """Convert numpy.ndarray to string suitable for json list. Much nicer formatting
+    than Python list. Indent all but the first line with indent spaces"""
+    fltfmt = "%." + str(ndec) + 'f'
+    max_line_width = max_line_width - indent
+    s = np.array2string(arr, separator=', ', threshold=np.inf, max_line_width=max_line_width,
+                        formatter={'float_kind':lambda x: fltfmt % x})
+    indentstr = indent * ' '
+    if indent:
+        sl = s.splitlines()
+        nlines = len(sl)
+        for linei in range(1, nlines):
+            sl[linei] = indentstr + sl[linei]
+        s = '\n'.join(sl)
+    return s
 
 def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=None,
                    chan_order=None, envelope=None, adaptername=None, gaps=False,
@@ -2027,9 +2042,9 @@ def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=No
         sampfreq = stream.sampfreq
     sample_rate = sampfreq
     if chans is None:
-        chans = stream.chans.tolist() # convert to list of native int, required by Py3 json
+        chans = stream.chans # array
     if auxchans is None:
-        auxchans = []
+        auxchans = np.array([])
     nchans = len(chans) + len(auxchans)
     uV_per_AD = stream.converter.AD2uV(1)
     # multiply by sampfreq instead of dividing by stream.tres, because passed sampfreq
@@ -2050,6 +2065,8 @@ def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=No
         notes = ''
     else:
         raise ValueError
+    if nulltranges is None:
+        nulltranges = np.array([]) # normally would be 2D
     filtering = stream.filtering
     common_avg_ref = stream.car
 
@@ -2063,9 +2080,9 @@ def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=No
     od['uV_per_AD'] = uV_per_AD
     od['probe_name'] = stream.probe.name
     od['adapter_name'] = adaptername
-    od['chans'] = chans
+    od['chans'] = 'CHANSPLACEHOLDER' # array
     od['chan_order'] = chan_order # for human reference only, 'depth' & None are obvious values
-    od['aux_chans'] = auxchans
+    od['aux_chans'] = 'AUXCHANSPLACEHOLDER' # array
     od['nsamples_offset'] = nsamples_offset
     od['datetime'] = datetime
     od['author'] = author
@@ -2075,19 +2092,25 @@ def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=No
     od['source_fnames'] = source_fnames
     if len(source_fnames) > 1:
         od['gaps'] = gaps # only makes sense for a MultiStream
-    od['tranges'] = tranges.tolist()
-    od['nulltranges'] = nulltranges.tolist()
+    od['tranges'] = 'TRANGESPLACEHOLDER' # 2D array
+    od['nulltranges'] = 'NULLTRANGESPLACEHOLDER' # 2D array
+
     od['filtering'] = filtering
     od['common_avg_ref'] = common_avg_ref
     if envelope:
         od['envelope'] = envelope
 
+    # convert odict to json string, end with a blank line:
+    indent = 1
+    s = json.dumps(od, indent=indent) + '\n'
+    # swap array placeholders with nicely formatted array reprs:
+    s = s.replace('"CHANSPLACEHOLDER"', arr2json(chans, indent=indent+9))
+    s = s.replace('"AUXCHANSPLACEHOLDER"', arr2json(auxchans, indent=indent+13))
+    s = s.replace('"TRANGESPLACEHOLDER"', arr2json(tranges, indent=indent+11))
+    s = s.replace('"NULLTRANGESPLACEHOLDER"', arr2json(nulltranges, indent=indent+15))
+    # write to file:
     with open(fulljsonfname, 'w') as jsonf:
-        ## TODO: make list fields not have a newline for each entry. Not at all easy to do.
-        ## See https://stackoverflow.com/questions/16405969/how-to-change-json-encoding-behaviour-for-serializable-python-object
-        # write contents of odict to file:
-        json.dump(od, jsonf, indent=0, separators=(',', ': '))
-        jsonf.write('\n') # end with a blank line
+        jsonf.write(s)
     print('Wrote metadata file %r' % fulljsonfname)
 
 def write_ks2_chanmap_mat(stream, fname):
