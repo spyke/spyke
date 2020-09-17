@@ -1488,7 +1488,8 @@ def merge_intervals(intervals):
     return list(merged_interval_gen(intervals))
 
 def nullwavesat(wave, ntwin):
-    """Null out saturated regions of WaveForm data, operates in-place"""
+    """Null out saturated regions of WaveForm data, in-place.
+    Return nx2 2D array of nulled tranges"""
     ## TODO: replace with median of pre and post satwin values instead of just 0?
     nt = wave.data.shape[1] # num timepoints in wave.data
     sattis = wave.satis.any(axis=0) # time only, collapse across all chans
@@ -1501,17 +1502,17 @@ def nullwavesat(wave, ntwin):
         onis = np.append(onis, 0) # first on is start of block
     # convert to nx2 array, expand window for zeroing around on
     # and off index of each saturation:
-    ztrangeis = np.stack([onis-ntwin, offis+ntwin], axis=1)
-    ztrangeis = np.asarray(merge_intervals(ztrangeis)) # remove overlap
-    ztrangeis = ztrangeis.clip(0, nt) # limit to valid slice values
-    for oni, offi in ztrangeis:
+    nulltrangeis = np.stack([onis-ntwin, offis+ntwin], axis=1)
+    nulltrangeis = np.asarray(merge_intervals(nulltrangeis)) # remove overlap
+    nulltrangeis = nulltrangeis.clip(0, nt) # limit to valid slice values
+    for oni, offi in nulltrangeis:
         sattis[oni:offi] = True
     wave.data[:, sattis] = 0 # zero out data at sattis
-    ztrangeis = ztrangeis.clip(max=nt-1) # limit to valid index values
-    ztranges = wave.ts[ztrangeis]
-    print('Zeroed-out time ranges:')
-    print(intround(ztranges)) # convert to int for better display
-    return ztranges
+    nulltrangeis = nulltrangeis.clip(max=nt-1) # limit to valid index values
+    nulltranges = wave.ts[nulltrangeis]
+    print('Nulled time ranges:')
+    print(intround(nulltranges)) # convert to int for better display
+    return nulltranges
 
 def lst2shrtstr(lst, sigfigs=4, brackets=False):
     """Return string representation of list, replacing any floats with potentially

@@ -576,7 +576,7 @@ class SpykeWindow(QtGui.QMainWindow):
             fulljsonfname = fullfname + '.json'
             print('Exporting %s data to %r' % (export_msg, fullfname))
             with open(fullfname, 'wb') as datf:
-                ztrangess = []
+                nulltranges = []
                 t0s = np.arange(hps.t0, hps.t1, blocksize)
                 for t0 in t0s:
                     t1 = t0 + blocksize
@@ -593,20 +593,23 @@ class SpykeWindow(QtGui.QMainWindow):
                             print('Saturation in block (%d, %d) on chans %s'
                                   % (t0, t1, satchans))
                             ntwin = intround(satwin / hps.tres)
-                            ztranges = nullwavesat(wave, ntwin) # null the saturated periods
-                            ztrangess.append(ztranges)
+                            # null the saturated periods:
+                            blocknulltranges = nullwavesat(wave, ntwin) # nx2 array
+                            nulltranges.append(blocknulltranges)
                     #if t0 == t0s[-1]:
                     #    print('last block asked:', t0, t1)
                     #    print('last block received:', wave.ts[0], wave.ts[-1])
                     wave.data.T.tofile(datf) # write in column-major (Fortran) order
                 print() # newline
                 core.write_dat_json(hps, fulljsonfname, gaps=gaps)
-                if ztrangess:
-                    ztrangess = np.concatenate(ztrangess, axis=0)
-                    ztrangesfname = fullfname + '.0tranges.npy'
-                    np.save(ztrangesfname, ztrangess)
-                    print('Zeroed-out %d time ranges' % len(ztrangess))
-                    print('Wrote 0tranges file %r' % ztrangesfname)
+                if len(nulltranges) == 0:
+                    nulltranges = None # default value
+                else:
+                    # concatenate 2D arrays vertically:
+                    nulltranges = np.concatenate(nulltranges, axis=0)
+                    #nulltrangesfname = fullfname + '.0tranges.npy'
+                    #np.save(nulltrangesfname, nulltranges)
+                    print('Nulled %d time ranges' % len(nulltranges))
         print('Done exporting %s data' % export_msg)
 
         # only return path and fname if we're only exporting to a single file:
