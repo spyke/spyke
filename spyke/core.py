@@ -2009,7 +2009,8 @@ class SpykeUnpickler(pickle.Unpickler):
 
 
 def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=None,
-                   chan_order=None, envelope=None, adaptername=None, gaps=True):
+                   chan_order=None, envelope=None, adaptername=None, gaps=False,
+                   tranges=None, nulltranges=None):
     """Write .json metadata file as a companion to stream's file. For now, stream should be
     either a DATStream, NSXStream, or SurfStream"""
     ext = stream.ext
@@ -2074,6 +2075,8 @@ def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=No
     od['source_fnames'] = source_fnames
     if len(source_fnames) > 1:
         od['gaps'] = gaps # only makes sense for a MultiStream
+    od['tranges'] = tranges.tolist()
+    od['nulltranges'] = nulltranges.tolist()
     od['filtering'] = filtering
     od['common_avg_ref'] = common_avg_ref
     if envelope:

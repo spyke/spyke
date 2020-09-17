@@ -1318,12 +1318,16 @@ class MultiStream(object):
             raise ValueError('Unsupported slice step size: %s' % key.step)
         return self(key.start, key.stop, self.chans)
 
-    def __call__(self, start=None, stop=None, chans=None, checksat=False, gaps=True):
+    def __call__(self, start=None, stop=None, chans=None, checksat=False, gaps=False):
         """Called when Stream object is called using (). start and stop are
         timepoints in us wrt t=0. Returns the corresponding WaveForm object with just the
         specified chans. Figure out which stream(s) the slice spans (usually just one,
         sometimes 0 or 2), send the request to the stream(s), generate the appropriate
-        timestamps, and return the waveform"""
+        timestamps, and return the waveform.
+        If gaps is True, gaps between streams in a Multistream are excluded
+        from the .dat file; if gaps is False, gaps are not excluded from the .dat file
+        and are zero-padded, resulting in one long continuous time range of data.
+        """
         if start is None:
             start = self.t0
         if stop is None:
@@ -1348,20 +1352,20 @@ class MultiStream(object):
         for streami, trange in enumerate(self.tranges):
             if (trange[0] <= start < trange[1]) or (trange[0] <= stop < trange[1]):
                 streamis.append(streami)
-        if not gaps:
+        if gaps: # return data with gaps in time, i.e. don't zero-pad
             datant = 0 # number of actual data timepoints collected from stream(s)
-            gaplessts = []
+            gapsts = []
             if len(streamis) == 0: # no actual data to return
                 nt = 0 # don't waste time and space allocating arrays
-        # generate timestamps, including gaps:
+        # generate continuous timestamps, ignoring gaps for now:
         # safer to use linspace than arange in case of float tres, deals with endpoints
         # better and gives slightly more accurate output float timestamps:
         ts = np.linspace(start, start+(nt-1)*tres, nt) # end inclusive
         assert len(ts) == nt
-        data = np.zeros((nchans, nt), dtype=np.int16) # any gaps will have zeros
+        data = np.zeros((nchans, nt), dtype=np.int16) # any data gaps will have zeros
         satis = None # default return value in WaveForm
         if checksat:
-            satis = np.zeros((nchans, nt), dtype=bool) # any gaps will have zeros
+            satis = np.zeros((nchans, nt), dtype=bool) # any data gaps will have zeros
         # iterate over all relevant streams:
         for streami in streamis:
             stream = self.streams[streami]
@@ -1382,7 +1386,7 @@ class MultiStream(object):
             snt = sdata.shape[1]
             #print('Multi start, stop, tres, sdata, data:\n',
             #      start, stop, tres, sdata.shape, data.shape)
-            if gaps:
+            if not gaps: # return data without timestamp gaps
                 # destination slice indices:
                 dt0i = intround((abst0 + relt0 - start) / tres) # absolute index
                 dt1i = dt0i + snt
@@ -1390,17 +1394,18 @@ class MultiStream(object):
                 data[:, dt0i:dt1i] = sdata # destination data, in units of tres
                 if checksat:
                     satis[:, dt0i:dt1i] = ssatis # destination satis, in units of tres
-            else: # gapless
+            else: # return data with timestamp gaps
                 # destination slice indices, squished right up against previous stream:
                 glt0i, glt1i = datant, datant+snt
                 #print('Multi glt0i, glt1i', glt0i, glt1i)
                 data[:, glt0i:glt1i] = sdata # destination data, in units of tres
                 if checksat:
                     satis[:, glt0i:glt1i] = ssatis # destination satis, in units of tres
-                gaplessts.append(ts[glt0i:glt1i]) # collect MultiStream timestamps
+                gapsts.append(ts[glt0i:glt1i]) # collect MultiStream timestamps
                 datant = datant + snt # update
-        if not gaps and nt > 0: # gapless, and actual data was collected from stream(s)
-            ts = np.concatenate(gaplessts) # replace gaps ts with gapless ts
+        if gaps and nt > 0:
+            # data has timestamp gaps, and some actual stream data were collected:
+            ts = np.concatenate(gapsts) # replace continuous ts with gapsts
             assert len(ts) == datant
             data = data[:, :datant] # strip any excess off end
             satis = satis[:, :datant] # strip any excess off end

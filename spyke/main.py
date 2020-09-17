@@ -537,7 +537,7 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionExportHighPassDatFiles_triggered(self):
         self.export_hpstream()
 
-    def export_hpstream(self, cat=False, gaps=True, checksat=False, satwin=None,
+    def export_hpstream(self, cat=False, gaps=False, checksat=False, satwin=None,
                         export_msg='high-pass', export_ext='.filt.dat'):
         """Export high-pass stream to user-designated path, using current preprocessing
         settings (filtering, CAR, and resampling) and channel selection, to export_ext file(s)
@@ -545,7 +545,10 @@ class SpykeWindow(QtGui.QMainWindow):
         can also be used to export raw data if the hpstream settings for filtering, CAR and
         resampling are set appropriately. Use export_msg and export_ext to communicate this.
         cat controls whether to concatenate all the exported data into a single
-        .dat file, and gaps whether to zero-pad gaps between streams in a Multistream.
+        .dat file.
+        If gaps is True, gaps between streams in a Multistream are excluded
+        from the .dat file; if gaps is False, gaps are not excluded from the .dat file
+        and are zero-padded, resulting in one long continuous time range of data.
         If checksat is true, check for saturation in raw data, then null out +/- satwin us
         around any saturated data. This works best if the data is indeed high-pass"""
         if not self.hpstream:
@@ -558,9 +561,9 @@ class SpykeWindow(QtGui.QMainWindow):
             else: # export each stream in MultiStream to a separate file
                 hpstreams = self.hpstream.streams
         else: # self.hpstream is a single Stream
+            assert cat == False # nonsensical for a single Stream
             defaultpath = self.hpstream.f.path
             hpstreams = [self.hpstream]
-            assert cat == False # nonsensical for a single Stream
         caption = "Export %s data to %s files" % (export_msg, export_ext)
         path = str(getExistingDirectory(self, caption=caption, directory=defaultpath))
         if not path:
@@ -576,6 +579,11 @@ class SpykeWindow(QtGui.QMainWindow):
             fulljsonfname = fullfname + '.json'
             print('Exporting %s data to %r' % (export_msg, fullfname))
             with open(fullfname, 'wb') as datf:
+                # collect tranges that will correspond to exported timepoints in .dat:
+                tranges = np.array([[hps.t0, hps.t1]]) # 2D array
+                if hps.is_multi() and gaps:
+                    # make gaps explicit by excluding them from tranges:
+                    tranges = hps.tranges # tranges of streams in MultiStream, 2D array
                 nulltranges = []
                 t0s = np.arange(hps.t0, hps.t1, blocksize)
                 for t0 in t0s:
@@ -601,7 +609,6 @@ class SpykeWindow(QtGui.QMainWindow):
                     #    print('last block received:', wave.ts[0], wave.ts[-1])
                     wave.data.T.tofile(datf) # write in column-major (Fortran) order
                 print() # newline
-                core.write_dat_json(hps, fulljsonfname, gaps=gaps)
                 if len(nulltranges) == 0:
                     nulltranges = None # default value
                 else:
@@ -610,6 +617,8 @@ class SpykeWindow(QtGui.QMainWindow):
                     #nulltrangesfname = fullfname + '.0tranges.npy'
                     #np.save(nulltrangesfname, nulltranges)
                     print('Nulled %d time ranges' % len(nulltranges))
+                core.write_dat_json(hps, fulljsonfname, gaps=gaps,
+                                    tranges=tranges, nulltranges=nulltranges)
         print('Done exporting %s data' % export_msg)
 
         # only return path and fname if we're only exporting to a single file:
@@ -787,7 +796,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
         # do the export:
         if stream.is_multi(): # it's a MultiStream
-            cat, gaps = True, False # concatenate, no gaps
+            cat, gaps = True, True # concatenate, export with timestamp gaps
         else: # it's a single Stream
             cat, gaps = False, False # nothing to concatenate
         result = self.export_hpstream(cat=cat, gaps=gaps,
