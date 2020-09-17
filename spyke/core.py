@@ -30,11 +30,8 @@ import scipy.signal, scipy.io
 import matplotlib as mpl
 
 # set some numpy options - these hold for all modules in spyke:
-np.set_printoptions(precision=3)
-np.set_printoptions(threshold=1000)
-np.set_printoptions(edgeitems=5)
-np.set_printoptions(linewidth=150)
-np.set_printoptions(suppress=True)
+np.set_printoptions(precision=3, threshold=1000, edgeitems=5, linewidth=150, suppress=True)
+#np.set_printoptions(precision=6, floatmode='maxprec')
 # make overflow, div by zero, and invalid raise errors, and underflow just raise a warning,
 # so that program doesn't halt on underflow during gaussian fit in extract module:
 np.seterr(over='raise', divide='raise', invalid='raise', under='warn')
