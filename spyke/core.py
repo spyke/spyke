@@ -2087,9 +2087,8 @@ def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=No
     od['notes'] = notes
 
     od['source_fnames'] = source_fnames
-    if len(source_fnames) == 1:
-        assert gaps == False
-    od['gaps'] = gaps # only needed for MultiStream, but always include for consistency
+    if len(source_fnames) > 1:
+        od['gaps'] = gaps # only meaningful for MultiStream with more than one Stream
     od['tranges'] = 'TRANGESPLACEHOLDER' # 2D array
     od['nulltranges'] = 'NULLTRANGESPLACEHOLDER' # 2D array
 
