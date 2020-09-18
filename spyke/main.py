@@ -3428,10 +3428,10 @@ class SpykeWindow(QtGui.QMainWindow):
             assert nt == streamnt
             streamrawts = np.linspace(t0, t0+(nt-1)*rawtres, nt) # end inclusive
             rawts.append(streamrawts)
-        # convert to nearest int64 us (this is what SPIKEDTYPE expects):
-        streamrawts = intround(streamrawts)
+        # pack raw timestamps into a single contiguous array,
+        # convert to nearest int64 us (as in SPIKEDTYPE):
+        rawts = intround(np.concatenate(rawts))
         spikets = streamrawts[spiketis] # us
-        #spikets = intround(s.t0 + spiketis / s.rawsampfreq * 1e6) # us
 
         # shift Kilosort2 spike times:
         print('Shifting Kilosort2 spike times by %g us for better positioning in sort window'
