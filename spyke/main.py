@@ -3417,11 +3417,11 @@ class SpykeWindow(QtGui.QMainWindow):
         print('Assuming that Kilosort2 was run on raw uninterpolated data, '
               'and that gaps=True during the export to .dat')
         rawts = []
-        for stream in s.streams:
-            # iterate over absolute time ranges of Streams relative to start of
-            # MultiStream
+        rawtres = s.rawtres
+        # iterate over absolute time ranges of Streams relative to start of MultiStream:
+        for stream, trange in zip(s.streams, s.tranges):
             nt = stream.f.nt # get nt from its lower level File object
-            t0, t1, rawtres = stream.t0, stream.t1, stream.rawtres
+            t0, t1 = trange
             # should be same as taking difference of end-inclusive tranges,
             # dividing by rawtres, and adding 1:
             streamnt = intround((t1 - t0)/rawtres) + 1 # end inclusive
@@ -3431,7 +3431,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # pack raw timestamps into a single contiguous array,
         # convert to nearest int64 us (as in SPIKEDTYPE):
         rawts = intround(np.concatenate(rawts))
-        spikets = streamrawts[spiketis] # us
+        spikets = rawts[spiketis] # us
 
         # shift Kilosort2 spike times:
         print('Shifting Kilosort2 spike times by %g us for better positioning in sort window'
