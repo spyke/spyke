@@ -3412,8 +3412,26 @@ class SpykeWindow(QtGui.QMainWindow):
                                % (nchans, len(chans)))
 
         # calculate spike times to nearest int64 us, assume Kilosort2 was run on
-        # raw uninterpolated data:
-        spikets = intround(s.t0 + spiketis / s.rawsampfreq * 1e6) # us
+        # raw uninterpolated data, and that gaps=True during the export, i.e. that
+        # gaps between streams in the data were excluded and not zero-padded:
+        print('Assuming that Kilosort2 was run on raw uninterpolated data, '
+              'and that gaps=True during the export to .dat')
+        rawts = []
+        for stream in s.streams:
+            # iterate over absolute time ranges of Streams relative to start of
+            # MultiStream
+            nt = stream.f.nt # get nt from its lower level File object
+            t0, t1, rawtres = stream.t0, stream.t1, stream.rawtres
+            # should be same as taking difference of end-inclusive tranges,
+            # dividing by rawtres, and adding 1:
+            streamnt = intround((t1 - t0)/rawtres) + 1 # end inclusive
+            assert nt == streamnt
+            streamrawts = np.linspace(t0, t0+(nt-1)*rawtres, nt) # end inclusive
+            rawts.append(streamrawts)
+        # convert to nearest int64 us (this is what SPIKEDTYPE expects):
+        streamrawts = intround(streamrawts)
+        spikets = streamrawts[spiketis] # us
+        #spikets = intround(s.t0 + spiketis / s.rawsampfreq * 1e6) # us
 
         # shift Kilosort2 spike times:
         print('Shifting Kilosort2 spike times by %g us for better positioning in sort window'
@@ -3497,7 +3515,8 @@ class SpykeWindow(QtGui.QMainWindow):
             nspikes = len(sort.spikes)
             det = sort.detector
             sort.wavedata = np.zeros((nspikes, det.maxnchansperspike, det.maxnt), dtype=np.int16)
-            # Linux has lazy physical memory allocation. See https://stackoverflow.com/a/27582592.
+            # Linux has lazy physical memory allocation. See:
+            # https://stackoverflow.com/a/27582592.
             # This forces physical memory allocation, though strangely, doesn't seem to speed
             # up loading of wavedata. It will fail immediately if physical memory can't be
             # allocated, which is desirable:
