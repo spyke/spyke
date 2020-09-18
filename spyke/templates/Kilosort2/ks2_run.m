@@ -5,7 +5,7 @@ addpath(genpath('~/src/npy-matlab')) % path to npy-matlab scripts
 % run config file:
 run('{KSCONFIGFNAME}')
 
-% preprocess data to create temp_wh.dat
+% preprocess data to create temp_wh.dat, calls tic to start the timer
 rez = preprocessDataSub(ops);
 
 % time-reordering as a function of drift
@@ -66,3 +66,7 @@ end
 fprintf('Saving final results in rez\n')
 fname = fullfile(ops.root, 'rez.mat');
 save(fname, 'rez', '-v7.3');
+
+% report total run duration since last tic call
+totaldt = toc;
+fprintf('Kilosort2 took %f s\n', totaldt)
