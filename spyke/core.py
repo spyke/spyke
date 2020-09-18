@@ -1487,9 +1487,8 @@ def merge_intervals(intervals):
     return list(merged_interval_gen(intervals))
 
 def nullwavesat(wave, ntwin):
-    """Null out saturated regions of WaveForm data, in-place.
-    Return nx2 2D array of nulled tranges"""
-    ## TODO: replace with median of pre and post satwin values instead of just 0?
+    """Null out saturated regions of WaveForm data in-place by replacing them with a linear
+    ramp on each channel to minimize sharp edges. Return nx2 2D array of nulled tranges"""
     nt = wave.data.shape[1] # num timepoints in wave.data
     sattis = wave.satis.any(axis=0) # time only, collapse across all chans
     edges = np.diff(sattis.astype(int)) # find +ve and -ve edges
@@ -1503,12 +1502,14 @@ def nullwavesat(wave, ntwin):
     # and off index of each saturation:
     nulltrangeis = np.stack([onis-ntwin, offis+ntwin], axis=1)
     nulltrangeis = np.asarray(merge_intervals(nulltrangeis)) # remove overlap
-    nulltrangeis = nulltrangeis.clip(0, nt) # limit to valid slice values
-    for oni, offi in nulltrangeis:
-        sattis[oni:offi] = True
-    wave.data[:, sattis] = 0 # zero out data at sattis
-    nulltrangeis = nulltrangeis.clip(max=nt-1) # limit to valid index values
-    nulltranges = wave.ts[nulltrangeis]
+    nulltrangeis = nulltrangeis.clip(min=0, max=nt-1) # limit to valid index values
+    # replace data on each channel with linear ramp from start to end of each
+    # time nulltrange:
+    for chan in wave.data:
+        for nulltrangei in nulltrangeis:
+            i, j = nulltrangei
+            chan[i:j] = np.linspace(chan[i], chan[j], j-i, dtype=int)
+    nulltranges = wave.ts[nulltrangeis] # dereference
     print('Nulled time ranges:')
     print(intround(nulltranges)) # convert to int for better display
     return nulltranges
