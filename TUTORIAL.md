@@ -23,7 +23,7 @@ data windows are hidden, the data file remains open.
 
 4. Press the `Detect` button in the Detect tab. This will run spike detection on the entire
 file, given the current detection settings. As an alternative to spyke's built-in detection,
-you can use the output of KiloSort (see section below).
+you can use the output of Kilosort2 (see section below).
 
 5. When detection is done, three new windows will open up: sort, cluster and matplotlib. The
 sort window shows detected waveforms and cluster means, the cluster window shows each spike as
@@ -118,13 +118,13 @@ hand, because all the relevant spike waveforms are already stored in the `.wave`
 good, because in general the original source file will be much bigger, and therefore
 potentially inconvenient to keep on hand.
 
-### Sorting full tracks/series with [KiloSort](https://github.com/cortex-lab/KiloSort)
+### Sorting full tracks/series with [Kilosort2](https://github.com/MouseLand/Kilosort2)
 
 spyke has the concept of a "track": a set of recordings in multiple files that were all
 recorded in the same position in the brain, for which spike sorting should be done all
 together. This is completely synonymous with the alternative term "series". spyke can work
-fairly seamlessly with KiloSort to provide a better initial set of clusters, which can then be
-refined as usual within spyke. To sort a full track with spyke and KiloSort:
+fairly seamlessly with Kilosort2 to provide a better initial set of clusters, which can then
+be refined as usual within spyke. To sort a full track with spyke and Kilosort2:
 
 1. File->New Track. Navigate to your folder with a track/series worth of source files (`.ns6`
 or `.dat` or `.srf`), type in the desired track/series name and hit Save to create a `.track`
@@ -147,36 +147,40 @@ right-clicking on them. If you right-click on a channel again, it's re-enabled.
 3. File->Save Track Channels to save any channel selections you may have made. These
 selections are saved to the `.track` file, which you can inspect with a plain text editor.
 
-4. File->Export->High-pass Data->.dat & KiloSort files. Choose the desired destination folder
-(probably a local folder, on which you will locally run KiloSort in MATLAB) and hit Open. This
-first high-pass filters (using a noncausal Butterworth filter) and concatenates the data
-across all the source files in the current `.track` file, saving the results to a `.dat` file.
-This also checks for saturation in the data, and if it finds any, zeroes it out, +/- 0.5 sec
-on either side, and also saves the start and stop time ranges of the zeroed out data to a
-`.0tranges.npy` file. Saturation and big transients can causes problems for KiloSort. The
-required MATLAB files to run KiloSort are also generated. Note that the Filtering, CAR and
-Sampling settings you are currently using in spyke are ignored during export. Only high-pass
-noncausal Butterworth filtered data is exported. KiloSort will then do its own further
-preprocessing.
+4. File->Export->High-pass Data->.dat & Kilosort2 files. Choose the desired destination folder
+(probably a local folder, on which you will locally run Kilosort2 in MATLAB) and hit Open.
+This concatenates the data across all the source files in the current `.track` file, saving
+the results to a `.dat` file with a companion `.json.dat` metadata file. This also checks for
+saturation in the data. Saturation and big transients can causes problems for Kilosort2. If
+any saturation is found, it is nulled out +/- 0.5 sec on either side, using a linear ramp to
+minimize high-frequency artifacts during filtering. These nulled time ranges are saved to the
+`nulltranges` field in the `.json.dat` metadata file. The required MATLAB files to run
+Kilosort2 are also generated. Note that the Filtering, CAR and Sampling settings you are
+currently using in spyke are ignored during export. Only unfiltered raw data is exported, and
+any gaps of recording time in the track will not be zero-padded, i.e. consecutive recordings
+will be concatenated one after the other. The relative time ranges of the recordings in the
+track are stored in the `tranges` field in the `.dat.json` metadata file. Kilosort2 will then
+do its own further preprocessing.
 
 5. Open the `_ks_run.m` file that was created in the above step. Check the first two lines to
-make sure that the path to wherever you installed KiloSort and
+make sure that the path to wherever you installed Kilosort2 and
 [npy-matlab](https://github.com/kwikteam/npy-matlab) is correct. If it isn't correct, you can
 fix it there, or better yet, fix it permanently for yourself in the
-`templates/kilosort/ks_run.m` template file in the spyke code directory.
+`templates/Kilosort2/ks2_run.m` template file in the spyke code directory.
 
 6. Start MATLAB, `cd` to the folder where you exported the raw data to, and run the
-`_ks_run.m` file. KiloSort automatically does its own filtering and CAR, but it doesn't
+`_ks2_run.m` file. Kilosort2 automatically does its own filtering and CAR, but it doesn't
 resample.
 
-7. When KiloSort is done, with the `.track` still open in spyke, go File->Convert KiloSort
-.npy to events.zip. Select the `ks_results` folder generated by KiloSort. This should be a
+7. When Kilosort2 is done, with the `.track` still open in spyke, go File->Convert Kilosort2
+.npy to events.zip. Select the `ks_results` folder generated by Kilosort2. This should be a
 subfolder of where you exported the raw data to.
 
 8. File->Open the `.events.zip` file you just created. This will import the results from
-KiloSort into spyke. This will probably take quite a while as it extracts the waveforms from
+Kilosort2 into spyke. This will probably take quite a while as it extracts the waveforms from
 the raw data and performs spatial localization on each spike.
 
-9. When it's finally done, go File->Save to save it to a `.sort` file, spyke's native format.
-Now you can proceed as usual (starting at step 7 in the basic tutorial above), inspecting and
-refining the set of clusters generated by KiloSort.
+9. When it's finally done, go File->Save to save it to a `.track.json` file, spyke's native
+format, a kind of Python pickle dumped to a `.json` file using `jsonpickle`. Now you can
+proceed as usual (starting at step 7 in the basic tutorial above), inspecting and refining the
+set of clusters generated by KiloSort.

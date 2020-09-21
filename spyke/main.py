@@ -3390,7 +3390,7 @@ class SpykeWindow(QtGui.QMainWindow):
         # ensure that `chanis` are a subset of 0-based indices of chans enabled in the stream:
         streamchanis = np.arange(s.nchans)
         assert (np.isin(chanis, streamchanis)).all()
-        chans = s.chans[chanis] # dereference, chans that ks2 didn't ignore
+        chans = s.chans[chanis] # dereference, chans that Kilosort2 didn't ignore
         if len(chans) < s.nchans:
             # Kilosort2 has ignored some chans that are enabled in the stream
             ignoredchans = np.setdiff1d(s.chans, chans)

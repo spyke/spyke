@@ -2116,7 +2116,7 @@ def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=No
 def write_ks2_chanmap_mat(stream, fname):
     """Write stream's channel map information to .mat file for use by Kilosort2"""
     nchans = stream.nchans # number of enabled chans
-    # mask to tell ks which chans in .dat to use for sorting?:
+    # mask to tell Kilosort2 which chans in .dat to use for sorting?:
     connected = np.tile(True, (nchans, 1)) # column vector
     chans = stream.chans # array of enabled chans
     # row vector, 1-based indices into coords, in order of data in .dat
@@ -2126,15 +2126,15 @@ def write_ks2_chanmap_mat(stream, fname):
     coords = np.asarray([ stream.probe.SiteLoc[chan] for chan in chans ])
     xcoords = coords[:, 0].reshape(-1, 1) # column vector
     ycoords = coords[:, 1].reshape(-1, 1) # column vector, origin is at top of probe
-    ycoords = ycoords.max() - ycoords # ks expects origin at bottom of probe
+    ycoords = ycoords.max() - ycoords # Kilosort2 expects origin at bottom of probe
     kcoords = np.tile(1, (nchans, 1)) # column vector, something to do with shanks?
     fs = stream.rawsampfreq
     """
     Export to .mat file with exactly the same dtypes (doubles) that Kilosort2's chanmap
-    creation script (see .m files in templates/ks) does. Note that this saves to a MATLAB 5
-    (to version 7.2) .mat file, while by default contemporary MATLAB saves to the newer HDF5
-    version, which is unsupported by scipy.io. Both seem to load identically in MATLAB 2015a,
-    so it shouldn't matter:
+    creation script (see .m files in templates/Kilosort2) does. Note that this saves to a
+    MATLAB 5 (to version 7.2) .mat file, while by default contemporary MATLAB saves to the
+    newer HDF5 version, which is unsupported by scipy.io. Both seem to load identically in
+    MATLAB 2015a, so it shouldn't matter:
     """
     matd = {'connected': connected, # leave as boolean
             'chanMap': np.float64(chanMap),
