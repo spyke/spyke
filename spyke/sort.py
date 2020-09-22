@@ -33,8 +33,9 @@ from . import util # .pyx file
 
 from . import core
 from .core import (WaveForm, Gaussian, MAXLONGLONG, R, toiter, intround, printflush, lstrip,
-                   rstrip, lrstrip, pad, td2days, SpykeToolWindow, NList, NSList,
+                   rstrip, lrstrip, pad, td2days, SpykeToolWindow, NList, NSList, dist,
                    USList, ClusterChange, SpikeSelectionSlider, lrrep2Darrstripis, rollwin2D)
+from .detect import DEBUG
 from .surf import EPOCH
 from .plot import SpikeSortPanel, CLUSTERCOLOURDICT, WHITE
 from .__version__ import __version__
@@ -1356,6 +1357,140 @@ class Sort(object):
         neurons = [ self.neurons[nid] for nid in unids ]
         for neuron in neurons:
             neuron.update_wave() # update affected mean waveforms
+
+    def init_spike_alignment(self):
+        """Set initial spike alignment points according to alignment points of each
+        spike's neuron"""
+        print('Setting initial spike alignment points')
+        ntis, nalignis = {}, {} # tis and aligni derived from each neuron's mean waveform
+        for neuron in self.neurons.values():
+            nwave = neuron.get_wave() # update and return mean waveform
+            mintis = nwave.data.argmin(axis=1)
+            maxtis = nwave.data.argmax(axis=1)
+            ntis[neuron.id] = np.column_stack([mintis, maxtis])
+            # choose aligni with least variance:
+            nalignis[neuron.id] = np.argmin([mintis.std(), maxtis.std()])
+        AD2uV = self.converter.AD2uV
+        for s, wd in zip(self.spikes, self.wavedata):
+            sid = s['id']
+            # print out progress on a regular basis:
+            if sid % 100000 == 0:
+                printflush(sid, end='')
+            elif sid % 10000 == 0:
+                printflush('.', end='')
+            nid = s['nid']
+            #chan = s['chan']
+            nchans = s['nchans']
+            chans = s['chans'][:nchans]
+            neuronchans = self.neurons[nid].wave.chans
+            assert (chans == neuronchans).all()
+            s['tis'][:nchans] = ntis[nid] # set according to its neuron, wrt t0i=0
+            s['aligni'] = nalignis[nid] # set according to its neuron
+            maxchani = s['chani']
+            t0i, t1i = int(s['tis'][maxchani, 0]), int(s['tis'][maxchani, 1])
+            s['dt'] = abs(t1i - t0i) / self.sampfreq * 1e6 # us
+            # note that V0 and V1 might not be of opposite sign, because tis are derived
+            # from mean neuron waveform, not from each individual spike:
+            s['V0'], s['V1'] = AD2uV(wd[maxchani, t0i]), wd[maxchani, t1i] # uV
+            s['Vpp'] = abs(s['V1'] - s['V0']) # uV
+
+    def spatially_localize_spikes(self, sortwin, method='fit'):
+        """Assuming that wavedata have been extracted and neuron mean waveforms calculated,
+        find tis and perform spatial localization of every spike in self"""
+        ntis, nalignis = {}, {} # tis and aligni derived from each neuron's mean waveform
+        for neuron in self.neurons.values():
+            nwave = neuron.get_wave() # update and return mean waveform
+            mintis = nwave.data.argmin(axis=1)
+            maxtis = nwave.data.argmax(axis=1)
+            ntis[neuron.id] = np.column_stack([mintis, maxtis])
+            # choose aligni with least variance:
+            nalignis[neuron.id] = np.argmin([mintis.std(), maxtis.std()])
+        det = self.detector
+        weights2f = self.extractor.weights2spatial
+        weights2spatialmean = self.extractor.weights2spatialmean
+        f = self.extractor.f
+        nreject = 0 # number spikes rejected during spatial localization
+        print('Running spatial localization on all %d spikes' % self.nspikes)
+        tstart = time.clock()
+        for s, wd in zip(self.spikes, self.wavedata):
+            # Get Vpp at each inclchan's tis, use as spatial weights:
+            # see core.rowtake() or util.rowtake_cy() for indexing explanation:
+            sid = s['id']
+            # print out progress on a regular basis:
+            if sid % 10000 == 0:
+                printflush(sid, end='')
+            elif sid % 1000 == 0:
+                printflush('.', end='')
+            chan = s['chan']
+            nchans = s['nchans']
+            chans = s['chans'][:nchans]
+            #neuronchans = self.neurons[nid].wave.chans
+            #assert (chans == neuronchans).all()
+            #s['tis'][:nchans] = ntis[nid] # set according to its neuron, wrt t0i=0
+            #s['aligni'] = nalignis[nid] # set according to its neuron
+            maxchani = s['chani']
+            #t0i, t1i = int(s['tis'][maxchani, 0]), int(s['tis'][maxchani, 1])
+            #s['dt'] = abs(t1i - t0i) / self.sampfreq * 1e6 # us
+            # note that V0 and V1 might not be of opposite sign, because tis are derived
+            # from mean neuron waveform, not from each individual spike:
+            #s['V0'], s['V1'] = AD2uV(wd[maxchani, t0i]), wd[maxchani, t1i] # uV
+            #s['Vpp'] = abs(s['V1'] - s['V0']) # uV
+            chanis = det.chans.searchsorted(chans)
+            w = np.float32(wd[np.arange(s['nchans'])[:, None], s['tis'][:nchans]]) # nchans x 2
+            w = abs(w).sum(axis=1) # Vpp for each chan, measured at t0i and t1i
+            x = det.siteloc[chanis, 0] # 1D array (row)
+            y = det.siteloc[chanis, 1]
+            if method == 'fit':
+                # localize by fitting extractor.f function to wavedata
+                params = weights2f(f, w, x, y, maxchani)
+            elif method == 'mean':
+                # set localization to Vpp-weighted spatial mean and 0 sigma:
+                x0, y0 = weights2spatialmean(w, x, y)
+                # a very ad-hoc guess for spatial sigma:
+                sx = 2 * dist((x0, y0), self.probe.SiteLoc[chan])
+                params = x0, y0, sx, sx
+            else:
+                print('Unknown method %r' % method)
+            if sid % 1000 == 0:
+                print(sid, params)
+            if params == None: # presumably a non-localizable many-channel noise event
+                #printflush('X', end='') # to indicate a rejected spike
+                if DEBUG:
+                    spiket = intround(s['t']) # nearest us
+                    det.log("Reject spike %d at t=%d based on fit params" % (sid, spiket))
+                neuron = self.neurons[s['nid']]
+                # remove from its neuron, add to unsorted list of spikes:
+                sortwin.MoveSpikes2List(neuron, [sid], update=False)
+                # manually set localization params to Vpp-weighted spatial mean and 0 sigma:
+                x0, y0 = weights2spatialmean(w, x, y)
+                # set sigma to 0 um, and then later round lockr up to 1 um so that only one
+                # raster tick shows up for each rejected spike, reducing clutter
+                params = x0, y0, 0, 0
+                nreject += 1
+            # Save spatial fit params, and "lockout" only the channels within lockrx*sx
+            # of the fit spatial location of the spike, up to a max of inclr. "Lockout"
+            # in this case only refers to which channels are highlighted with a raster tick
+            # for each spike:
+            s['x0'], s['y0'], s['sx'], s['sy'] = params
+            x0, y0 = s['x0'], s['y0']
+            # lockout radius for this spike:
+            lockr = min(det.lockrx*s['sx'], det.inclr) # in um
+            lockr = max(lockr, 1) # at least 1 um, so at least the maxchan gets a tick
+            # test y coords of chans in y array, ylockchaniis can be used to index
+            # into x, y and chans:
+            ylockchaniis, = np.where(np.abs(y - y0) <= lockr) # convert bool arr to int
+            # test Euclid distance from x0, y0 for each ylockchani:
+            lockchaniis = ylockchaniis.copy()
+            for ylockchanii in ylockchaniis:
+                if dist((x[ylockchanii], y[ylockchanii]), (x0, y0)) > lockr:
+                    # Euclidean distance is too great, remove ylockchanii from lockchaniis:
+                    lockchaniis = lockchaniis[lockchaniis != ylockchanii]
+            lockchans = chans[lockchaniis]
+            nlockchans = len(lockchans)
+            s['lockchans'][:nlockchans], s['nlockchans'] = lockchans, nlockchans
+        print('Spatial localization of spikes took %.3f s' % (time.clock() - tstart))
+
+        return nreject
 
     '''
     def get_component_matrix(self, dims=None, weighting=None):

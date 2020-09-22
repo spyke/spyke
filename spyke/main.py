@@ -89,7 +89,7 @@ from .gac import gac # .pyx file
 
 from . import core
 from .core import (toiter, tocontig, intround, intceil, printflush, lstrip, matlabize,
-                   g, dist, iterable, ClusterChange, SpykeToolWindow, DJS,
+                   g, iterable, ClusterChange, SpykeToolWindow, DJS,
                    qvar2list, qvar2str, qvar2int, nullwavesat)
 from . import dat, nsx, surf, stream, probes
 from .stream import SimpleStream, MultiStream
@@ -3233,6 +3233,7 @@ class SpykeWindow(QtGui.QMainWindow):
         sort.wavedata[:] = 0
         print('wavedata.shape:', sort.wavedata.shape)
         print('wavedata.nbytes: %.3f GiB' % (sort.wavedata.nbytes / 1024**3))
+
         # "re"load spike wavedata based on imported events:
         sort.reload_spikes(spikes['id'])
 
@@ -3262,87 +3263,10 @@ class SpykeWindow(QtGui.QMainWindow):
         # apply_clustering():
         del nids
 
-        # now that wavedata have been extracted and neuron mean waveforms calculated,
-        # find tis and do spatial localization of each spike:
-        ntis, nalignis = {}, {} # tis and aligni derived from each neuron's mean waveform
-        for neuron in sort.neurons.values():
-            nwave = neuron.get_wave() # update and return mean waveform
-            mintis = nwave.data.argmin(axis=1)
-            maxtis = nwave.data.argmax(axis=1)
-            ntis[neuron.id] = np.column_stack([mintis, maxtis])
-            # choose aligni with least variance:
-            nalignis[neuron.id] = np.argmin([mintis.std(), maxtis.std()])
-        AD2uV = sort.converter.AD2uV
-        weights2f = sort.extractor.weights2spatial
-        weights2spatialmean = sort.extractor.weights2spatialmean
-        f = sort.extractor.f
-        nreject = 0 # number spikes rejected during spatial localization
-        print('Running spatial localization on all %d spikes' % nspikes)
-        for s, wd in zip(sort.spikes, sort.wavedata):
-            # Get Vpp at each inclchan's tis, use as spatial weights:
-            # see core.rowtake() or util.rowtake_cy() for indexing explanation:
-            sid = s['id']
-            # print out progress on a regular basis:
-            if sid % 10000 == 0:
-                printflush(sid, end='')
-            elif sid % 1000 == 0:
-                printflush('.', end='')
-            spiket = intround(s['t']) # nearest us
-            nid = s['nid']
-            chan = s['chan']
-            nchans = s['nchans']
-            chans = s['chans'][:nchans]
-            neuronchans = sort.neurons[nid].wave.chans
-            assert (chans == neuronchans).all()
-            s['tis'][:nchans] = ntis[nid] # set according to its neuron, wrt t0i=0
-            s['aligni'] = nalignis[nid] # set according to its neuron
-            maxchani = s['chani']
-            t0i, t1i = int(s['tis'][maxchani, 0]), int(s['tis'][maxchani, 1])
-            s['dt'] = abs(t1i - t0i) / sort.sampfreq * 1e6 # us
-            # note that V0 and V1 might not be of opposite sign, because tis are derived
-            # from mean neuron waveform, not from each individual spike:
-            s['V0'], s['V1'] = AD2uV(wd[maxchani, t0i]), wd[maxchani, t1i] # uV
-            s['Vpp'] = abs(s['V1'] - s['V0']) # uV
-            chanis = det.chans.searchsorted(chans)
-            w = np.float32(wd[np.arange(s['nchans'])[:, None], s['tis'][:nchans]]) # nchans x 2
-            w = abs(w).sum(axis=1) # Vpp for each chan, measured at t0i and t1i
-            x = det.siteloc[chanis, 0] # 1D array (row)
-            y = det.siteloc[chanis, 1]
-            params = weights2f(f, w, x, y, maxchani)
-            if params == None: # presumably a non-localizable many-channel noise event
-                #printflush('X', end='') # to indicate a rejected spikes
-                if DEBUG: det.log("Reject spike %d at t=%d based on fit params"
-                                  % (sid, spiket))
-                neuron = sort.neurons[nid]
-                # remove from its neuron, add to unsorted list of spikes:
-                sw.MoveSpikes2List(neuron, [sid], update=False)
-                # manually set localization params to Vpp-weighted spatial mean and 0 sigma:
-                x0, y0 = weights2spatialmean(w, x, y)
-                # set sigma to 0 um, and then later round lockr up to 1 um so that only one
-                # raster tick shows up for each rejected spike, reducing clutter
-                params = x0, y0, 0, 0
-                nreject += 1
-            # Save spatial fit params, and "lockout" only the channels within lockrx*sx
-            # of the fit spatial location of the spike, up to a max of inclr. "Lockout"
-            # in this case only refers to which channels are highlighted with a raster tick
-            # for each spike:
-            s['x0'], s['y0'], s['sx'], s['sy'] = params
-            x0, y0 = s['x0'], s['y0']
-            # lockout radius for this spike:
-            lockr = min(det.lockrx*s['sx'], det.inclr) # in um
-            lockr = max(lockr, 1) # at least 1 um, so at least the maxchan gets a tick
-            # test y coords of chans in y array, ylockchaniis can be used to index
-            # into x, y and chans:
-            ylockchaniis, = np.where(np.abs(y - y0) <= lockr) # convert bool arr to int
-            # test Euclid distance from x0, y0 for each ylockchani:
-            lockchaniis = ylockchaniis.copy()
-            for ylockchanii in ylockchaniis:
-                if dist((x[ylockchanii], y[ylockchanii]), (x0, y0)) > lockr:
-                    # Euclidean distance is too great, remove ylockchanii from lockchaniis:
-                    lockchaniis = lockchaniis[lockchaniis != ylockchanii]
-            lockchans = chans[lockchaniis]
-            nlockchans = len(lockchans)
-            s['lockchans'][:nlockchans], s['nlockchans'] = lockchans, nlockchans
+        sort.init_spike_alignment()
+
+        # perform spatial localization on all spikes in sort:
+        nreject = sort.spatially_localize_spikes(sw)
 
         # spatial localization is done, reset fit objects for clean jsonpickle:
         sort.extractor.set_fit_objects()
