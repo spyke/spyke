@@ -1424,17 +1424,7 @@ class Sort(object):
             chan = s['chan']
             nchans = s['nchans']
             chans = s['chans'][:nchans]
-            #neuronchans = self.neurons[nid].wave.chans
-            #assert (chans == neuronchans).all()
-            #s['tis'][:nchans] = ntis[nid] # set according to its neuron, wrt t0i=0
-            #s['aligni'] = nalignis[nid] # set according to its neuron
             maxchani = s['chani']
-            #t0i, t1i = int(s['tis'][maxchani, 0]), int(s['tis'][maxchani, 1])
-            #s['dt'] = abs(t1i - t0i) / self.sampfreq * 1e6 # us
-            # note that V0 and V1 might not be of opposite sign, because tis are derived
-            # from mean neuron waveform, not from each individual spike:
-            #s['V0'], s['V1'] = AD2uV(wd[maxchani, t0i]), wd[maxchani, t1i] # uV
-            #s['Vpp'] = abs(s['V1'] - s['V0']) # uV
             chanis = det.chans.searchsorted(chans)
             w = np.float32(wd[np.arange(s['nchans'])[:, None], s['tis'][:nchans]]) # nchans x 2
             w = abs(w).sum(axis=1) # Vpp for each chan, measured at t0i and t1i
@@ -1451,8 +1441,6 @@ class Sort(object):
                 params = x0, y0, sx, sx
             else:
                 print('Unknown method %r' % method)
-            if sid % 1000 == 0:
-                print(sid, params)
             if params == None: # presumably a non-localizable many-channel noise event
                 #printflush('X', end='') # to indicate a rejected spike
                 if DEBUG:
