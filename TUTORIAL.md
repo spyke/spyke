@@ -147,14 +147,14 @@ right-clicking on them. If you right-click on a channel again, it's re-enabled.
 3. File->Save Track Channels to save any channel selections you may have made. These
 selections are saved to the `.track` file, which you can inspect with a plain text editor.
 
-4. File->Export->High-pass Data->.dat & Kilosort2 files. Choose the desired destination folder
+4. File->Export->Raw Data->.dat & Kilosort2 files. Choose the desired destination folder
 (probably a local folder, on which you will locally run Kilosort2 in MATLAB) and hit Open.
 This concatenates the data across all the source files in the current `.track` file, saving
-the results to a `.dat` file with a companion `.json.dat` metadata file. This also checks for
+the results to a `.dat` file with a companion `.dat.json` metadata file. This also checks for
 saturation in the data. Saturation and big transients can causes problems for Kilosort2. If
 any saturation is found, it is nulled out +/- 0.5 sec on either side, using a linear ramp to
 minimize high-frequency artifacts during filtering. These nulled time ranges are saved to the
-`nulltranges` field in the `.json.dat` metadata file. The required MATLAB files to run
+`nulltranges` field in the `.dat.json` metadata file. The required MATLAB files to run
 Kilosort2 are also generated. Note that the Filtering, CAR and Sampling settings you are
 currently using in spyke are ignored during export. Only unfiltered raw data is exported, and
 any gaps of recording time in the track will not be zero-padded, i.e. consecutive recordings
