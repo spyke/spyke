@@ -1809,7 +1809,6 @@ or remove all duplicate spikes from selected neurons
       <property name="title">
        <string>High-pass Data</string>
       </property>
-      <addaction name="actionExportWideBandDatKilosort2Files"/>
       <addaction name="actionExportHighPassDatFiles"/>
       <addaction name="actionExportHighPassEnvelopeDatFiles"/>
       <addaction name="actionExportHighPassBipolarRefEnvelopeDatFiles"/>
@@ -1821,6 +1820,7 @@ or remove all duplicate spikes from selected neurons
       <property name="title">
        <string>Raw Data</string>
       </property>
+      <addaction name="actionExportWideBandDatKilosort2Files"/>
       <addaction name="actionExportRawDataDatFiles"/>
      </widget>
      <addaction name="menuSpikes"/>
