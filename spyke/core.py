@@ -1192,6 +1192,11 @@ def g2(x0, y0, sx, sy, x, y):
     arg = -(x-x0)**2 / (2*sx**2) - (y-y0)**2 / (2*sy**2)
     return np.exp(arg)
 
+def g2s(x0, y0, s, x, y):
+    """Symmetric 2-D Gaussian"""
+    arg = -(x-x0)**2 / (2*s**2) - (y-y0)**2 / (2*s**2)
+    return np.exp(arg)
+
 def g3(x0, y0, z0, sx, sy, sz, x, y, z):
     """3-D Gaussian"""
     return np.exp( -(x-x0)**2 / (2*sx**2) - (y-y0)**2 / (2*sy**2) - (z-z0)**2 / (2*sz**2) )
@@ -1237,6 +1242,18 @@ def dg2dsx(x0, y0, sx, sy, x, y):
 def dg2dsy(x0, y0, sx, sy, x, y):
     """Partial of g2 wrt sy"""
     return g(x0, sx, x) * dgdsigma(y0, sy, y)
+
+def dg2sdx0(x0, y0, s, x, y):
+    """Partial of g2s wrt x0"""
+    return g(y0, s, y) * dgdmu(x0, s, x)
+
+def dg2sdy0(x0, y0, s, x, y):
+    """Partial of g2s wrt y0"""
+    return g(x0, s, x) * dgdmu(y0, s, y)
+
+def dg2sds(x0, y0, s, x, y):
+    """Partial of g2s wrt s"""
+    return g(x0, s, y) * dgdsigma(y0, s, x) + g(y0, s, y) * dgdsigma(x0, s, x)
 
 def RM(theta):
     """Return 2D (2x2) rotation matrix, with theta counterclockwise rotation in radians"""

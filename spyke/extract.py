@@ -17,7 +17,7 @@ import scipy.stats
 
 import pylab as pl
 
-from .core import g, g2, cauchy2
+from .core import g, g2, g2s, dg2sdx0, dg2sdy0, dg2sds, cauchy2
 
 
 DEFSX = 50 # default spatial decay along x axis, in um
@@ -50,6 +50,52 @@ class SpatialLeastSquares(object):
         # TODO: mess with fixed sx and sy to find most clusterable vals, test on
         # 3 column data too
         self.debug = debug
+
+    def g2sDfun(self, p, f, x, y, V):
+        """Derivative function for symmetric 2D Gaussian. Returns partial of
+        all 3 parameters x0, y0 and s. Tested, seems to work, but given the low number
+        of data points per fit (say 10-12 channels?) is half the speed as allowing
+        leastsq to estimate its own Jacobian with Dfun=None"""
+        x0, y0, s = p
+        return [dg2sdx0(x0, y0, s, x, y),
+                dg2sdy0(x0, y0, s, x, y),
+                dg2sds(x0, y0, s, x, y)]
+
+    def calc_x0y0s_sym(self, f, x, y, V):
+        t0 = time.clock()
+        result = leastsq(self.cost_x0y0s_sym, self.p0, args=(f, x, y, V),
+                         full_output=True,)
+                         #Dfun=self.g2sDfun, col_deriv=True)
+                         #ftol=1e-3)
+                         #maxfev=50, xtol=0.0001,
+                         #diag=None)
+        self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+        self.x0, self.y0, s = self.p
+        s = abs(self.p) # keep sigma +ve
+        self.sx, self.sy = s[0], s[0] # same vals, unique refs for jsonpickle
+        if self.debug:
+            print('iters took %.3f sec' % (time.clock()-t0))
+            print('p0 = %r' % self.p0)
+            print('p = %r' % self.p)
+            print('%d iterations' % self.infodict['nfev'])
+            print('mesg=%r, ier=%r' % (self.mesg, self.ier))
+
+    def calc_x0y0_sym(self, f, x, y, V):
+        t0 = time.clock()
+        result = leastsq(self.cost_x0y0_sym, self.p0, args=(f, x, y, V),
+                         full_output=True,)
+                         #Dfun=self.g2sDfun, col_deriv=True)
+                         #ftol=1e-3)
+                         #maxfev=50, xtol=0.0001,
+                         #diag=None)
+        self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
+        self.x0, self.y0 = self.p
+        if self.debug:
+            print('iters took %.3f sec' % (time.clock()-t0))
+            print('p0 = %r' % self.p0)
+            print('p = %r' % self.p)
+            print('%d iterations' % self.infodict['nfev'])
+            print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
     def calc_x0y0(self, f, x, y, V):
         t0 = time.clock()
@@ -138,6 +184,14 @@ class SpatialLeastSquares(object):
             print('%d iterations' % self.infodict['nfev'])
             print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
+    def cost_x0y0s_sym(self, p, f, x, y, V):
+        """Distance of each point to the model function"""
+        return self.model_x0y0s_sym(p, f, x, y) - V
+
+    def cost_x0y0_sym(self, p, f, x, y, V):
+        """Distance of each point to the model function"""
+        return self.model_x0y0_sym(p, f, x, y) - V
+
     def cost_x0y0(self, p, f, x, y, V):
         """Distance of each point to the model function"""
         return self.model_x0y0(p, f, x, y) - V
@@ -158,6 +212,16 @@ class SpatialLeastSquares(object):
         """Distance of each point to the model function"""
         return self.model_sxsy(p, f, x, y) - V
 
+    def model_x0y0s_sym(self, p, f, x, y):
+        """Symmetric 2D Gaussian, with x0, y0 and s free"""
+        x0, y0, s = p
+        return self.A * f(x0, y0, s, x, y)
+
+    def model_x0y0_sym(self, p, f, x, y):
+        """Symmetric 2D Gaussian, with x0 and y0 free"""
+        x0, y0 = p
+        return self.A * f(x0, y0, self.sx, x, y)
+
     def model_x0y0(self, p, f, x, y):
         """2D Gaussian, with x0 and y0 free"""
         x0, y0 = p
@@ -175,8 +239,8 @@ class SpatialLeastSquares(object):
 
     def model_s(self, p, f, x, y):
         """2D Gaussian, with s (sx == sy) free"""
-        sx, sy = p[0], p[0] # same vals, unique refs for jsonpickle
-        return self.A * f(self.x0, self.y0, sx, sy, x, y)
+        s, = p
+        return self.A * f(self.x0, self.y0, s, x, y)
 
     def model_sxsy(self, p, f, x, y):
         """2D Gaussian, with sx and sy free"""
@@ -266,7 +330,7 @@ class Extractor(object):
             self.f = g # 1D Gaussian
         elif self.XYmethod in ['Gaussian 2D', 'Gaussian fit']:
             self.weights2spatial = self.weights2f_2D
-            self.f = g2 # 2D Gaussian
+            self.f = g2s # symmetric 2D Gaussian
         elif self.XYmethod == 'Splines 1D':
             self.weights2spatial = self.weights2splines
             self.f = cauchy2 # 2D Cauchy
@@ -800,13 +864,25 @@ class Extractor(object):
         with constant global values. Spread and location are fit sequentially, in that
         order, because there isn't enough data from a single spike to fit them both
         simultaneously and expect to get reasonable results. Otherwise, LM ends up using the
-        tail of the 2D distrib to get min sum squared error"""
+        tail of the 2D distrib to get min sum squared error.
+        """
         if len(w) == 1: # only one chan, return its coords and the default sigmas
             return int(x), int(y), DEFSX, DEFSY
 
         sls = self.sls
         x0, y0 = self.weights2spatialmean(w, x, y)
         sls.A, sls.x0, sls.y0, sls.sx, sls.sy = w[maxchani], x0, y0, DEFSX, DEFSY
+        '''
+        # fit x0, y0 and s simultaneously, doesn't seem as reliable as sequential fit:
+        sls.p0 = np.array([x0, y0, sls.sx])
+        sls.calc_x0y0s(f, x, y, w) # x0, y0 and s free
+        if sls.sx > self.maxsigma: # sls.sx is enforced to be +ve
+            if self.debug:
+                print("%s: *** Spatial sigma exceeds %d um, reject as noise event ***"
+                      % (ps().name, self.maxsigma))
+            return
+        '''
+
         # fit sx and sy first, since DEFSX and DEFSY are not spike-specific estimates:
         '''
         sls.p0 = np.array([sls.sx, sls.sy])
@@ -822,7 +898,7 @@ class Extractor(object):
 
         # now that we have viable estimates for sx and sy, fix them and fit x0 and y0:
         sls.p0 = np.array([x0, y0])
-        sls.calc_x0y0(f, x, y, w) # x0 and y0 free
+        sls.calc_x0y0_sym(f, x, y, w) # x0 and y0 free
 
         # squared distance between initial and final position estimates:
         d2 = (x0 - sls.x0)**2 + (y0 - sls.y0)**2
