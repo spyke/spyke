@@ -53,16 +53,12 @@ class SpatialLeastSquares(object):
 
     def calc_x0y0(self, f, x, y, V):
         t0 = time.clock()
-        try:
-            result = leastsq(self.cost_x0y0, self.p0, args=(f, x, y, V),
-                             full_output=True,)
-                             #ftol=1e-3)
-                             #Dfun=None, full_output=True, col_deriv=False,
-                             #maxfev=50, xtol=0.0001,
-                             #diag=None)
-        except Exception as err:
-            print(err)
-            import pdb; pdb.set_trace()
+        result = leastsq(self.cost_x0y0, self.p0, args=(f, x, y, V),
+                         full_output=True,)
+                         #ftol=1e-3)
+                         #Dfun=None, full_output=True, col_deriv=False,
+                         #maxfev=50, xtol=0.0001,
+                         #diag=None)
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
         self.x0, self.y0 = self.p
         if self.debug:
@@ -74,16 +70,12 @@ class SpatialLeastSquares(object):
 
     def calc_y0(self, f, y, V):
         t0 = time.clock()
-        try:
-            result = leastsq(self.cost_y0, self.p0, args=(f, y, V),
-                             full_output=True,)
-                             #ftol=1e-3)
-                             #Dfun=None, full_output=True, col_deriv=False,
-                             #maxfev=50, xtol=0.0001,
-                             #diag=None)
-        except Exception as err:
-            print(err)
-            import pdb; pdb.set_trace()
+        result = leastsq(self.cost_y0, self.p0, args=(f, y, V),
+                         full_output=True,)
+                         #ftol=1e-3)
+                         #Dfun=None, full_output=True, col_deriv=False,
+                         #maxfev=50, xtol=0.0001,
+                         #diag=None)
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
         self.y0, = self.p
         if self.debug:
@@ -95,16 +87,12 @@ class SpatialLeastSquares(object):
 
     def calc_sy(self, f, y, V):
         t0 = time.clock()
-        try:
-            result = leastsq(self.cost_sy, self.p0, args=(f, y, V),
-                             full_output=True,)
-                             #ftol=1e-3)
-                             #Dfun=None, full_output=True, col_deriv=False,
-                             #maxfev=50, xtol=0.0001,
-                             #diag=None)
-        except Exception as err:
-            print(err)
-            import pdb; pdb.set_trace()
+        result = leastsq(self.cost_sy, self.p0, args=(f, y, V),
+                         full_output=True,)
+                         #ftol=1e-3)
+                         #Dfun=None, full_output=True, col_deriv=False,
+                         #maxfev=50, xtol=0.0001,
+                         #diag=None)
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
         s = abs(self.p) # keep sigma +ve
         self.sx, self.sy = s[0], s[0] # same vals, unique refs for jsonpickle
@@ -117,16 +105,12 @@ class SpatialLeastSquares(object):
 
     def calc_s(self, f, x, y, V):
         t0 = time.clock()
-        try:
-            result = leastsq(self.cost_s, self.p0, args=(f, x, y, V),
-                             full_output=True,)
-                             #ftol=1e-3)
-                             #Dfun=None, full_output=True, col_deriv=False,
-                             #maxfev=50, xtol=0.0001,
-                             #diag=None)
-        except Exception as err:
-            print(err)
-            import pdb; pdb.set_trace()
+        result = leastsq(self.cost_s, self.p0, args=(f, x, y, V),
+                         full_output=True,)
+                         #ftol=1e-3)
+                         #Dfun=None, full_output=True, col_deriv=False,
+                         #maxfev=50, xtol=0.0001,
+                         #diag=None)
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
         s = abs(self.p) # keep sigma +ve
         self.sx, self.sy = s[0], s[0] # same vals, unique refs for jsonpickle
@@ -139,16 +123,12 @@ class SpatialLeastSquares(object):
 
     def calc_sxsy(self, f, x, y, V):
         t0 = time.clock()
-        try:
-            result = leastsq(self.cost_sxsy, self.p0, args=(f, x, y, V),
-                             full_output=True,)
-                             #ftol=1e-3)
-                             #Dfun=None, full_output=True, col_deriv=False,
-                             #maxfev=50, xtol=0.0001,
-                             #diag=None)
-        except Exception as err:
-            print(err)
-            import pdb; pdb.set_trace()
+        result = leastsq(self.cost_sxsy, self.p0, args=(f, x, y, V),
+                         full_output=True,)
+                         #ftol=1e-3)
+                         #Dfun=None, full_output=True, col_deriv=False,
+                         #maxfev=50, xtol=0.0001,
+                         #diag=None)
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
         self.sx, self.sy = abs(self.p) # keep sigmas +ve
         if self.debug:
@@ -240,13 +220,10 @@ class TemporalLeastSquares(object):
 
     def calc(self, ts, V):
         t0 = time.clock()
-        try: result = leastsq(self.cost, self.p0, args=(ts, V), full_output=True, ftol=1e-3)
+        result = leastsq(self.cost, self.p0, args=(ts, V), full_output=True, ftol=1e-3)
                          #Dfun=None, full_output=True, col_deriv=False,
                          #maxfev=50, xtol=0.0001,
                          #diag=None)
-        except Exception as err:
-            print(err)
-            import pdb; pdb.set_trace()
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
         if self.debug:
             print('iters took %.3f sec' % (time.clock()-t0))
@@ -257,12 +234,8 @@ class TemporalLeastSquares(object):
 
     def model(self, p, ts):
         """Temporal sum of Gaussians"""
-        #try:
         V0, V1, s0, s1, Voff = p
         return V0*g(self.t0, s0, ts) + V1*g(self.t1, s1, ts) + Voff
-        #except Exception as err:
-        #    print(err)
-        #    import pdb; pdb.set_trace()
 
     def cost(self, p, ts, V):
         """Distance of each point to the model function"""
