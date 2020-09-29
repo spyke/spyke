@@ -1257,7 +1257,8 @@ def dg2sds(x0, y0, s, x, y):
 
 def RM(theta):
     """Return 2D (2x2) rotation matrix, with theta counterclockwise rotation in radians"""
-    return np.array([[cos(theta), -sin(theta)], [sin(theta), cos(theta)]])
+    return np.array([[cos(theta), -sin(theta)],
+                     [sin(theta),  cos(theta)]])
 
 
 class Poo(object):
