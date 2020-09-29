@@ -1393,18 +1393,11 @@ class Sort(object):
             # from mean neuron waveform, not from each individual spike:
             s['V0'], s['V1'] = AD2uV(wd[maxchani, t0i]), wd[maxchani, t1i] # uV
             s['Vpp'] = abs(s['V1'] - s['V0']) # uV
+        print()
 
     def spatially_localize_spikes(self, sortwin, method='fit'):
         """Assuming that wavedata have been extracted and neuron mean waveforms calculated,
         find tis and perform spatial localization of every spike in self"""
-        ntis, nalignis = {}, {} # tis and aligni derived from each neuron's mean waveform
-        for neuron in self.neurons.values():
-            nwave = neuron.get_wave() # update and return mean waveform
-            mintis = nwave.data.argmin(axis=1)
-            maxtis = nwave.data.argmax(axis=1)
-            ntis[neuron.id] = np.column_stack([mintis, maxtis])
-            # choose aligni with least variance:
-            nalignis[neuron.id] = np.argmin([mintis.std(), maxtis.std()])
         det = self.detector
         weights2f = self.extractor.weights2spatial
         weights2spatialmean = self.extractor.weights2spatialmean
