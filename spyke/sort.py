@@ -1156,6 +1156,29 @@ class Sort(object):
         self.reload_spikes(sids)
         return sids # mark all sids as dirty
 
+    def choose_new_meanchans(self, sids):
+        """Get mean waveform of all sids, then find the mean's chan with max Vpp, then
+        choose det.maxnchansperspike channels around that maxchan. Return meanchans"""
+        print('Choosing new channel set for all selected spikes')
+        det = self.detector
+        meanwave = self.get_mean_wave(sids)
+        # mean chan with max Vpp:
+        maxchan = meanwave.chans[meanwave.data.ptp(axis=1).argmax()]
+        maxchani = det.chans.searchsorted(maxchan)
+        distances = det.dm.data[maxchani]
+        # keep the maxnchansperspike closest chans to maxchan, including maxchan:
+        chanis = distances.argsort()[:det.maxnchansperspike]
+        meanchans = det.chans[chanis]
+        meanchans.sort() # keep them sorted
+        print('meanchans: %r' % list(meanchans))
+        furthestchan = det.chans[chanis[-1]]
+        print('furthestchan: %d' % furthestchan)
+        furthestchani = meanchans.searchsorted(furthestchan)
+        # sanity checks:
+        assert len(meanchans) == det.maxnchansperspike
+        assert maxchan in meanchans
+        return meanchans
+
     def reload_spikes(self, sids, usemeanchans=False):
         """Update wavedata of designated spikes from stream. Optionally fix incorrect
         time values from .sort 0.3 files. Optionally choose new set of channels for all
@@ -1177,26 +1200,8 @@ class Sort(object):
             if ver_lte_03:
                 raise RuntimeError("Best not to choose new chans from mean until after "
                                    "converting to .sort >= 0.4")
-            print('Choosing new channel set for all selected spikes')
-            # get mean waveform of all sids, then find the mean's chan with max Vpp, then
-            # choose det.maxnchansperspike channels around that maxchan
-            meanwave = self.get_mean_wave(sids)
-            # mean chan with max Vpp:
-            maxchan = meanwave.chans[meanwave.data.ptp(axis=1).argmax()]
-            maxchani = det.chans.searchsorted(maxchan)
-            distances = det.dm.data[maxchani]
-            # keep the maxnchansperspike closest chans to maxchan, including maxchan:
-            chanis = distances.argsort()[:det.maxnchansperspike]
-            meanchans = det.chans[chanis]
-            meanchans.sort() # keep them sorted
-            print('meanchans: %r' % list(meanchans))
-            furthestchan = det.chans[chanis[-1]]
-            print('furthestchan: %d' % furthestchan)
-            furthestchani = meanchans.searchsorted(furthestchan)
+            meanchans = self.choose_new_meanchans(sids)
             nmeanchans = len(meanchans)
-            # just to be sure:
-            assert nmeanchans == det.maxnchansperspike
-            assert maxchan in meanchans
 
         # split up sids into groups efficient for loading from stream:
         ts = spikes[sids]['t'] # noncontig, not a copy
