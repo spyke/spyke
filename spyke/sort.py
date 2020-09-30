@@ -1193,7 +1193,7 @@ class Sort(object):
         det = self.detector
         ver_lte_03 = float(self.__version__) <= 0.3
         if ver_lte_03:
-            print('Fixing potentially wrong time values during spike reloading')
+            print('Fixing potentially incorrect time values during spike reloading')
             nfixed = 0
         treload = time.time()
         if usemeanchans:
@@ -1295,57 +1295,16 @@ class Sort(object):
                 nchans = spike['nchans']
                 chans = spike['chans'][:nchans]
                 rd = tempwave[spike['t0']:spike['t1']][chans].data # reloaded data
-                nt = rd.shape[1]
-
-                if ver_lte_03:
-                    """In sort.__version__ <= 0.3, t, t0, t1, and tis were not updated
-                    during alignbest() calls. To fix this, load new data with old potentially
-                    incorrect t0 and t1 values, and compare this new data to existing old data
-                    in wavedata array. Find where the non-repeating parts of the old data fits
-                    into the new, and calculate the correction needed to fix the time values.
-                    Finally, reload new data according to these corrected time values."""
-                    #print('reloading sid: %d' % sid)
-                    od = self.wavedata[sid, :nchans] # old data
-                    # indices that strip const values from left and right ends:
-                    lefti, righti = lrrep2Darrstripis(od)
-                    od = od[:, lefti:righti] # stripped old data
-                    # reloaded data rd uses old incorrect t0 and t1, but they should be
-                    # wide enough to encompass the non-repeating parts of the old data
-                    width = od.shape[1] # rolling window width
-                    if not width <= rd.shape[1]:
-                        print('') # newline
-                        print("WARNING: od.shape[1]=%d > rd.shape[1]=%d for sid %d" %
-                              (od.shape[1], rd.shape[1], sid))
-                        #import pdb; pdb.set_trace()
+                if ver_lte_03: # fix potentially incorrect spike tis
+                    result = self.reload_spike_ver_lte_03(sid, nchans, tempwave, rd)
+                    if result == None:
                         sidi += 1 # inc status counter
                         continue # rollwin2D won't work, skip to next sid
-                    odinndis = np.where(
-                               (rollwin2D(rd, width) == od).all(axis=1).all(axis=1))[0]
-                    if len(odinndis) == 0: # no hits of old data in new
-                        dnt = 0 # reload data based on current timepoints
-                    elif len(odinndis) == 1: # exactly 1 hit of old data in new
-                        odinndi = odinndis[0] # pull it out
-                        dnt = odinndi - lefti # num timepoints to correct by, signed
                     else:
-                        raise RuntimeError("Multiple hits of old data in new, don't know "
-                                           "how to reload spike %d" % sid)
-                    if dnt != 0:
-                        dt = intround(dnt * self.tres) # time to correct by, signed, in us
-                        spikes['t'][sid] += dt # should remain halfway between t0 and t1
-                        spikes['t0'][sid] += dt
-                        spikes['t1'][sid] += dt
-                        # might result in some out of bounds tis because the original peaks
-                        # have shifted off the ends. Use opposite sign because we're
-                        # referencing within wavedata:
-                        # in versions <= 0.3, 'tis' were named 'phasetis':
-                        spikes['phasetis'][sid] = spikes['phasetis'][sid] - dnt
-                        spike = spikes[sid]
-                        # reslice tempwave again now that t0 and t1 have changed
-                        rd = tempwave[spike['t0']:spike['t1']][chans].data
-                        nfixed += 1
-                        #printflush('F', end='')
-                # else: assume time values for all spikes are accurate
-
+                        rd, fixed = result
+                        if fixed:
+                            nfixed += 1
+                nt = rd.shape[1]
                 self.wavedata[sid, :nchans, :nt] = rd # update wavedata
                 sidi += 1 # inc status counter
         print()
@@ -1353,6 +1312,54 @@ class Sort(object):
         if ver_lte_03:
             print('Fixed time values of %d spikes' % nfixed)
         print('(Re)loaded %d spikes, took %.3f sec' % (len(sids), time.time()-treload))
+
+    def reload_spike_ver_lte_03(self, sid, nchans, tempwave, rd):
+        """In sort.__version__ <= 0.3, t, t0, t1, and tis were not updated
+        during alignbest() calls. To fix this, load new data with old potentially
+        incorrect t0 and t1 values, and compare this new data to existing old data
+        in wavedata array. Find where the non-repeating parts of the old data fits
+        into the new, and calculate the correction needed to fix the time values.
+        Finally, reload new data according to these corrected time values."""
+        #print('Reloading sid from ver_lte_03: %d' % sid)
+        od = self.wavedata[sid, :nchans] # old data
+        # indices that strip const values from left and right ends:
+        lefti, righti = lrrep2Darrstripis(od)
+        od = od[:, lefti:righti] # stripped old data
+        # reloaded data rd uses old incorrect t0 and t1, but they should be
+        # wide enough to encompass the non-repeating parts of the old data
+        width = od.shape[1] # rolling window width
+        if not width <= rd.shape[1]:
+            print('') # newline
+            print("WARNING: od.shape[1]=%d > rd.shape[1]=%d for sid %d" %
+                  (od.shape[1], rd.shape[1], sid))
+            #import pdb; pdb.set_trace()
+            return
+        odinndis = np.where((rollwin2D(rd, width) == od).all(axis=1).all(axis=1))[0]
+        if len(odinndis) == 0: # no hits of old data in new
+            dnt = 0 # reload data based on current timepoints
+        elif len(odinndis) == 1: # exactly 1 hit of old data in new
+            odinndi = odinndis[0] # pull it out
+            dnt = odinndi - lefti # num timepoints to correct by, signed
+        else:
+            raise RuntimeError("Multiple hits of old data in new, don't know "
+                               "how to reload spike %d" % sid)
+        newrd, fixed = rd, False
+        if dnt != 0:
+            dt = intround(dnt * self.tres) # time to correct by, signed, in us
+            spikes['t'][sid] += dt # should remain halfway between t0 and t1
+            spikes['t0'][sid] += dt
+            spikes['t1'][sid] += dt
+            # might result in some out of bounds tis because the original peaks
+            # have shifted off the ends. Use opposite sign because we're
+            # referencing within wavedata:
+            # in versions <= 0.3, 'tis' were named 'phasetis':
+            spikes['phasetis'][sid] = spikes['phasetis'][sid] - dnt
+            spike = spikes[sid]
+            # reslice tempwave again now that t0 and t1 have changed
+            newrd = tempwave[spike['t0']:spike['t1']][chans].data
+            fixed = True
+            #printflush('F', end='')
+        return newrd, fixed
 
     def reload_spikes_and_templates(self, sids, usemeanchans=False):
         self.reload_spikes(sids, usemeanchans=usemeanchans)
