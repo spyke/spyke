@@ -1232,6 +1232,52 @@ class CN_Adpt_A64_OM32x2_sm_CerePlex_Mini(Adapter):
         self.check()
 
 
+class Adpt_CM32_RHD2132(Adapter):
+    """NeuroNexus CM32 probe (single OM32) to Intan RHD2132 32 channel headstage
+    (single OM32 connector). This Adapter maps 1-based CM32 probe channels to 1-based
+    RHD2132 headstage channels. This is for when both the adapter and the RHD2132 headstage
+    are connected facing the same way (both face up on one side, and both face down on
+    the other)."""
+    def __init__(self):
+        self.name = 'Adpt_CM32_RHD2132'
+        self.nchans = 32
+        p2a = {} # probe channel to AD (amplifier) channel mapping
+        p2a[1] =  30
+        p2a[2] =  29
+        p2a[3] =  19
+        p2a[4] =  28
+        p2a[5] =  20
+        p2a[6] =  27
+        p2a[7] =  21
+        p2a[8] =  26
+        p2a[9] =  22
+        p2a[10] = 25
+        p2a[11] = 23
+        p2a[12] = 24
+        p2a[13] = 18
+        p2a[14] = 17
+        p2a[15] = 31
+        p2a[16] = 32
+        p2a[17] = 1
+        p2a[18] = 2
+        p2a[19] = 16
+        p2a[20] = 15
+        p2a[21] = 9
+        p2a[22] = 10
+        p2a[23] = 8
+        p2a[24] = 11
+        p2a[25] = 7
+        p2a[26] = 12
+        p2a[27] = 6
+        p2a[28] = 13
+        p2a[29] = 5
+        p2a[30] = 14
+        p2a[31] = 4
+        p2a[32] = 3
+        self.probe2AD = p2a
+        self.check()
+
+
 class Adpt_A32_OM32_RHD2132(Adapter):
     """NeuroNexus A32 probe (single MOLEX) to Adpt-A32-OM32 (single MOLEX to OM32) adapter to
     Intan RHD2132 32 channel headstage (OM32 connector). For some reason, the pin numbers on
@@ -1359,7 +1405,7 @@ class Adpt_A64_OM32x2_sm_RHD2164(Adapter):
 
 
 ADAPTERTYPES = [HSF_A64, Adpt_A64_OM32x2_sm_CerePlex_Mini, CN_Adpt_A64_OM32x2_sm_CerePlex_Mini,
-                Adpt_A32_OM32_RHD2132, Adpt_A64_OM32x2_sm_RHD2164]
+                Adpt_CM32_RHD2132, Adpt_A32_OM32_RHD2132, Adpt_A64_OM32x2_sm_RHD2164]
 
 def getadapter(name):
     """Get instantiated adapter type by name"""
