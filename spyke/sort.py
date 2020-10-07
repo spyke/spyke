@@ -1244,15 +1244,15 @@ class Sort(object):
                 # last spike in this group
                 t0 -= 5000 # -5 ms
                 t1 += 5000 # +5 ms
-            # Find union of chans of sids in this group, and ask stream for only those
-            # so that no unnecessary resampling on unneeded chans takes place.
-            # Note that this doesn't make a difference when CAR is enabled in the stream,
-            # because the full set of enabled channels have to be maintained in
-            # Stream.__call__ until the very end.
-            # Don't bother cutting out the correct nchans for each sid. At worst,
-            # chan 0 (the "empty" chans array value) will be unnecessarily added to
-            # unionchans, and we'll be retrieving one extra channel when creating tempwave,
-            # which will then later be discarded:
+            """
+            Find union of chans of sids in this group, ask Stream for only those such that no
+            unnecessary resampling takes place on unneeded chans. Note that this doesn't make
+            a difference when CAR is enabled in the stream, because the full set of enabled
+            chans have to be maintained in Stream.__call__ until the very end. Don't bother
+            cutting out the correct nchans for each sid. At worst, chan 0 (the "empty" chans
+            array value) will be unnecessarily added to unionchans, and we'll retrieve one
+            extra chan when creating tempwave, which will then later be discarded:
+            """
             unionchans = np.unique(spikes['chans'][group])
             if usemeanchans:
                 # now that we have the original unionchans of this group,
