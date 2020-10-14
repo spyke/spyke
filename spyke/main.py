@@ -770,24 +770,10 @@ class SpykeWindow(QtGui.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionExportKilosort2Files_triggered(self):
         fname = self.hpstream.fname
-        base, ext = os.path.splitext(fname)
-        if ext != '.dat':
-            print('Kilosort2 can only run on .dat files, %s is a %s file.\n'
-                  'Maybe you first need to export to a .dat file?' % (fname, ext))
-            return
         if self.hpstream.is_multi(): # self.hpstream is a MultiStream
-            defaultpath = self.hpstream.streams[0].f.path # get path of first stream
+            path = self.hpstream.streams[0].f.path # get path of first stream
         else: # self.hpstream is a single Stream
-            defaultpath = self.hpstream.f.path
-        path = defaultpath
-        '''
-        # asking for a different path doesn't make much sense, the ks2 files need to
-        # sit in the same folder as the .dat
-        caption = "Export Kilosort2 files"
-        path = str(getExistingDirectory(self, caption=caption, directory=defaultpath))
-        if not path:
-            return
-        '''
+            path = self.hpstream.f.path
         self.export_ks2(path, fname)
 
     def export_wb_ks2_dat(self):
@@ -804,6 +790,20 @@ class SpykeWindow(QtGui.QMainWindow):
         if not stream:
             print('First open a stream!')
             return
+
+        # check if this is already a .dat file, if so, we probably want to simply run
+        # self.export_ks2() instead. Perhaps this block can be commented out for
+        # exceptional cases, such as if an oe .dat file has periods of saturation or channels
+        # to exclude, in which case a new .dat.dat file does indeed need to be exported
+        # for Kilosort2:
+        fname = self.hpstream.fname
+        base, ext = os.path.splitext(fname)
+        if ext == '.dat':
+            print('The currently open %s data stream is already a .dat file, and there is '
+                  'likely no need to export another one. Did you want to instead simply '
+                  'export the Kilosort2 channel map, config, and run files?' % fname)
+            return
+
         filtmeth = stream.filtmeth
         car = stream.car
         sampfreq = stream.sampfreq
@@ -848,6 +848,11 @@ class SpykeWindow(QtGui.QMainWindow):
         stream = self.hpstream
         if not stream:
             print('First open a stream!')
+            return
+        base, ext = os.path.splitext(datfname)
+        if ext != '.dat':
+            print('Kilosort2 can only run on .dat files, %s is a %s file.\n'
+                  'Maybe you first need to export to a .dat file?' % (datfname, ext))
             return
 
         # write Kilosort2 channel map .mat file, indicate which chans are included in the .dat
