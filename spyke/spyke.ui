@@ -1831,6 +1831,7 @@ or remove all duplicate spikes from selected neurons
      <addaction name="menuExportHighPass"/>
      <addaction name="menuExportLowPass"/>
      <addaction name="menuExportRawData"/>
+     <addaction name="actionExportKilosort2Files"/>
     </widget>
     <widget class="QMenu" name="menuConvert">
      <property name="title">
@@ -2599,6 +2600,11 @@ or remove all duplicate spikes from selected neurons
   <action name="actionExportWideBandDatKilosort2Files">
    <property name="text">
     <string>.dat &amp;&amp; Kilosort2 Files, remove any saturation</string>
+   </property>
+  </action>
+  <action name="actionExportKilosort2Files">
+   <property name="text">
+    <string>Kilosort2 Files (no .dat)</string>
    </property>
   </action>
  </widget>

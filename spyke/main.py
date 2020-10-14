@@ -767,6 +767,29 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionExportRawDataDatFiles_triggered(self):
         self.export_raw_dat()
 
+    @QtCore.pyqtSlot()
+    def on_actionExportKilosort2Files_triggered(self):
+        fname = self.hpstream.fname
+        base, ext = os.path.splitext(fname)
+        if ext != '.dat':
+            print('Kilosort2 can only run on .dat files, %s is a %s file.\n'
+                  'Maybe you first need to export to a .dat file?' % (fname, ext))
+            return
+        if self.hpstream.is_multi(): # self.hpstream is a MultiStream
+            defaultpath = self.hpstream.streams[0].f.path # get path of first stream
+        else: # self.hpstream is a single Stream
+            defaultpath = self.hpstream.f.path
+        path = defaultpath
+        '''
+        # asking for a different path doesn't make much sense, the ks2 files need to
+        # sit in the same folder as the .dat
+        caption = "Export Kilosort2 files"
+        path = str(getExistingDirectory(self, caption=caption, directory=defaultpath))
+        if not path:
+            return
+        '''
+        self.export_ks2(path, fname)
+
     def export_wb_ks2_dat(self):
         """Export wide-band ephys data for use in Kilosort2, while checking
         for and zeroing out any periods of saturation. Exports enabled chans concatenated
@@ -814,6 +837,17 @@ class SpykeWindow(QtGui.QMainWindow):
 
         if not result:
             print('Wide-band data export cancelled')
+            return
+
+        # export Kilosort2 files:
+        self.export_ks2(path, datfname)
+
+    def export_ks2(self, path, datfname):
+        """Export Kilosort2 channel map, config, and run files to path, for the specified
+        .dat file"""
+        stream = self.hpstream
+        if not stream:
+            print('First open a stream!')
             return
 
         # write Kilosort2 channel map .mat file, indicate which chans are included in the .dat
