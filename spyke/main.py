@@ -2830,6 +2830,7 @@ class SpykeWindow(QtGui.QMainWindow):
 
         self.SPIKEWINDOWWIDTH = self.hpstream.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
         self.OpenWindow('Spike')
+        self.OpenWindow('Chart')
 
         self.ui.filePosLineEdit.setText('%.1f' % self.t)
         self.ui.filePosStartButton.setText('%.1f' % self.trange[0])
