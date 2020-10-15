@@ -3379,11 +3379,16 @@ class SpykeWindow(QtGui.QMainWindow):
         # raw uninterpolated data, and that gaps=True during the export, i.e. that
         # gaps between streams in the data were excluded and not zero-padded:
         print('Assuming that Kilosort2 was run on raw uninterpolated data, '
-              'and that gaps=True during the export to .dat')
+              'and that gaps=True during the export (if any) to .dat')
         rawts = []
         rawtres = s.rawtres
+        if s.is_multi(): # MultiStream
+            streams = s.streams
+        else: # it's a single Stream
+            streams = [s]
+        tranges = s.tranges # exists for both Stream and MultiStream
         # iterate over absolute time ranges of Streams relative to start of MultiStream:
-        for stream, trange in zip(s.streams, s.tranges):
+        for stream, trange in zip(streams, tranges):
             nt = stream.f.nt # get nt from its lower level File object
             t0, t1 = trange
             # should be same as taking difference of end-inclusive tranges,
