@@ -2216,7 +2216,7 @@ class SpykeWindow(QtGui.QMainWindow):
         trange = np.array([-trange, trange]) # convert to a +/- array, in us
         
         t0 = time.time()
-        dts = util.xcorr(xspikets, yspikets, trange=trange) # in us
+        dts = util.xcorr(xspikets, yspikets, trange=trange) # delta timepoints of y wrt x (us)
         print('xcorr calc took %.3f sec' % (time.time()-t0))
         if autocorr:
             dts = dts[dts != 0] # remove 0s for autocorr
@@ -2243,7 +2243,7 @@ class SpykeWindow(QtGui.QMainWindow):
         if autocorr:
             windowtitle = "n%d autocorr" % clusters[0].id
         else:
-            windowtitle = "n%d xcorr with n%d" % (clusters[0].id, clusters[1].id)
+            windowtitle = "xcorr n%d wrt n%d" % (clusters[1].id, clusters[0].id)
         mplw.setWindowTitle(windowtitle)
         title = windowtitle + ', binwidth: %.2f ms' % binwidth
         print(title)
