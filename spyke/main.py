@@ -2718,7 +2718,8 @@ class SpykeWindow(QtGui.QMainWindow):
 
     def OpenStreamFile(self, fname):
         """Open a stream (.dat, .ns6, .srf, .track, or .tsf file) and update display
-        accordingly. fname is assumed to be relative to self.streampath"""
+        accordingly. fname is assumed to be relative to self.streampath. File names in
+        a .track file can be relative to self.streampath or absolute"""
         if self.hpstream is not None:
             self.CloseStream() # in case a stream is already open
         enabledchans = None
@@ -2753,14 +2754,16 @@ class SpykeWindow(QtGui.QMainWindow):
                             enabledchans = np.asarray(eval(lstrip(line, 'enabledchans=')))
                             assert iterable(enabledchans)
                         continue # to next line
-                    fn = line
+                    path, fn = os.path.split(line) # allow absolute file paths
+                    if not path:
+                        path = self.streampath
                     fext = os.path.splitext(fn)[1]
                     if fext == '.dat':
-                        f = dat.File(fn, self.streampath)
+                        f = dat.File(fn, path)
                     elif fext == '.ns6':
-                        f = nsx.File(fn, self.streampath)
+                        f = nsx.File(fn, path)
                     elif fext == '.srf':
-                        f = surf.File(fn, self.streampath)
+                        f = surf.File(fn, path)
                         f.parse()
                     else:
                         raise ValueError('Unknown extension %r' % fext)
