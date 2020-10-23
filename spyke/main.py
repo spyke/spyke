@@ -689,7 +689,8 @@ class SpykeWindow(QtGui.QMainWindow):
         self.export_hp_envelope(bipolarref=True)
 
     def export_hp_envelope(self, sampfreq=2000, f0=None, f1=500, bipolarref=False):
-        """Export envelope of high-pass stream to user-designated path, using current
+        """Export envelope of high-pass stream to the same folder as the stream, or if this is
+        a MultiStream, to the same folders as each of its constituent Streams. Use current
         preprocessing settings (filtering, CAR, and resampling), to .envl.dat file(s) with
         associated .envl.dat.json file describing the preprocessing that was done. Decimate
         output to get sampfreq. Export chans in order of depth, superficial to deep.
@@ -702,16 +703,11 @@ class SpykeWindow(QtGui.QMainWindow):
             hpstreams = self.hpstream.streams
         else: # self.hpstream is a single Stream
             hpstreams = [self.hpstream]
-        defaultpath = hpstreams[0].f.path
-        caption = "Export envelope of high-pass, preprocessed data to .envl.dat files"
-        path = str(getExistingDirectory(self, caption=caption, directory=defaultpath))
-        if not path:
-            return
         print('Exporting high-pass envelope data to:')
         for hps in hpstreams:
             assert hps.sampfreq % sampfreq == 0
             decimatex = intround(hps.sampfreq / sampfreq)
-            fullfname = os.path.join(path, hps.fname + '.envl.dat')
+            fullfname = os.path.join(hps.f.path, hps.fname + '.envl.dat')
             fulljsonfname = fullfname + '.json'
             print(fullfname)
             # excess data to get at either end of each block, to eliminate
