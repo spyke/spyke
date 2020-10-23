@@ -2028,6 +2028,7 @@ class SpykeUnpickler(pickle.Unpickler):
 def arr2json(arr, indent=0, ndec=6, max_line_width=75):
     """Convert numpy.ndarray to string suitable for json list. Much nicer formatting
     than Python list. Indent all but the first line with indent spaces"""
+    assert type(arr) == np.ndarray
     fltfmt = "%." + str(ndec) + 'f'
     max_line_width = max_line_width - indent
     s = np.array2string(arr, separator=', ', threshold=np.inf, max_line_width=max_line_width,
