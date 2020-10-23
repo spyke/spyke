@@ -2042,7 +2042,7 @@ def arr2json(arr, indent=0, ndec=6, max_line_width=75):
     return s
 
 def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=None,
-                   chan_order=None, envelope=None, adaptername=None, gaps=False,
+                   chan_order=None, envelope=None, gaps=False,
                    tranges=None, nulltranges=None):
     """Write .json metadata file as a companion to stream's file. For now, stream should be
     either a DATStream, NSXStream, or SurfStream"""
@@ -2065,6 +2065,10 @@ def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=No
         auxchans = np.array([])
     nchans = len(chans) + len(auxchans)
     uV_per_AD = stream.converter.AD2uV(1)
+    try:
+        adaptername = stream.adaptername
+    except AttributeError:
+        adaptername = None # converts to json null
     # multiply by sampfreq instead of dividing by stream.tres, because passed sampfreq
     # might differ from that of stream:
     nsamples_offset = intround(stream.t0 / 1e6 * sampfreq)
@@ -2083,6 +2087,8 @@ def write_dat_json(stream, fulljsonfname, sampfreq=None, chans=None, auxchans=No
         notes = ''
     else:
         raise ValueError
+    if tranges is None:
+        tranges = stream.tranges # 2D
     if nulltranges is None:
         nulltranges = np.array([]) # normally would be 2D
     filtering = stream.filtering
