@@ -718,7 +718,7 @@ class SpykeWindow(QtGui.QMainWindow):
             enabledchans = self.hpstream.chans
             ypos = [ self.hpstream.probe.SiteLoc[chan][1] for chan in enabledchans ]
             ysortis = np.argsort(ypos)
-            ychans = enabledchans[ysortis].tolist() # of native Py int
+            ychans = enabledchans[ysortis]
             with open(fullfname, 'wb') as datf:
                 blocksize = int(float(self.ui.blockSizeLineEdit.text())) # allow exp notation
                 t0s = np.arange(hps.t0, hps.t1, blocksize)
@@ -728,7 +728,7 @@ class SpykeWindow(QtGui.QMainWindow):
                     wave = hps[t0xs:t1xs] # get excess range of data
                     data = wave.data[ysortis] # sort chans by depth
                     chans = wave.chans[ysortis]
-                    assert chans.tolist() == ychans # both are lists of native Py int
+                    assert (chans == ychans).all()
                     if bipolarref:
                         # set each channel to be the difference of the two immediately
                         # spatially adjacent channels:
