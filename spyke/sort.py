@@ -1158,7 +1158,8 @@ class Sort(object):
 
     def choose_new_meanchans(self, sids):
         """Get mean waveform of all sids, then find the mean's chan with max Vpp, then
-        choose det.maxnchansperspike channels around that maxchan. Return meanchans"""
+        choose det.maxnchansperspike channels around that maxchan.
+        Return meanchans, furthestchan, and furthestchani"""
         print('Choosing new channel set for all selected spikes')
         det = self.detector
         meanwave = self.get_mean_wave(sids)
@@ -1177,7 +1178,7 @@ class Sort(object):
         # sanity checks:
         assert len(meanchans) == det.maxnchansperspike
         assert maxchan in meanchans
-        return meanchans
+        return meanchans, furthestchan, furthestchani
 
     def reload_spikes(self, sids, usemeanchans=False):
         """Update wavedata of designated spikes from stream. Optionally fix incorrect
@@ -1200,7 +1201,7 @@ class Sort(object):
             if ver_lte_03:
                 raise RuntimeError("Best not to choose new chans from mean until after "
                                    "converting to .sort >= 0.4")
-            meanchans = self.choose_new_meanchans(sids)
+            meanchans, furthestchan, furthestchani = self.choose_new_meanchans(sids)
             nmeanchans = len(meanchans)
 
         # split up sids into groups efficient for loading from stream:
