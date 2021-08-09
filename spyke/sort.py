@@ -1185,6 +1185,9 @@ class Sort(object):
         time values from .sort 0.3 files. Optionally choose new set of channels for all
         sids based on the chans closest to the mean of the sids. It's the caller's
         responsibility to mark sids as dirty and trigger resaving of .wave file"""
+
+        ## TODO: add findmaxchan=False and recenteronmaxchan=False kwargs
+
         nsids = len(sids)
         print('(Re)loading %d spikes' % nsids)
         stream = self.stream
@@ -1418,6 +1421,9 @@ class Sort(object):
         nreject = 0 # number spikes rejected during spatial localization
         print('Running spatial localization on all %d spikes' % self.nspikes)
         tstart = time.clock()
+
+        ## TODO: chan this be multithreaded/processed?
+
         for s, wd in zip(self.spikes, self.wavedata):
             # Get Vpp at each inclchan's tis, use as spatial weights:
             # see core.rowtake() or util.rowtake_cy() for indexing explanation:
