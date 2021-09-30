@@ -1877,6 +1877,7 @@ or remove all duplicate spikes from selected neurons
     <addaction name="actionShell"/>
     <addaction name="separator"/>
     <addaction name="actionRasters"/>
+    <addaction name="actionStims"/>
     <addaction name="separator"/>
     <addaction name="actionTimeRef"/>
     <addaction name="actionVoltageRef"/>
@@ -2233,6 +2234,20 @@ or remove all duplicate spikes from selected neurons
    </property>
    <property name="text">
     <string>Rasters</string>
+   </property>
+  </action>
+  <action name="actionStims">
+   <property name="checkable">
+    <bool>true</bool>
+   </property>
+   <property name="checked">
+    <bool>false</bool>
+   </property>
+   <property name="enabled">
+    <bool>true</bool>
+   </property>
+   <property name="text">
+    <string>Stimulus</string>
    </property>
   </action>
   <action name="actionTimeRef">

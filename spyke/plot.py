@@ -49,6 +49,8 @@ NEURONLINESTYLE = '-'
 ERRORALPHA = 0.15
 RASTERLINEWIDTH = 1
 RASTERLINESTYLE = '-'
+STIMSLINEWIDTH = 2
+STIMSLINESTYLE = '-'
 TREFANTIALIASED = True
 TREFLINEWIDTH = 0.5
 TREFCOLOUR = DARKGREY
@@ -89,6 +91,7 @@ SCALEZORDER = 3
 ERRORZORDER = 4
 PLOTZORDER = 5
 RASTERZORDER = 6
+STIMSZORDER = 7
 
 
 class ColourDict(dict):
@@ -361,6 +364,56 @@ class Rasters(object):
         self.panel.ax.draw_artist(self.lc)
 
 
+class Stims(object):
+    """Holds a LineCollection of stimulus onset/offset markers, one vertical line each"""
+    def __init__(self, panel):
+        self.panel = panel # panel that self belongs to
+        self.lc = LineCollection([], linewidth=STIMSLINEWIDTH, linestyle=STIMSLINESTYLE,
+                                 zorder=STIMSZORDER,
+                                 antialiased=True,
+                                 visible=True,
+                                 pickradius=PICKRADIUS)
+        self.panel.ax.add_collection(self.lc) # add to panel's axes' pool of LCs
+
+    def update(self, stimtons, stimtoffs, tref):
+        """Update LineCollection from stimtons and stimtoffs"""
+        nrise, nfall = len(stimtons), len(stimtoffs)
+        nsegments = nrise + nfall
+        # 2 points per stim line, x vals in col 0, yvals in col 1
+        segments = np.zeros((nsegments, 2, 2))
+        colours = np.zeros(nsegments, dtype='|U7') # length-7 unicode strings for py2 and py3
+        xpos = 0
+        ypos = np.array(list(self.panel.pos.values()))[:, 1]
+        ylim = ypos.min(), ypos.max()
+        segmenti = 0
+        colours[:nrise] = GREEN # rising edge colour
+        colours[nrise:] = RED # falling edge colour
+        for stimtedge in np.concatenate([stimtons, stimtoffs]):
+            x = stimtedge - tref + xpos
+            segments[segmenti, :, 0] = x, x
+            segments[segmenti, :, 1] = ylim
+            segmenti += 1
+        self.lc.set_segments(segments)
+        self.lc.set_color(colours)
+
+    def show(self, enable=True):
+        """Show/hide LC"""
+        self.lc.set_visible(enable)
+
+    def hide(self):
+        """Hide LC"""
+        self.show(False)
+
+    def visible(self):
+        """Visibility status"""
+        return self.lc.get_visible()
+
+    def draw(self):
+        """Draw LC to axes buffer (or whatever), avoiding unnecessary
+        draws of all other artists in axes"""
+        self.panel.ax.draw_artist(self.lc)
+
+
 class PlotPanel(FigureCanvas):
     """A QtWidget with an embedded mpl figure. Base class for Data and Sort panels"""
     # not necessarily constants
@@ -380,6 +433,7 @@ class PlotPanel(FigureCanvas):
         self.used_plots = {}
         self.qrplt = None # current quickly removable Plot with associated .background
         self.rasters = None # Rasters object
+        self.stims = None # Stims object
 
         self.tw = tw # temporal window of each channel, in plot units (us ostensibly)
         self.cw = cw # temporal window of caret, in plot units
@@ -443,6 +497,7 @@ class PlotPanel(FigureCanvas):
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # init
         self.init_plots()
         self.init_rasters()
+        self.init_stims()
 
     def get_stream(self):
         return self.spykewindow.hpstream # overridden in LFPPanel
@@ -495,6 +550,10 @@ class PlotPanel(FigureCanvas):
         """Init Rasters object"""
         self.rasters = Rasters(self)
 
+    def init_stims(self):
+        """Init Stims object"""
+        self.stims = Stims(self)
+
     def add_ref(self, ref):
         """Helper method for external use"""
         if ref == 'TimeRef':
@@ -529,6 +588,7 @@ class PlotPanel(FigureCanvas):
             plotvisibility[pltid] = plt.visible()
             plt.hide()
         self.show_rasters(False)
+        self.show_stims(False)
         self.draw() # only draw all enabled refs - defined in FigureCanvas
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # update
         self.background = None # no longer valid
@@ -537,6 +597,7 @@ class PlotPanel(FigureCanvas):
             plt.show(visible) # re-show just the plots that were previously visible
             plt.draw()
         self.show_rasters(True)
+        self.show_stims(True)
         self.blit(self.ax.bbox)
 
     def _add_tref(self):
@@ -715,7 +776,7 @@ class PlotPanel(FigureCanvas):
     def plot(self, wave, tref=None):
         """Plot waveforms and optionally rasters wrt a reference time point"""
         if tref == None:
-            tref = wave.ts[0] # use the first timestamp in the waveform as the reference time point
+            tref = wave.ts[0] # use first timestamp in waveform as the reference time point
         self.restore_region(self.reflines_background)
         # update plots and rasters
         self.qrplt.update(wave, tref)
@@ -723,6 +784,9 @@ class PlotPanel(FigureCanvas):
         if self.spykewindow.ui.actionRasters.isChecked() and self.rasters != None:
             self.update_rasters(tref)
             self.rasters.draw()
+        if self.spykewindow.ui.actionStims.isChecked() and self.stims != None:
+            self.update_stims(tref)
+            self.stims.draw()
         self.blit(self.ax.bbox)
         #self.gui_repaint()
         #self.draw()
@@ -739,10 +803,25 @@ class PlotPanel(FigureCanvas):
         spikes = s.spikes[lo:hi] # spikes within range of current time window
         self.rasters.update(spikes, tref)
 
+    def update_stims(self, tref):
+        """Update stimulus rise and fall positions and visibility wrt tref"""
+        # find out which stim edges are within time window:
+        spw = self.spykewindow
+        lo, hi = spw.stimtons.searchsorted((tref+self.tw[0], tref+self.tw[1]))
+        stimtons = spw.stimtons[lo:hi] # stim onsets within range of current time window
+        lo, hi = spw.stimtoffs.searchsorted((tref+self.tw[0], tref+self.tw[1]))
+        stimtoffs = spw.stimtoffs[lo:hi] # stim offsets within range of current time window
+        self.stims.update(stimtons, stimtoffs, tref)
+
     def show_rasters(self, enable=True):
         """Show/hide all rasters in this panel"""
         if self.rasters != None:
             self.rasters.show(enable)
+
+    def show_stims(self, enable=True):
+        """Show/hide all stimulus edges in this panel"""
+        if self.stims != None:
+            self.stims.show(enable)
 
     def update_tw(self, tw):
         """Update tw and everything that depends on it"""
@@ -1040,6 +1119,10 @@ class SpikePanel(PlotPanel):
         self.gain = 1.5
         PlotPanel.__init__(self, *args, **kwargs)
 
+    def init_stims(self):
+        """Disable for SpikePanel"""
+        pass
+
     def do_layout(self):
         # chans ordered bottom to top, then left to right:
         hchans = self.probe.chans_btlr
@@ -1217,6 +1300,10 @@ class SortPanel(PlotPanel):
             self.available_fills.append(fill)
 
     def init_rasters(self):
+        """Disable for SortPanel"""
+        pass
+
+    def init_stims(self):
         """Disable for SortPanel"""
         pass
 

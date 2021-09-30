@@ -291,7 +291,7 @@ class SpykeWindow(QtGui.QMainWindow):
         filter = (".dat, .ns6, .srf, .track, .tsf, .mat, .event, .sort & .json files "
                   "(*.dat *.ns6 *.srf *.track *.tsf *.mat *.event*.zip *.sort *.json);;"
                   "All files (*.*)")
-        fname = getOpenFileName(self, caption="Open stream or sort",
+        fname = getOpenFileName(self, caption="Open stream or sort or din",
                                 directory=self.streampath,
                                 filter=filter)
         fname = str(fname)
@@ -1372,6 +1372,11 @@ class SpykeWindow(QtGui.QMainWindow):
     def on_actionRasters_triggered(self):
         """Spike rasters toggle menu event"""
         self.ToggleRasters()
+
+    @QtCore.pyqtSlot()
+    def on_actionStims_triggered(self):
+        """Spike stimulus edges toggle menu event"""
+        self.ToggleStims()
 
     @QtCore.pyqtSlot()
     def on_actionTimeRef_triggered(self):
@@ -2689,7 +2694,8 @@ class SpykeWindow(QtGui.QMainWindow):
             self.recentFileActions[j].setVisible(False)
 
     def OpenFile(self, fname):
-        """Open a stream or sort file. fname in this case must contain a full path"""
+        """Open a stream or sort or digital signal file.
+        fname in this case must contain a full path"""
         print('Opening file %r' % fname)
         head, tail = os.path.split(fname)
         assert head # make sure fname has a path to it
@@ -2707,10 +2713,22 @@ class SpykeWindow(QtGui.QMainWindow):
         elif ext in ['.sort', '.json']:
             self.sortpath = head
             self.OpenSortFile(tail)
+        elif ext == '.npy':
+            subext = os.path.splitext(base)[1]
+            if subext == '.din':
+                # digital input file, associated with Busse Lab Open-Ephys streams
+                assert head == self.streampath
+                self.OpenDINNPYFile(tail)
         else:
             critical = QtGui.QMessageBox.critical
             critical(self, "Error", "%s is not a .dat, .ns6, .srf, .track, .tsf, .mat, "
                                     ".event*.zip, .sort or .json file" % fname)
+    def OpenDINNPYFile(self, fname):
+        from expio.oe import DINFile
+        dinf = DINFile(fname, self.streampath)
+        stimriseis, stimfallis = dinf.trangeis('stim')
+        self.stimtons = dinf.tsec[stimriseis] * 1e6 # us
+        self.stimtoffs = dinf.tsec[stimfallis] * 1e6
 
     def OpenStreamFile(self, fname):
         """Open a stream (.dat, .ns6, .srf, .track, or .tsf file) and update display
@@ -3811,6 +3829,7 @@ class SpykeWindow(QtGui.QMainWindow):
         self.lpstream = None
         self.t = None
         self.ShowRasters(False) # reset
+        self.ShowStims(False) # reset
         self.updateTitle()
         self.EnableStreamWidgets(False)
         
@@ -3927,6 +3946,19 @@ class SpykeWindow(QtGui.QMainWindow):
         for wintype, window in self.windows.items():
             if wintype in ['Spike', 'Chart', 'LFP']:
                 window.panel.show_rasters(enable=enable)
+                self.plot(wintype)
+
+    def ToggleStims(self):
+        """Toggle visibility of stimulus edges"""
+        enable = self.ui.actionStims.isChecked()
+        self.ShowStims(enable)
+
+    def ShowStims(self, enable=True):
+        """Show/hide stim edges for all applicable windows. Force menu states to correspond"""
+        self.ui.actionStims.setChecked(enable)
+        for wintype, window in self.windows.items():
+            if wintype in ['Chart', 'LFP']:
+                window.panel.show_stims(enable=enable)
                 self.plot(wintype)
 
     def ToggleRef(self, ref):
