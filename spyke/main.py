@@ -115,7 +115,7 @@ LFPTW = -500000, 500000
 
 # zero out +/- this amount of time around each saturated timepoint when exporting
 # high-pass data to Kilosort2:
-SATURATIONWINDOW = 500000 # us
+SATURATIONWINDOW = 25000 # us
 
 # shift imported Kilosort2 spike times by this much for better positioning in sort window:
 KILOSORT2SHIFTCORRECT = -(66+2.0/3) # us, multiple of both 16.67 or 33.33 .ns6 tres
