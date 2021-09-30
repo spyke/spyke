@@ -795,10 +795,11 @@ class SpykeWindow(QtGui.QMainWindow):
         fname = self.hpstream.fname
         base, ext = os.path.splitext(fname)
         if ext == '.dat':
-            print('The currently open %s data stream is already a .dat file, and there is '
-                  'likely no need to export another one. Did you want to instead simply '
-                  'export the Kilosort2 channel map, config, and run files?' % fname)
-            return
+            print('*** NOTE: The currently open %s data stream is already a .dat file, and '
+                  'there may be no need to export another one (unless you want to ensure '
+                  'saturation periods are removed). If you want to simply '
+                  'export the Kilosort2 channel map, config, and run files, cancel with '
+                  'Ctrl+C and try again with the appropriate menu option' % fname)
 
         filtmeth = stream.filtmeth
         car = stream.car
