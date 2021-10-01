@@ -2244,7 +2244,7 @@ or remove all duplicate spikes from selected neurons
     <bool>false</bool>
    </property>
    <property name="enabled">
-    <bool>true</bool>
+    <bool>false</bool>
    </property>
    <property name="text">
     <string>Stimulus</string>

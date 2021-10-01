@@ -2714,22 +2714,10 @@ class SpykeWindow(QtGui.QMainWindow):
         elif ext in ['.sort', '.json']:
             self.sortpath = head
             self.OpenSortFile(tail)
-        elif ext == '.npy':
-            subext = os.path.splitext(base)[1]
-            if subext == '.din':
-                # digital input file, associated with Busse Lab Open-Ephys streams
-                assert head == self.streampath
-                self.OpenDINNPYFile(tail)
         else:
             critical = QtGui.QMessageBox.critical
             critical(self, "Error", "%s is not a .dat, .ns6, .srf, .track, .tsf, .mat, "
                                     ".event*.zip, .sort or .json file" % fname)
-    def OpenDINNPYFile(self, fname):
-        from expio.oe import DINFile
-        dinf = DINFile(fname, self.streampath)
-        stimriseis, stimfallis = dinf.trangeis('stim')
-        self.stimtons = dinf.tsec[stimriseis] * 1e6 # us
-        self.stimtoffs = dinf.tsec[stimfallis] * 1e6
 
     def OpenStreamFile(self, fname):
         """Open a stream (.dat, .ns6, .srf, .track, or .tsf file) and update display
@@ -2743,6 +2731,12 @@ class SpykeWindow(QtGui.QMainWindow):
             f = dat.File(fname, self.streampath) # parses immediately
             self.hpstream = f.hpstream # highpass record (spike) stream
             self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
+            # if .din.npy file exists with same base name, open that as well and
+            # assume it contains stimulus information from AG Busse Busse Open-Ephys
+            base, ext = os.path.splitext(fname)
+            dinnpyfname = base + '.din.npy'
+            if os.path.exists(os.path.join(self.streampath, dinnpyfname)):
+                self.OpenDINNPYFile(dinnpyfname)
         elif ext == '.ns6':
             f = nsx.File(fname, self.streampath) # parses immediately
             self.hpstream = f.hpstream # highpass record (spike) stream
@@ -2856,6 +2850,18 @@ class SpykeWindow(QtGui.QMainWindow):
         self.update_slider() # set slider limits and step sizes
 
         self.EnableStreamWidgets(True)
+
+    def OpenDINNPYFile(self, fname):
+        """Open .din.npy file, assume that it is an AG Busse Open-Ephys file that
+        contains stimulus timing information"""
+        from expio.oe import DINFile # AG Busse experimental I/O library
+        print('Opening file %r' % os.path.join(self.streampath, fname))
+        dinf = DINFile(fname, self.streampath)
+        stimriseis, stimfallis = dinf.trangeis('stim')
+        self.stimtons = dinf.tsec[stimriseis] * 1e6 # us
+        self.stimtoffs = dinf.tsec[stimfallis] * 1e6
+        self.ui.actionStims.setEnabled(True)
+        self.ShowStims()
 
     def OpenQuirogaMATFile(self, fname):
         """Open Quiroga's .mat files containing single channel synthetic highpass spike data.
@@ -4015,6 +4021,7 @@ class SpykeWindow(QtGui.QMainWindow):
             self.EnableSamplingMenu(enable)
         self.EnableExportMenu(enable)
         self.EnableConvertMenu(enable)
+        self.ui.actionStims.setEnabled(enable)
         self.ui.filePosStartButton.setEnabled(enable)
         self.ui.filePosLineEdit.setEnabled(enable)
         self.ui.filePosEndButton.setEnabled(enable)

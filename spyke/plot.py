@@ -384,7 +384,7 @@ class Stims(object):
         colours = np.zeros(nsegments, dtype='|U7') # length-7 unicode strings for py2 and py3
         xpos = 0
         ypos = np.array(list(self.panel.pos.values()))[:, 1]
-        ylim = ypos.min(), ypos.max()
+        ylim = -ypos.max(), 2*ypos.max() # make sure it exceeds vertical limits of window
         segmenti = 0
         colours[:nrise] = GREEN # rising edge colour
         colours[nrise:] = RED # falling edge colour
