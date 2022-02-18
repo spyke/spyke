@@ -1,5 +1,7 @@
 """Spatial layouts of various electrophys (generally silicon polytrode) probe designs.
-Spatial origin is at center top of each probe."""
+The spatial origin for each probe shank is at the center top. For multishank probes, the
+reference shank should typically be the first one, with coordinates (0, 0), though this
+need not be the case. See MultiShankProbe.shanks mappings."""
 
 # TODO: add pt16c, and pt16x layouts (with 16 to HS-27 adapter)
 
@@ -12,7 +14,18 @@ import numpy as np
 
 from .core import tolist
 
-DEFNSXPROBETYPE = 'A1x32' # default .nsx probe type
+
+# These are template .ns6.json files in spyke/spyke/templates/json that can be copied
+# and pasted into a folder to declare the probe and optionally adapter type for an
+# entire series:
+TEMPLATEJSONFNAMES = ['A1x32.ns6.json',
+                      'A1x32_edge.ns6.json',
+                      'A1x64_Adpt-A64-OM32x2-sm-CerePlex_Mini.ns6.json',
+                      'A1x64_HSF_A64.ns6.json',
+                      'H3.ns6.json',
+                      'H3_CN_Adpt-A64-OM32x2-sm-CerePlex_Mini.ns6.json',
+                     ]
+
 # SPIKEDTYPE currently uses uint8 for chans, ensure during Probe instantiation that
 # number of chans doesn't exceed this:
 MAXNCHANS = 2**8
@@ -144,6 +157,56 @@ class Probe(object):
     @property
     def chans_btlr(self):
         return self.chansort(axis=['y', 'x'], reverse=[True, False])
+
+
+class MultiShankProbe(Probe):
+    """A collection of multiple Probes, with shanks at known locations relative to each other,
+    stored in self.shanks. As for a normal Probe, self.SiteLoc maps probe chan id to spatial
+    position (x, y) in um, while also taking into account shank location.
+    Note that y coordinates designate depth from the top site, i.e. increasing y coords
+    correspond to positions further down the probe"""
+
+    def get_SiteLoc(self, autochans=True):
+        """Collect chan IDs and site locations across all shanks.
+
+        Parameters
+        ----------
+        autochans : bool
+            True : Automatically increment channel IDs with each shank. Assumes:
+                * All shanks have the same number of chans
+                * chan IDs within a shank rely on their layout
+                * chan IDS increment uniformly from one shank to the next
+            False : uses exactly the chan IDs as specified in each shank. Set to False
+                if the chan IDs are scattered irregularly across the shanks
+
+        Requires
+        --------
+        self.shanks : shank ID to (probe object, (x, y)) mapping
+
+        Returns
+        -------
+        SiteLoc : dict
+            Channel ID to (x, y) coord mapping
+        """
+        sl = {}
+        for shanki, (shank, shankpos) in self.shanks.items():
+            shanksl = shank.SiteLoc
+            nchans = len(shanksl)
+            for chan, coord in shanksl.items():
+                if autochans:
+                    chan = chan+shanki*nchans
+                assert chan not in sl # make sure we're not overwriting an existing entry
+                sl[chan] = tuple(np.array(coord) + np.array(shankpos))
+        # ensure it's sorted by chan, despite chans being potentially out of order
+        # across shanks:
+        chans = sorted(sl)
+        sl = { chan:sl[chan] for chan in chans }
+        return sl
+
+    def check(self):
+        """Check multishank probe attributes"""
+        assert len(self.SiteLoc) == self.nchans <= MAXNCHANS
+        assert self.nshanks == len(self.shanks)
 
 
 class uMap54_1a(Probe):
@@ -599,6 +662,40 @@ class IMEC30(Probe):
         self.check()
 
 
+class A1x16(Probe):
+    """A1x16, 50 um spacing, single column, 1-based channel IDs
+
+    TODO: there are multiple A1x16 layouts that need to be distinguished, such as:
+    * A1x16-3mm-50-413-A16 (same layout, bigger sites)
+    * A1x16-3mm-50-177-OA16 (optogenetics probe, same layout?)
+    * A1x16-3mm-50-413-OA16 (optogenetics probe, same layout?)
+    """
+    def __init__(self):
+        self.layout = 'A1x16-3mm-50-177-A16'
+        self.name = 'A1x16'
+        self.nchans = 16
+        self.ncols = 1
+        sl = {}
+        sl[1] =  0, 550
+        sl[2] =  0, 450
+        sl[3] =  0, 650
+        sl[4] =  0, 250
+        sl[5] =  0, 350
+        sl[6] =  0, 750
+        sl[7] =  0, 150
+        sl[8] =  0, 50
+        sl[9] =  0, 0
+        sl[10] = 0, 100
+        sl[11] = 0, 700
+        sl[12] = 0, 300
+        sl[13] = 0, 200
+        sl[14] = 0, 600
+        sl[15] = 0, 400
+        sl[16] = 0, 500
+        self.SiteLoc = sl
+        self.check()
+
+
 class A1x32(Probe):
     """A1x32, 25 um spacing, single column, 1-based channel IDs"""
     def __init__(self):
@@ -764,8 +861,8 @@ class A1x64(Probe):
 
 
 class H3(Probe):
-    """Cambridge Neurotech H3 probe, 20 um spacing, single column single shaft,
-    1-based channel IDs. Uses rev3 electrode interface board layout, which maps directly
+    """Cambridge Neurotech H3 probe, 20 um spacing, single column, 1-based channel IDs.
+    Uses rev3 electrode interface board layout, which maps directly
     to Blackrock HSF_A64 analog headstage, and therefore doesn't require an adapter in spyke"""
     def __init__(self):
         self.layout = 'H3'
@@ -773,152 +870,243 @@ class H3(Probe):
         self.nchans = 64
         self.ncols = 1
         sl = {}
-        sl[1] =  0, 320,
-        sl[2] =  0, 620,
-        sl[3] =  0, 340,
-        sl[4] =  0, 600,
-        sl[5] =  0, 360,
-        sl[6] =  0, 580,
-        sl[7] =  0, 380,
-        sl[8] =  0, 560,
-        sl[9] =  0, 400,
-        sl[10] = 0, 540,
-        sl[11] = 0, 420,
-        sl[12] = 0, 520,
-        sl[13] = 0, 440,
-        sl[14] = 0, 500,
-        sl[15] = 0, 460,
-        sl[16] = 0, 100,
-        sl[17] = 0, 200,
-        sl[18] = 0, 120,
-        sl[19] = 0, 180,
-        sl[20] = 0, 140,
-        sl[21] = 0, 0,
-        sl[22] = 0, 300,
-        sl[23] = 0, 20,
-        sl[24] = 0, 40,
-        sl[25] = 0, 220,
-        sl[26] = 0, 240,
-        sl[27] = 0, 160,
-        sl[28] = 0, 280,
-        sl[29] = 0, 80,
-        sl[30] = 0, 60,
-        sl[31] = 0, 480,
-        sl[32] = 0, 260,
-        sl[33] = 0, 1220,
-        sl[34] = 0, 800,
-        sl[35] = 0, 1020,
-        sl[36] = 0, 1040,
-        sl[37] = 0, 1240,
-        sl[38] = 0, 1120,
-        sl[39] = 0, 1200,
-        sl[40] = 0, 1180,
-        sl[41] = 0, 1000,
-        sl[42] = 0, 980,
-        sl[43] = 0, 1260,
-        sl[44] = 0, 960,
-        sl[45] = 0, 1100,
-        sl[46] = 0, 1140,
-        sl[47] = 0, 1080,
-        sl[48] = 0, 1160,
-        sl[49] = 0, 1060,
-        sl[50] = 0, 780,
-        sl[51] = 0, 820,
-        sl[52] = 0, 760,
-        sl[53] = 0, 840,
-        sl[54] = 0, 740,
-        sl[55] = 0, 860,
-        sl[56] = 0, 720,
-        sl[57] = 0, 880,
-        sl[58] = 0, 700,
-        sl[59] = 0, 900,
-        sl[60] = 0, 680,
-        sl[61] = 0, 920,
-        sl[62] = 0, 660,
-        sl[63] = 0, 940,
+        sl[1] =  0, 320
+        sl[2] =  0, 620
+        sl[3] =  0, 340
+        sl[4] =  0, 600
+        sl[5] =  0, 360
+        sl[6] =  0, 580
+        sl[7] =  0, 380
+        sl[8] =  0, 560
+        sl[9] =  0, 400
+        sl[10] = 0, 540
+        sl[11] = 0, 420
+        sl[12] = 0, 520
+        sl[13] = 0, 440
+        sl[14] = 0, 500
+        sl[15] = 0, 460
+        sl[16] = 0, 100
+        sl[17] = 0, 200
+        sl[18] = 0, 120
+        sl[19] = 0, 180
+        sl[20] = 0, 140
+        sl[21] = 0, 0
+        sl[22] = 0, 300
+        sl[23] = 0, 20
+        sl[24] = 0, 40
+        sl[25] = 0, 220
+        sl[26] = 0, 240
+        sl[27] = 0, 160
+        sl[28] = 0, 280
+        sl[29] = 0, 80
+        sl[30] = 0, 60
+        sl[31] = 0, 480
+        sl[32] = 0, 260
+        sl[33] = 0, 1220
+        sl[34] = 0, 800
+        sl[35] = 0, 1020
+        sl[36] = 0, 1040
+        sl[37] = 0, 1240
+        sl[38] = 0, 1120
+        sl[39] = 0, 1200
+        sl[40] = 0, 1180
+        sl[41] = 0, 1000
+        sl[42] = 0, 980
+        sl[43] = 0, 1260
+        sl[44] = 0, 960
+        sl[45] = 0, 1100
+        sl[46] = 0, 1140
+        sl[47] = 0, 1080
+        sl[48] = 0, 1160
+        sl[49] = 0, 1060
+        sl[50] = 0, 780
+        sl[51] = 0, 820
+        sl[52] = 0, 760
+        sl[53] = 0, 840
+        sl[54] = 0, 740
+        sl[55] = 0, 860
+        sl[56] = 0, 720
+        sl[57] = 0, 880
+        sl[58] = 0, 700
+        sl[59] = 0, 900
+        sl[60] = 0, 680
+        sl[61] = 0, 920
+        sl[62] = 0, 660
+        sl[63] = 0, 940
         sl[64] = 0, 640
         self.SiteLoc = sl
         self.check()
 
 
-## TODO: these less commonly used probes are incomplete:
-
-class A1x16(Probe):
-    """A1x16. Incomplete"""
-    def __init__(self):
-        ## TODO: there are multiple A1x16 layouts that need to be distinguished:
-        self.layout = 'A1x16-3mm-50-177-A16'
-        self.name = 'A1x16'
-        self.nchans = 16
-        #self.ncols = 1
-        sl = {}
-        self.SiteLoc = sl
-
-
-class A2x16(Probe):
-    """A2x16. Incomplete"""
+class A2x16(MultiShankProbe):
+    """A2x16, 2 shank, 500 um shank spacing, 1-based channel IDs.
+    Each shank: A1x16: 50 um spacing, single column"""
     def __init__(self):
         self.layout = 'A2x16-10mm-50-500-177-A32'
         self.name = 'A2x16'
         self.nchans = 32
-        #self.ncols = 2 #?
-        sl = {}
-        self.SiteLoc = sl
+        self.nshanks = 2
+        # shank ID to (probe object, shank position) mapping:
+        self.shanks = {0: (A1x16(), (0, 0)),
+                       1: (A1x16(), (500, 0))}
+        self.SiteLoc = self.get_SiteLoc()
+        self.check()
 
 
-class A2x2_tet(Probe):
-    """A2x2_tet. Incomplete"""
-    def __init__(self):
-        self.layout = 'A2x2-tet-3mm-150-150-121-A16'
-        self.name = 'A2x2_tet'
-        self.nchans = 16
-        #self.ncols = 8 #?
-        sl = {}
-        self.SiteLoc = sl
-
-
-class A2x32(Probe):
-    """A2x32. Incomplete"""
+class A2x32(MultiShankProbe):
+    """A2x32, 2 shank, 200 um shank spacing, 1-based channel IDs.
+    Each shank: A1x32: 25 um spacing, single column"""
     def __init__(self):
         self.layout = 'A2x32-5mm-25-200-177-A64'
         self.name = 'A2x32'
         self.nchans = 64
-        #self.ncols = 2 #?
+        self.nshanks = 2
+        # shank ID to (probe object, shank position) mapping:
+        self.shanks = {0: (A1x32(), (0, 0)),
+                       1: (A1x32(), (200, 0))}
+        self.SiteLoc = self.get_SiteLoc()
+        self.check()
+
+
+class A2x32_edge(MultiShankProbe):
+    """A2x32 edge, 2 shank, 200 um shank spacing, 1-based channel IDs.
+    Each shank: A1x32_edge: 20 um spacing, single column.
+
+    NOTE: though plausible as a custom probe from NeuroNexus, as of 2020 this probe does
+    not show up in the NeuroNexus catalog"""
+    def __init__(self):
+        self.layout = 'A2x32-Edge-5mm-20-200-177-A64'
+        self.name = 'A2x32_edge'
+        self.nchans = 64
+        self.nshanks = 2
+        # shank ID to (probe object, shank position) mapping:
+        self.shanks = {0: (A1x32_edge(), (0, 0)),
+                       1: (A1x32_edge(), (200, 0))}
+        self.SiteLoc = self.get_SiteLoc()
+        self.check()
+
+
+## TODO: these less commonly used Probes/MultiShankProbes are incomplete.
+## Once completed, they should be moved out of INCOMPLETEPROBETYPES:
+
+
+class A1x1_tet(Probe):
+    """A1x1_tet, incomplete"""
+    def __init__(self):
+        self.layout = ''
+        self.name = 'A1x1_tet'
+        self.nchans = 4
+        #self.ncols = 1
         sl = {}
         self.SiteLoc = sl
+        #self.check() # incomplete
 
 
-class A4x1_tet(Probe):
-    """A4x1_tet. Incomplete"""
+class A1x2_tet(Probe):
+    """A1x2_tet, incomplete"""
+    def __init__(self):
+        self.layout = ''
+        self.name = 'A1x2_tet'
+        self.nchans = 8
+        #self.ncols = 1
+        sl = {}
+        self.SiteLoc = sl
+        #self.check() # incomplete
+
+
+class A1x4_tet(Probe):
+    """A1x4_tet, incomplete"""
+    def __init__(self):
+        self.layout = ''
+        self.name = 'A1x4_tet'
+        self.nchans = 16
+        #self.ncols = 1
+        sl = {}
+        self.SiteLoc = sl
+        #self.check() # incomplete
+
+
+class A2x2_tet(MultiShankProbe):
+    """A2x2_tet, 2 shank, 150 um shank spacing, 1-based channel IDs.
+    Each shank: A1x2_tet: 50 um spacing, single column"""
+    def __init__(self):
+        self.layout = 'A2x2-tet-3mm-150-150-121-A16'
+        self.name = 'A2x2_tet'
+        self.nchans = 16
+        self.nshanks = 2
+        # shank ID to (probe object, shank position) mapping:
+        self.shanks = {0: (A1x2_tet(), (0, 0)),
+                       1: (A1x2_tet(), (150, 0))}
+        self.SiteLoc = self.get_SiteLoc()
+        #self.check() # incomplete
+
+
+class A4x1_tet(MultiShankProbe):
+    """A4x1_tet, 4 shank, 150 um shank spacing, 1-based channel IDs.
+    Each shank: A1x1_tet"""
     def __init__(self):
         self.layout = 'A4x1-tet-3mm-150-312-A16'
         self.name = 'A4x1_tet'
         self.nchans = 16
-        #self.ncols = 4 #?
-        sl = {}
-        self.SiteLoc = sl
+        self.nshanks = 4
+        # shank ID to (probe object, shank position) mapping:
+        self.shanks = {0: (A1x1_tet(), (0, 0)),
+                       1: (A1x1_tet(), (150, 0)),
+                       2: (A1x1_tet(), (300, 0)),
+                       3: (A1x1_tet(), (450, 0))}
+        self.SiteLoc = self.get_SiteLoc()
+        #self.check() # incomplete
 
 
-class A4x2_tet(Probe):
-    """A4x2_tet. Incomplete"""
+class A4x2_tet(MultiShankProbe):
+    """A4x2_tet, 4 shank, 200 um shank spacing, 1-based channel IDs.
+    Each shank: A1x2_tet: 150 um tetrode spacing"""
     def __init__(self):
         self.layout = 'A4x2-tet-5mm-150-200-121-A32'
         self.name = 'A4x2_tet'
         self.nchans = 32
-        #self.ncols = 8 #?
-        sl = {}
-        self.SiteLoc = sl
+        self.nshanks = 4
+        # shank ID to (probe object, shank position) mapping:
+        self.shanks = {0: (A1x2_tet(), (0, 0)),
+                       1: (A1x2_tet(), (200, 0)),
+                       2: (A1x2_tet(), (400, 0)),
+                       3: (A1x2_tet(), (600, 0))}
+        self.SiteLoc = self.get_SiteLoc()
+        #self.check() # incomplete
 
 
-class A4x4(Probe):
-    """A4x4. Incomplete"""
+class A4x4_tet(MultiShankProbe):
+    """A4x4_tet, 4 shank, 200 um shank spacing, 1-based channel IDs.
+    Each shank: A1x4_tet: 150 um tetrode spacing"""
+    def __init__(self):
+        self.layout = 'A4x4-tet-5mm-150-200-121-A64'
+        self.name = 'A4x4_tet'
+        self.nchans = 64
+        self.nshanks = 4
+        # shank ID to (probe object, shank position) mapping:
+        self.shanks = {0: (A1x4_tet(), (0, 0)),
+                       1: (A1x4_tet(), (200, 0)),
+                       2: (A1x4_tet(), (400, 0)),
+                       3: (A1x4_tet(), (600, 0))}
+        self.SiteLoc = self.get_SiteLoc()
+        #self.check() # incomplete
+
+
+class A4x4(MultiShankProbe):
+    """A4x4, 4 shank, 125 um shank spacing, 1-based channel IDs.
+    Each shank: A1x4: 50 um spacing"""
     def __init__(self):
         self.layout = 'A4x4-3mm-50-125-177-A16'
         self.name = 'A4x4'
         self.nchans = 16
-        #self.ncols = 8 #?
-        sl = {}
-        self.SiteLoc = sl
+        self.nshanks = 4
+        # shank ID to (probe object, shank position) mapping:
+        self.shanks = {0: (A1x4_tet(), (0, 0)),
+                       1: (A1x4_tet(), (125, 0)),
+                       2: (A1x4_tet(), (250, 0)),
+                       3: (A1x4_tet(), (375, 0))}
+        self.SiteLoc = self.get_SiteLoc()
+        #self.check() # incomplete
 
 
 class Buzsaki32(Probe):
@@ -930,24 +1118,174 @@ class Buzsaki32(Probe):
         #self.ncols = 1 #?
         sl = {}
         self.SiteLoc = sl
+        #self.check() # incomplete
 
 
-class H2(Probe):
-    """Cambridge Neurotech H2 probe. Incomplete"""
+class H4(Probe):
+    """Cambridge Neurotech H4 probe. Incomplete"""
+    def __init__(self):
+        self.layout = 'H4'
+        self.name = 'H4'
+        self.nchans = 32
+        self.ncols = 1
+        sl = {}
+        self.SiteLoc = sl
+        #self.check() # incomplete
+
+
+class H2(MultiShankProbe):
+    """Cambridge Neurotech H2 probe, 2 shank, 250 um shank spacing
+    Each shank: P4 probe: 25 um spacing. Incomplete"""
     def __init__(self):
         self.layout = 'H2'
         self.name = 'H2'
         self.nchans = 64
-        #self.ncols = 2 #?
+        self.nshanks = 2
+        # shank ID to (probe object, shank position) mapping:
+        self.shanks = {0: (H4(), (0, 0)),
+                       1: (H4(), (250, 0))}
+        self.SiteLoc = self.get_SiteLoc()
+        #self.check() # incomplete
+
+
+class P2_A(Probe):
+    """Cambridge Neurotech P2 probe, 25 um spacing, 9 mm long, 2 column, single shank (A),
+    1-based channel IDS"""
+    def __init__(self):
+        self.layout = 'P2_A'
+        self.name = 'P2_A'
+        self.nchans = 16
+        self.ncols = 2
         sl = {}
+        sl[16] = 22.5, 0
+        sl[17] = 22.5, 125
+        sl[18] = 22.5, 25
+        sl[19] = 22.5, 100
+        sl[20] = 22.5, 50
+        sl[21] = 0, 12.5
+        sl[22] = 0, 187.5
+        sl[23] = 0, 37.5
+        sl[24] = 0, 62.5
+        sl[25] = 0, 137.5
+        sl[26] = 22.5, 150
+        sl[27] = 22.5, 75
+        sl[28] = 22.5, 175
+        sl[29] = 0, 112.5
+        sl[30] = 0, 87.5
+        sl[32] = 0, 162.5
         self.SiteLoc = sl
+        self.check()
 
 
-COMMONPROBETYPES = [uMap54_1a, uMap54_1b, uMap54_1c, uMap54_2a, uMap54_2b,
-                    pt16a_HS27, pt16b_HS27, single, IMEC30,
-                    A1x32, A1x32_edge, A1x64, H3]
-UNCOMMONPROBETYPES = [A1x16, A2x16, A2x2_tet, A2x32, A4x1_tet, A4x2_tet, A4x4, Buzsaki32, H2]
-PROBETYPES = COMMONPROBETYPES + UNCOMMONPROBETYPES
+class P2_B(Probe):
+    """Cambridge Neurotech P2 probe, 25 um spacing, 9 mm long, 2 column, single shank (B),
+    1-based channel IDS"""
+    def __init__(self):
+        self.layout = 'P2_B'
+        self.name = 'P2_B'
+        self.nchans = 16
+        self.ncols = 2
+        sl = {}
+        sl[1] =  0, 12.5
+        sl[2] =  0, 187.5
+        sl[3] =  0, 37.5
+        sl[4] =  22.5, 175
+        sl[5] =  0, 62.5
+        sl[6] =  0, 162.5
+        sl[7] =  0, 87.5
+        sl[8] =  22.5, 150
+        sl[9] =  0, 112.5
+        sl[10] = 0, 137.5
+        sl[11] = 22.5, 0
+        sl[12] = 22.5, 125
+        sl[13] = 22.5, 25
+        sl[14] = 22.5, 100
+        sl[15] = 22.5, 50
+        sl[31] = 22.5, 75
+        self.SiteLoc = sl
+        self.check()
+
+
+class P2_C(Probe):
+    """Cambridge Neurotech P2 probe, 25 um spacing, 9 mm long, 2 column, single shank (C),
+    1-based channel IDS"""
+    def __init__(self):
+        self.layout = 'P2_C'
+        self.name = 'P2_C'
+        self.nchans = 16
+        self.ncols = 2
+        sl = {}
+        sl[34] = 22.5, 75
+        sl[50] = 22.5, 50
+        sl[51] = 22.5, 100
+        sl[52] = 22.5, 25
+        sl[53] = 22.5, 125
+        sl[54] = 22.5, 0
+        sl[55] = 0, 137.5
+        sl[56] = 0, 112.5
+        sl[57] = 22.5, 150
+        sl[58] = 0, 87.5
+        sl[59] = 0, 162.5
+        sl[60] = 0, 62.5
+        sl[61] = 22.5, 175
+        sl[62] = 0, 37.5
+        sl[63] = 0, 187.5
+        sl[64] = 0, 12.5
+        self.SiteLoc = sl
+        self.check()
+
+
+class P2_D(Probe):
+    """Cambridge Neurotech P2 probe, 25 um spacing, 9 mm long, 2 column, single shank (D),
+    1-based channel IDS"""
+    def __init__(self):
+        self.layout = 'P2_D'
+        self.name = 'P2_D'
+        self.nchans = 16
+        self.ncols = 2
+        sl = {}
+        sl[33] = 0, 162.5
+        sl[35] = 0, 87.5
+        sl[36] = 0, 112.5
+        sl[37] = 22.5, 175
+        sl[38] = 22.5, 75
+        sl[39] = 22.5, 150
+        sl[40] = 0, 137.5
+        sl[41] = 0, 62.5
+        sl[42] = 0, 37.5
+        sl[43] = 0, 187.5
+        sl[44] = 0, 12.5
+        sl[45] = 22.5, 50
+        sl[46] = 22.5, 100
+        sl[47] = 22.5, 25
+        sl[48] = 22.5, 125
+        sl[49] = 22.5, 0
+        self.SiteLoc = sl
+        self.check()
+
+
+class P2x4(MultiShankProbe):
+    """Cambridge Neurotech P2 probe, 4 shank, 250 um shank spacing
+    Each shank: P2_A--D probe: 25 um spacing"""
+    def __init__(self):
+        self.layout = 'P2x4'
+        self.name = 'P2x4'
+        self.nchans = 64
+        self.nshanks = 4
+        # shank ID to (probe object, shank position) mapping:
+        self.shanks = {0: (P2_D(), (0, 0)),
+                       1: (P2_C(), (250, 0)),
+                       2: (P2_B(), (500, 0)),
+                       3: (P2_A(), (750, 0))}
+        self.SiteLoc = self.get_SiteLoc(autochans=False)
+        self.check()
+
+
+SINGLESHANKPROBETYPES = [A1x16, A1x32, A1x32_edge, A1x64, H3]
+MULTISHANKPROBETYPES  = [A2x16, A2x32, A2x32_edge, P2x4]
+INCOMPLETEPROBETYPES  = [A1x1_tet, A1x2_tet, A1x4_tet, A2x2_tet, A4x1_tet, A4x2_tet, A4x4_tet,
+                         A4x4, Buzsaki32, H4, H2]
+PROBETYPES = SINGLESHANKPROBETYPES + MULTISHANKPROBETYPES + INCOMPLETEPROBETYPES
 
 
 def getprobe(name):
