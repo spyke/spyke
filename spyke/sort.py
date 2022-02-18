@@ -410,7 +410,8 @@ class Sort(object):
         self.check_wavepadding()
         self.check_contiguous_nids()
         spikes = self.spikes
-        exportdt = str(datetime.datetime.now()) # get an export datetime stamp
+        # get an export datetime stamp:
+        exportdt = str(datetime.datetime.now()) # a space separates date and time
         exportdt = exportdt.split('.')[0] # ditch the us
         if self.stream.is_multi(): # self.stream is a MultiStream
             streams = self.stream.streams
