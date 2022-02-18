@@ -11,22 +11,6 @@ from __future__ import print_function
 
 __authors__ = ['Martin Spacek']
 
-# When comparing e.g. a Python string to a numpy numeric array with `in` or `==` operators,
-# numpy currently (1.17.4) returns a scalar (True or False), though it would make more sense
-# if it returned an array. This is due to a standoff between Python and numpy devs:
-# https://stackoverflow.com/a/46721064
-# This raises the following annoying warning:
-#     FutureWarning: elementwise comparison failed; returning scalar instead, but in the
-#     future will perform elementwise comparison
-# Suppress with:
-#import warnings
-#warnings.simplefilter(action='ignore', category=FutureWarning)
-
-# use raw_input() in Py2, which is simply called input() in Py3:
-try:
-    input = raw_input
-except NameError:
-    pass
 
 import os
 from struct import unpack
@@ -39,6 +23,7 @@ import matplotlib.pyplot as plt
 from .core import NULL, rstripnonascii
 from . import dat # for inheritance
 from . import probes
+from .probes import TEMPLATEJSONFNAMES
 from .stream import NSXStream
 
 
@@ -70,16 +55,16 @@ class File(dat.File):
     def chan2datarowi(self, chan):
         """Find row in self.datapacket._data corresponding to chan.
         chan can be either an integer id or a string label"""
-        if type(chan) == int:
+        if type(chan) in [int, np.int_]:
             datarowis, = np.where(chan == self.fileheader.allchans)
-        elif type(chan) == str:
+        elif type(chan) in [str, np.str_]:
             datarowis, = np.where(chan == self.fileheader.alllabels)
         else:
-            raise ValueError("Unexpected type %s for chan %s" % (type(chan), chan))
+            raise ValueError("Unexpected type %s for chan %r" % (type(chan), chan))
         if len(datarowis) == 0:
             raise ValueError("Can't find chan %r" % chan)
         elif len(datarowis) > 1:
-            raise ValueError("Found multiple occurences of chan %r at data rows %r"
+            raise ValueError("Found multiple occurences of chan %r at data rows %s"
                              % (chan, datarowis))
         return datarowis[0]
 
@@ -126,7 +111,7 @@ class File(dat.File):
         V = self.get_chanV(chan)
         if trange:
             assert len(trange) == 2
-            t0i, t1i = np.searchsorted(t, trange)
+            t0i, t1i = t.searchsorted(trange)
             t = t[t0i:t1i]
             V = V[t0i:t1i]
         a.plot(t, V, fmt, linewidth=linewidth, markersize=markersize,
@@ -182,15 +167,15 @@ class FileHeader(dat.FileHeader):
             chanheader.parse(f)
             label, id = chanheader.label, chanheader.id
             if label != ('chan%d' % id):
-                print('Treating chan%d (%r) as auxiliary channel' % (id, label))
+                #print('Treating chan%d (%r) as auxiliary channel' % (id, label))
                 self.auxchanheaders[id] = chanheader
             else: # save ephys channel
                 self.chanheaders[id] = chanheader
         self.nchans = len(self.chanheaders) # number of ephys chans
         self.nauxchans = len(self.auxchanheaders) # number of aux chans
         assert self.nchans + self.nauxchans == self.nchanstotal
-        if self.nauxchans > 0: # some chans were aux chans
-            print('Found %d auxiliary channels' % (self.nauxchans))
+        #if self.nauxchans > 0: # some chans were aux chans
+        #    print('Found %d auxiliary channels' % (self.nauxchans))
         assert len(self) == f.tell() # header should be of expected length
 
         # if there's no adapter, AD ephys chans == probe chans:
@@ -226,67 +211,83 @@ class FileHeader(dat.FileHeader):
     def parse_json(self, f):
         """Parse potential .nsx.json file for probe name and optional adapter name"""
         fname = os.path.realpath(f.name) # make sure we have the full fname with path
-        path = os.path.dirname(fname)
-        ext = os.path.splitext(fname)[1] # e.g., '.ns6'
-        # check if there is a file named exactly fname.json:
-        jsonfname = fname + '.json'
-        jsonbasefname = os.path.split(jsonfname)[-1]
-        print('Checking for metadata file %r' % jsonbasefname)
-        if os.path.exists(jsonfname):
-            print('Found metadata file %r' % jsonbasefname)
-        else:
-            jsonext = '%s.json' % ext # e.g. '.ns6.json'
-            print('No file named %r, checking for a single %s file of any name'
-                  % (jsonbasefname, jsonext))
+        path, basefname = os.path.split(fname)
+        base, ext = os.path.splitext(basefname) # ext is e.g. '.ns2', '.ns3', '.ns6'...
+        jsonbasefname = base + '.ns6' + '.json'
+        # Check if there is a file named exactly base.ns6.json, since we only
+        # ever copy over *.ns6.json files, though they apply equally well to .ns2 and .ns3,
+        # because they only ever indicate the probe and adapter names, which are identical
+        # for all nsx files with the same base name:
+        exactjsonfname = os.path.join(path, jsonbasefname) # full fname with path
+        if os.path.exists(exactjsonfname):
+            jsonfname = exactjsonfname # full fname with path
+        else: # choose first entry in TEMPLATEJSONFNAMES to match a .ns6.json file in path
+            #print('No file named %r, checking for a generic .ns6.json template file'
+            #      % jsonbasefname)
+            jsonfname = None
+            jsonext = 'ns6.json'
             jsonbasefnames = [ fname for fname in os.listdir(path) if fname.endswith(jsonext)
                                and not fname.startswith('.') ]
-            njsonfiles = len(jsonbasefnames)
-            if njsonfiles == 1:
-                jsonbasefname = jsonbasefnames[0]
-                jsonfname = os.path.join(path, jsonbasefname) # full fname with path
-                print('Using metadata file %r' % jsonbasefname)
-            else:
-                jsonfname = None
-                print('Found %d %s files, ignoring them' % (njsonfiles, jsonext))
+            for templatejsonfname in TEMPLATEJSONFNAMES:
+                if templatejsonfname in jsonbasefnames:
+                    jsonbasefname = templatejsonfname # found a match
+                    jsonfname = os.path.join(path, jsonbasefname) # full fname with path
+                    #print('Found metadata file %r' % jsonbasefname)
+                    break
+
+            if jsonfname == None:
+                errmsg = (
+                    "%s:\n"
+                    "Couldn't find a .ns6.json file whose name exactly matches %r\n"
+                    "Couldn't find a generic file that matches any of these template names:\n"
+                    "%r\n"
+                    "*** ERROR: unknown probe type"
+                    % (fname, exactjsonfname, TEMPLATEJSONFNAMES)
+                    )
+                raise RuntimeError(errmsg)
+                '''
+                # This was always just a fantasy:
+                # maybe the comment field in the .nsx file specifies the probe type?
+                self.probename = self.comment.replace(' ', '_')
+                if self.probename != '':
+                    print('Using %r in .nsx comment as probe name' % self.probename)
+                else:
+                    raise RuntimeError('No probe type specified for recording %s' % fname)
+                self.adaptername = None
+                '''
 
         # get probe name and optional adapter name:
-        if jsonfname:
-            with open(jsonfname, 'r') as jf:
-                j = json.load(jf) # should return a dict of key:val pairs
-            assert type(j) == dict
-            # check field validity:
-            validkeys = ['chan_layout_name', # old name
-                         'probe_name', # new name
-                         'adapter_name']
-            keys = list(j)
-            for key in keys:
-                if key not in validkeys:
-                    raise ValueError("Found invalid field %r in %r\n"
-                                     "Fields currently allowed in .nsx.json files: %r"
-                                     % (key, jsonfname, validkeys))
-            try:
-                self.probename = j['probe_name'] # new name
-            except KeyError:
-                self.probename = j['chan_layout_name'] # old name
-            # make sure probename is valid probe.name or probe.layout,
-            # potentially rename any old probe names to new ones:
-            probe = probes.getprobe(self.probename)
-            self.probename = probe.name
-            self.adaptername = j.get('adapter_name')
-        else: # no .json file, maybe the .nsx comment specifies the probe type?
-            self.probename = self.comment.replace(' ', '_')
-            if self.probename != '':
-                print('Using %r in .nsx comment as probe name' % self.probename)
-            else:
-                self.probename = probes.DEFNSXPROBETYPE # A1x32
-                print('WARNING: assuming probe %s was used in this recording' % self.probename)
-            self.adaptername = None
+        with open(jsonfname, 'r') as jf:
+            j = json.load(jf) # should return a dict of key:val pairs
+        assert type(j) == dict
+        # check field validity:
+        validkeys = ['chan_layout_name', # old name
+                     'probe_name', # new name
+                     'adapter_name']
+        keys = list(j)
+        for key in keys:
+            if key not in validkeys:
+                raise ValueError("Found invalid field %r in %r\n"
+                                 "Fields currently allowed in .nsx.json files: %r"
+                                 % (key, jsonfname, validkeys))
+        try:
+            self.probename = j['probe_name'] # new name
+        except KeyError:
+            self.probename = j['chan_layout_name'] # old name
+        # make sure probename is valid probe.name or probe.layout,
+        # potentially rename any old probe names to new ones:
+        probe = probes.getprobe(self.probename)
+        self.probename = probe.name
+        self.adaptername = j.get('adapter_name')
 
         # initialize probe and adapter:
         self.set_probe()
         self.set_adapter()
         self.check_probe()
         self.check_adapter()
+
+        print('%s: json=%r, probe=%s, adapter=%s'
+              % (fname, jsonbasefname, self.probename, self.adaptername))
 
     def get_ephyschanlabels(self):
         return np.array([ self.chanheaders[chan].label for chan in self.chans ], dtype=str)
