@@ -1,15 +1,16 @@
-"""Load flat .dat files with accompanying metadata. See templates/json for
-example metadata files"""
+"""Load flat .dat files with accompanying metadata. See spyke/notes/dat_metadata_example.json
+for example metadata files"""
 
 from __future__ import division
 from __future__ import print_function
 
 __authors__ = ['Martin Spacek']
 
-import numpy as np
 import os
 import datetime
 import json
+
+import numpy as np
 
 from . import probes
 from .stream import DATStream
@@ -22,6 +23,8 @@ class File(object):
             path, fname = os.path.split(fname) # separate path from fname
         self.fname, self.path = fname, path
         self.filesize = os.stat(self.join(fname)).st_size # in bytes
+        if self.filesize == 0:
+            raise RuntimeError('File %s has 0 bytes' % self.join(fname))
         self.open() # calls parse() and load()
 
         self.datapacketoffset = self.datapacket.offset # save for unpickling
@@ -100,6 +103,20 @@ class File(object):
         self.datapacket = datapacket
         self.contiguous = True
 
+    def get_trange(self):
+        """Return time range of data in self, in sec"""
+        t0sec = self.t0i / self.fileheader.sampfreq
+        t1sec = self.t1i / self.fileheader.sampfreq
+        return t0sec, t1sec
+
+    trange = property(get_trange)
+
+    def get_duration(self):
+        """Return duration of data in self, in sec"""
+        return (self.t1i - self.t0i) / self.fileheader.sampfreq
+
+    duration = property(get_duration)
+
     def get_tsec(self):
         """Return all timestamps for data in self, in sec"""
         start, stop, step = self.t0, self.t1, self.fileheader.tres
@@ -151,7 +168,7 @@ class FileHeader(object):
     def parse_json(self, datfname):
         """Parse metadata from .dat.json file"""
         jsonfname = datfname + '.json' # assume that .dat meta files are named *.dat.json
-        print('Parsing file %r' % jsonfname)
+        #print('Parsing file %r' % jsonfname)
         with open(jsonfname, 'r') as jf:
             j = json.load(jf) # should return a dict of key:val pairs
         assert type(j) == dict
@@ -186,7 +203,7 @@ class FileHeader(object):
             assert not self.auxchans # make sure auxchans aren't specified
             self.nchans = self.nchanstotal
             self.chans = np.arange(chan0, chan0+self.nchans)
-            print('.dat chans not specified, assuming chans start from %d' % chan0)
+            #print('.dat chans not specified, assuming chans start from %d' % chan0)
         if self.auxchans:
             self.auxchans = np.asarray(self.auxchans) # convert list to array
             self.nauxchans = len(self.auxchans) # number of aux chans
@@ -213,6 +230,9 @@ class FileHeader(object):
         self.version = j.get('version') # version of software that generated the .dat file
         self.notes = j.get('notes') # notes
 
+        print('%s: probe=%s, adapter=%s'
+              % (datfname, self.probename, self.adaptername))
+
     def get_allchans(self):
         return np.concatenate([self.chans, self.auxchans])
 
@@ -220,14 +240,14 @@ class FileHeader(object):
 
     def set_probe(self):
         """Set probe from self.probename"""
-        print('Setting probe type: %r' % self.probename)
+        #print('Setting probe type: %r' % self.probename)
         self.probe = probes.getprobe(self.probename) # check for valid probe name
 
     def set_adapter(self):
         """Set adapter from self.adaptername, if any"""
         self.adapter = None
         if self.adaptername:
-            print('Setting adapter type: %r' % self.adaptername)
+            #print('Setting adapter type: %r' % self.adaptername)
             self.adapter = probes.getadapter(self.adaptername) # checks for valid name
 
     def check_probe(self):
@@ -247,11 +267,12 @@ class FileHeader(object):
                              "Data chans:\n%s\n"
                              "Adapter %r ADchans:\n%s"
                              % (self.chans, self.adaptername, self.adapter.ADchans))
-        # if an adapter is present, self.chans actually represent ADchans,
+        # if self.chans and an adapter are present, self.chans actually represent ADchans,
         # which are not necessarily equal to probe chans. Since the convention throughout
         # spyke is that self.chans represent probe chans, replace the ADchans in self.chans
         # to be the equivalent probe chans:
-        self.chans = self.adapter.probechans[self.adapter.ADchansortis]
+        if len(self.chans) > 0:
+            self.chans = self.adapter.probechans[self.adapter.ADchansortis]
 
 
 class DataPacket(object):
