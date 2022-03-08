@@ -1512,10 +1512,13 @@ def nullwavesat(wave, ntwin):
     edges = np.diff(sattis.astype(int)) # find +ve and -ve edges
     onis = np.where(edges > 0)[0] + 1
     offis = np.where(edges < 0)[0] + 1
-    if len(onis) - len(offis) == 1:
+    ndiff = len(onis) - len(offis)
+    if ndiff == 1:
         offis = np.append(offis, nt) # last off is end of block
-    elif len(offis) - len(onis) == 1:
-        onis = np.append(onis, 0) # first on is start of block
+    elif ndiff == -1:
+        onis = np.insert(onis, 0, 0) # first on is start of block
+    elif ndiff != 0:
+        raise RuntimeError("Unexpected difference in number of on and off saturation indices")
     # convert to nx2 array, expand window for zeroing around on
     # and off index of each saturation:
     nulltrangeis = np.stack([onis-ntwin, offis+ntwin], axis=1)
