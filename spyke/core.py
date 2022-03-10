@@ -295,37 +295,21 @@ class SpykeToolWindow(QtGui.QMainWindow):
 
     def on_actionSave_triggered(self):
         """Save panel to file"""
-        f = self.panel.figure
-
-        # copied and adapted from mpl.backend_qt4.NavigationToolbar2QT.save_figure():
-        filetypes = f.canvas.get_supported_filetypes_grouped()
-        sorted_filetypes = filetypes.items()
-        sorted_filetypes.sort()
-        default_filetype = f.canvas.get_default_filetype()
-
-        startpath = mpl.rcParams.get('savefig.directory', '')
-        startpath = os.path.expanduser(startpath)
-        start = os.path.join(startpath, f.canvas.get_default_filename())
-        filters = []
-        selectedFilter = None
-        for name, exts in sorted_filetypes:
-            exts_list = " ".join(['*.%s' % ext for ext in exts])
-            filter = '%s (%s)' % (name, exts_list)
-            if default_filetype in exts:
-                selectedFilter = filter
-            filters.append(filter)
-        filters = ';;'.join(filters)
-        fname = getSaveFileName(self.panel, "Save panel to",
-                                start, filters, selectedFilter)
+        fname = self.parent().sort.fname
+        if fname == '': # sort hasn't been previously saved
+            # generate default fname with hpstream.fname:
+            fname = self.parent().hpstream.fname.replace(' ', '_')
+        windowtitle = self.panel.window().windowTitle().lower().replace(' ', '_')
+        fname += '_' + windowtitle + '.png'
+        defaultfname = os.path.join(self.parent().sortpath, fname)
+        fname = getSaveFileName(self, caption="Save panel to",
+                                directory=defaultfname,
+                                filter="PNG file (*.png);;"
+                                       "All files (*.*)")
         if fname:
             fname = str(fname) # convert from QString
-            if startpath == '':
-                # explicitly missing key or empty str signals to use cwd
-                mpl.rcParams['savefig.directory'] = startpath
-            else:
-                # save dir for next time
-                mpl.rcParams['savefig.directory'] = os.path.dirname(str(fname))
             try:
+                f = self.panel.figure
                 f.canvas.print_figure(fname, facecolor=None, edgecolor=None)
             except Exception as e:
                 QtGui.QMessageBox.critical(
