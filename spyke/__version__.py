@@ -11,7 +11,7 @@ __version__ = '2.1' # incremented mostly to track significant changes to sort fi
 
 # enforce minimum versions of various required libraries:
 PY2_LIBVERSIONS = {'Python': '2.7.15',
-                   'Qt4': '4.8.7',
+                   'Qt4': '5.12.8',
                    'PyQt4': '4.12.1',
                    'PyOpenGL': '3.1.0',
                    #'setuptools': '39.0.0', # for checking packaged versions
@@ -28,8 +28,8 @@ PY2_LIBVERSIONS = {'Python': '2.7.15',
                   }
 
 PY3_LIBVERSIONS = {'Python': '3.6.8',
-                   'Qt4': '4.8.7',
-                   'PyQt4': '4.12.1',
+                   'Qt5': '5.12.8',
+                   'PyQt5': '5.14.1',
                    'PyOpenGL': '3.1.0',
                    #'setuptools': '39.0.0', # for checking packaged versions
                    'IPython': '7.4.0',
@@ -62,10 +62,18 @@ def get_qt4_version(libname):
     from PyQt4.QtCore import QT_VERSION_STR
     return QT_VERSION_STR
 
+def get_qt5_version(libname):
+    from PyQt5.QtCore import QT_VERSION_STR
+    return QT_VERSION_STR
+
 def get_pyqt4_version(libname):
     from PyQt4.pyqtconfig import Configuration
     cfg = Configuration()
     return cfg.pyqt_version_str
+
+def get_pyqt5_version(libname):
+    from PyQt5.QtCore import PYQT_VERSION_STR
+    return PYQT_VERSION_STR
 
 def get_pyopengl_version(libname):
     import OpenGL
@@ -83,7 +91,9 @@ def get_generic_pkg_version(libname):
 
 LIBNAME2VERF = {'Python': get_python_version,
                 'Qt4': get_qt4_version,
+                'Qt5': get_qt5_version,
                 'PyQt4': get_pyqt4_version,
+                'PyQt5': get_pyqt5_version,
                 'PyOpenGL': get_pyopengl_version,
                }
 
