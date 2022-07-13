@@ -62,7 +62,7 @@ class SpatialLeastSquares(object):
                 dg2sds(x0, y0, s, x, y)]
 
     def calc_x0y0s_sym(self, f, x, y, V):
-        t0 = time.clock()
+        t0 = time.perf_counter()
         result = leastsq(self.cost_x0y0s_sym, self.p0, args=(f, x, y, V),
                          full_output=True,)
                          #Dfun=self.g2sDfun, col_deriv=True)
@@ -74,14 +74,14 @@ class SpatialLeastSquares(object):
         s = abs(self.p) # keep sigma +ve
         self.sx, self.sy = s[0], s[0] # same vals, unique refs for jsonpickle
         if self.debug:
-            print('iters took %.3f sec' % (time.clock()-t0))
+            print('iters took %.3f sec' % (time.perf_counter()-t0))
             print('p0 = %r' % self.p0)
             print('p = %r' % self.p)
             print('%d iterations' % self.infodict['nfev'])
             print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
     def calc_x0y0_sym(self, f, x, y, V):
-        t0 = time.clock()
+        t0 = time.perf_counter()
         result = leastsq(self.cost_x0y0_sym, self.p0, args=(f, x, y, V),
                          full_output=True,)
                          #Dfun=self.g2sDfun, col_deriv=True)
@@ -91,14 +91,14 @@ class SpatialLeastSquares(object):
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
         self.x0, self.y0 = self.p
         if self.debug:
-            print('iters took %.3f sec' % (time.clock()-t0))
+            print('iters took %.3f sec' % (time.perf_counter()-t0))
             print('p0 = %r' % self.p0)
             print('p = %r' % self.p)
             print('%d iterations' % self.infodict['nfev'])
             print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
     def calc_x0y0(self, f, x, y, V):
-        t0 = time.clock()
+        t0 = time.perf_counter()
         result = leastsq(self.cost_x0y0, self.p0, args=(f, x, y, V),
                          full_output=True,)
                          #ftol=1e-3)
@@ -108,14 +108,14 @@ class SpatialLeastSquares(object):
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
         self.x0, self.y0 = self.p
         if self.debug:
-            print('iters took %.3f sec' % (time.clock()-t0))
+            print('iters took %.3f sec' % (time.perf_counter()-t0))
             print('p0 = %r' % self.p0)
             print('p = %r' % self.p)
             print('%d iterations' % self.infodict['nfev'])
             print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
     def calc_y0(self, f, y, V):
-        t0 = time.clock()
+        t0 = time.perf_counter()
         result = leastsq(self.cost_y0, self.p0, args=(f, y, V),
                          full_output=True,)
                          #ftol=1e-3)
@@ -125,14 +125,14 @@ class SpatialLeastSquares(object):
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
         self.y0, = self.p
         if self.debug:
-            print('iters took %.3f sec' % (time.clock()-t0))
+            print('iters took %.3f sec' % (time.perf_counter()-t0))
             print('p0 = %r' % self.p0)
             print('p = %r' % self.p)
             print('%d iterations' % self.infodict['nfev'])
             print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
     def calc_sy(self, f, y, V):
-        t0 = time.clock()
+        t0 = time.perf_counter()
         result = leastsq(self.cost_sy, self.p0, args=(f, y, V),
                          full_output=True,)
                          #ftol=1e-3)
@@ -143,14 +143,14 @@ class SpatialLeastSquares(object):
         s = abs(self.p) # keep sigma +ve
         self.sx, self.sy = s[0], s[0] # same vals, unique refs for jsonpickle
         if self.debug:
-            print('iters took %.3f sec' % (time.clock()-t0))
+            print('iters took %.3f sec' % (time.perf_counter()-t0))
             print('p0 = %r' % self.p0)
             print('p = %r' % self.p)
             print('%d iterations' % self.infodict['nfev'])
             print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
     def calc_s(self, f, x, y, V):
-        t0 = time.clock()
+        t0 = time.perf_counter()
         result = leastsq(self.cost_s, self.p0, args=(f, x, y, V),
                          full_output=True,)
                          #ftol=1e-3)
@@ -161,14 +161,14 @@ class SpatialLeastSquares(object):
         s = abs(self.p) # keep sigma +ve
         self.sx, self.sy = s[0], s[0] # same vals, unique refs for jsonpickle
         if self.debug:
-            print('iters took %.3f sec' % (time.clock()-t0))
+            print('iters took %.3f sec' % (time.perf_counter()-t0))
             print('p0 = %r' % self.p0)
             print('p = %r' % self.p)
             print('%d iterations' % self.infodict['nfev'])
             print('mesg=%r, ier=%r' % (self.mesg, self.ier))
 
     def calc_sxsy(self, f, x, y, V):
-        t0 = time.clock()
+        t0 = time.perf_counter()
         result = leastsq(self.cost_sxsy, self.p0, args=(f, x, y, V),
                          full_output=True,)
                          #ftol=1e-3)
@@ -178,7 +178,7 @@ class SpatialLeastSquares(object):
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
         self.sx, self.sy = abs(self.p) # keep sigmas +ve
         if self.debug:
-            print('iters took %.3f sec' % (time.clock()-t0))
+            print('iters took %.3f sec' % (time.perf_counter()-t0))
             print('p0 = %r' % self.p0)
             print('p = %r' % self.p)
             print('%d iterations' % self.infodict['nfev'])
@@ -283,14 +283,14 @@ class TemporalLeastSquares(object):
         self.debug = debug
 
     def calc(self, ts, V):
-        t0 = time.clock()
+        t0 = time.perf_counter()
         result = leastsq(self.cost, self.p0, args=(ts, V), full_output=True, ftol=1e-3)
                          #Dfun=None, full_output=True, col_deriv=False,
                          #maxfev=50, xtol=0.0001,
                          #diag=None)
         self.p, self.cov_p, self.infodict, self.mesg, self.ier = result
         if self.debug:
-            print('iters took %.3f sec' % (time.clock()-t0))
+            print('iters took %.3f sec' % (time.perf_counter()-t0))
             print('p0 = %r' % self.p0)
             print('p = %r' % self.p)
             print('%d iterations' % self.infodict['nfev'])

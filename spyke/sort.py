@@ -1435,7 +1435,7 @@ class Sort(object):
         f = self.extractor.f
         nreject = 0 # number spikes rejected during spatial localization
         print('Running spatial localization on all %d spikes' % self.nspikes)
-        tstart = time.clock()
+        tstart = time.perf_counter()
 
         ## TODO: chan this be multithreaded/processed?
 
@@ -1503,7 +1503,7 @@ class Sort(object):
             lockchans = chans[lockchaniis]
             nlockchans = len(lockchans)
             s['lockchans'][:nlockchans], s['nlockchans'] = lockchans, nlockchans
-        print('Spatial localization of spikes took %.3f s' % (time.clock() - tstart))
+        print('Spatial localization of spikes took %.3f s' % (time.perf_counter() - tstart))
 
         return nreject
 
