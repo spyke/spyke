@@ -25,7 +25,16 @@
     <property name="spacing">
      <number>5</number>
     </property>
-    <property name="margin">
+    <property name="leftMargin">
+     <number>5</number>
+    </property>
+    <property name="topMargin">
+     <number>5</number>
+    </property>
+    <property name="rightMargin">
+     <number>5</number>
+    </property>
+    <property name="bottomMargin">
      <number>5</number>
     </property>
     <item>
@@ -1776,7 +1785,7 @@ or remove all duplicate spikes from selected neurons
      <x>0</x>
      <y>0</y>
      <width>497</width>
-     <height>25</height>
+     <height>22</height>
     </rect>
    </property>
    <widget class="QMenu" name="menuFile">
