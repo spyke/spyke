@@ -21,10 +21,10 @@ handling mechanism.
 
 Basic usage::
 
-    >>> pool = ThreadPool(poolsize)
-    >>> requests = makeRequests(some_callable, list_of_args, callback)
-    >>> [pool.putRequest(req) for req in requests]
-    >>> pool.wait()
+>>> pool = ThreadPool(poolsize)
+>>> requests = makeRequests(some_callable, list_of_args, callback)
+>>> [pool.putRequest(req) for req in requests]
+>>> pool.wait()
 
 See the end of the module code for a brief, annotated usage example.
 

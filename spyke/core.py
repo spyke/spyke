@@ -324,7 +324,7 @@ class SpykeListView(QtWidgets.QListView):
         self.sortwin = parent
         #self.setSelectionBehavior(QTableWidget.SelectRows)
         self.setSelectionMode(QtWidgets.QListView.ExtendedSelection)
-        self.setLayoutMode(QtWidgets.QListView.Batched) # prevents lockup during huge layout ops
+        self.setLayoutMode(QtWidgets.QListView.Batched) # prevent lockup for huge layout ops
         # Setting resize mode to "adjust" sometimes results in a bug where Qt seems to
         # be reflowing the contents many times over before it finally stops, resulting in
         # very slow operations when changing list contents (like adding/removing neurons).
@@ -1671,7 +1671,8 @@ def rollwin(a, width):
         http://stackoverflow.com/questions/7100242/python-numpy-first-occurrence-of-subarray
         http://stackoverflow.com/questions/6811183/rolling-window-for-1d-arrays-in-numpy
 
-    Ex 1:
+    Examples
+    --------
     >>> x = np.arange(10).reshape((2,5))
     >>> rollwin(x, 3)
     array([[[0, 1, 2], [1, 2, 3], [2, 3, 4]],
@@ -1680,7 +1681,6 @@ def rollwin(a, width):
     array([[ 1.,  2.,  3.],
            [ 6.,  7.,  8.]])
 
-    Ex 2:
     >>> a = np.arange(10)
     >>> np.random.shuffle(a)
     >>> a
@@ -1707,8 +1707,9 @@ def rollwin2D(a, width):
     """A modified version of rollwin. Allows for easy columnar search of 2D
     subarray b within larger 2D array a, assuming both have the same number of
     rows.
-    
-    Ex:
+
+    Examples
+    --------
     >>> a
     array([[44, 89, 34, 67, 11, 92, 22, 72, 10, 81],
            [52, 40, 29, 35, 67, 10, 24, 23, 65, 51],
@@ -1741,7 +1742,8 @@ def lrrep2Darrstripis(a):
     from left and right ends of 2D array a, such that a[:, lefti:righti] gives you
     the stripped version.
 
-    Ex:
+    Example
+    -------
     >>> a
     array([[44, 44, 44, 44, 89, 34, 67, 11, 92, 22, 72, 10, 81, 81, 81],
            [52, 52, 52, 52, 40, 29, 35, 67, 10, 24, 23, 65, 51, 51, 51],
