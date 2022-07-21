@@ -983,7 +983,7 @@ class SimpleStream(Stream):
         self._masterclockfreq = masterclockfreq
 
     masterclockfreq = property(get_masterclockfreq, set_masterclockfreq)
-    
+
     def __getstate__(self):
         """Get object state for pickling"""
         # copy it cuz we'll be making changes, this is fast because it's just a shallow copy

@@ -352,7 +352,7 @@ def NDsepmetric(float32_t[:, :] C0,
     calculate fraction of points in cluster 0 whose nearest neighbour is another point in
     cluster 0. Each row in the arrays is a point, each column a dimension.
     This returns 1 - overlap index in Swindale & Spacek, 2014"""
-    
+
     cdef int N, N0, N1, ndim, ci, i, j, k, nself
     cdef double f0, O, S
     assert C0.shape[1] == C1.shape[1]
@@ -424,7 +424,7 @@ cdef int NNmembership(int i, int ndim, int N0, int N1,
             continue # to next j
         if d02 < min_d02:
             min_d02 = d02 # update
-            
+
     for j in range(N1):
         d12 = 0.0
         for k in range(ndim):

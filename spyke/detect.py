@@ -80,7 +80,7 @@ def initializer(detector):
     # not exactly sure why, but deepcopy is crucial to prevent artefactual spikes!
     ps().detector = deepcopy(detector)
     ps().detector.sort.stream.open() # reopen underlying stream data source after unpickling
-    
+
 def calc_SPIKEDTYPE(maxnchansperspike):
     """Create spike array dtype for efficiently storing information about each spike"""
     ## NOTE: with uint8, the current channel ID limit is 0 to 255, but nchans limit is 255
@@ -568,7 +568,7 @@ class Detector(object):
             Vpp = abs(Vs[0] - Vs[1]) # Vs are of opposite sign, unless monophasic
             if Vpp == 0: # monophasic spike
                 Vpp = Vp # use Vp as Vpp
-            
+
             if Vpp < self.ppthresh[chani]:
                 if DEBUG: self.log('peaks at t=%r chan=%d are < Vpp = %f'
                                    % (wave.ts[[ti, t0i+adjpi]], self.chans[chani], AD2uV(Vpp)))

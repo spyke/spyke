@@ -1005,15 +1005,15 @@ class PlotPanel(FigureCanvas):
         spw.primarypeakt = None
         spw.secondarypeakt = None
         spw.alignspike2chan = None
-        
+
         # reload spike in sort panel
         sortwin = spw.windows['Sort']
         sortwin.panel.updateAllItems()
-        
+
         # seek to new timepoint, this also automatically updates the raster line
         spw.seek(t)
         print('Realigned and reloaded spike %d to t=%d on chan %d' % (sid, t, chan))
-        
+
     '''
     def OnPick(self, evt):
         """Pop up a tooltip when mouse is within PICKTHRESH of a line"""
@@ -1353,7 +1353,7 @@ class SortPanel(PlotPanel):
         id = int(item[1:])
         if item[0] == 'n': # it's a neuron
             if len(self.available_fills) == 0:
-                # if we've run out of fills for additional neurons                
+                # if we've run out of fills for additional neurons
                 self.init_fills() # init another batch of fills
             plt.fill = self.available_fills.pop() # pop a Fill, bind it to plot
             n = s.neurons[id]

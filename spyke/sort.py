@@ -259,7 +259,7 @@ class Sort(object):
         spikes = self.spikes
         nsids = len(sids)
         if nsids > MEANWAVEMAXSAMPLES:
-            step = nsids // MEANWAVEMAXSAMPLES + 1 
+            step = nsids // MEANWAVEMAXSAMPLES + 1
             s = ("get_mean_wave() sampling every %d spikes instead of all %d"
                  % (step, nsids))
             if nid != None:
@@ -267,13 +267,13 @@ class Sort(object):
             print(s)
             sids = sids[::step]
             nsids = len(sids) # update
-    
+
         chanss = spikes['chans'][sids]
         nchanss = spikes['nchans'][sids]
         chanslist = [ chans[:nchans] for chans, nchans in zip(chanss, nchanss) ] # list of arrays
         chanpopulation = np.concatenate(chanslist)
         groupchans = np.unique(chanpopulation) # comes out sorted
-    
+
         wavedata = self.wavedata[sids]
         if wavedata.ndim == 2: # should be 3, get only 2 if nsids == 1
             wavedata.shape = 1, wavedata.shape[0], wavedata.shape[1] # give it a singleton 3rd dim
@@ -480,7 +480,7 @@ class Sort(object):
         fullfname = os.path.join(path, fname)
         header = PTCSHeader(self, sortpath, stream, nneurons, nspikes, nsamplebytes,
                             fullfname, exportdt, user=user, notes=notes)
-        
+
         with open(fullfname, 'wb') as f:
             header.write(f)
             for nrec in nrecs:
@@ -648,7 +648,7 @@ class Sort(object):
             raise ValueError('Unknown format: %r' % format)
         print('Exported %d spikes on chans=%r and tis=%r to %s'
               % (nspikes, list(chans), list(tis), fname))
-        
+
     def get_param_matrix(self, kind=None, sids=None, tis=None, selchans=None, norm=False,
                          dims=None, scale=True):
         """Organize dims parameters from sids into a data matrix, each column
@@ -1067,7 +1067,7 @@ class Sort(object):
         # widesd holds current spike data plus padding on either side
         # to allow for full width slicing for all time shifts:
         maxnchans = spikes['nchans'].max() # of all spikes in sort
-        widesd = np.zeros((maxnchans, maxshift+nt+maxshift), dtype=wd.dtype)        
+        widesd = np.zeros((maxnchans, maxshift+nt+maxshift), dtype=wd.dtype)
         shiftedsubsd = subsd.copy() # init
         tempsubshifts = np.zeros((nshifts, nchans, subnt), dtype=wd.dtype)
         dirtysids = []
@@ -1084,7 +1084,7 @@ class Sort(object):
             # keep this inner loop as fast as possible:
             for shifti, (sti0, sti1) in enumerate(sti0ssti1s):
                 tempsubshifts[shifti] = wideshortsd[:, sti0:sti1] # len: subnt
-            
+
             errors = tempsubshifts - meandata # (nshifts, nchans, subnt) - (nchans, subnt)
             # get sum squared errors by taking sum across highest two dims - for purpose
             # of error comparison, don't need to take mean or square root. Also, order
@@ -1923,7 +1923,7 @@ class PTCSHeader(object):
     datetime: float64
         (absolute datetime corresponding to t=0 us timestamp, stored as days since
          epoch: December 30, 1899 at 00:00)
-    ndatetimestrbytes: uint64 
+    ndatetimestrbytes: uint64
     datetimestr: ndatetimestrbytes of ASCII text
         (human readable string representation of datetime, preferrably ISO 8601,
          padded with null bytes if needed for 8 byte alignment)
@@ -1959,7 +1959,7 @@ class PTCSHeader(object):
         np.int64(self.FORMATVERSION).tofile(f) # formatversion
         np.uint64(len(self.descr)).tofile(f) # ndescrbytes
         f.write(self.descr) # descr
-        
+
         np.uint64(self.nneurons).tofile(f) # nneurons
         np.uint64(self.nspikes).tofile(f) # nspikes
         np.uint64(self.nsamplebytes).tofile(f) # nsamplebytes
@@ -1979,7 +1979,7 @@ class PTCSHeader(object):
 class PTCSNeuronRecord(object):
     """
     Polytrode clustered spikes file neuron record:
-    
+
     nid: int64 (signed neuron id, could be -ve, could be non-contiguous with previous)
     ndescrbytes: uint64 (nbytes, keep as multiple of 8 for nice alignment, defaults to 0)
     descr: ndescrbytes of ASCII text
@@ -2015,7 +2015,7 @@ class PTCSNeuronRecord(object):
         self.wavedata = pad(self.wavedtype(AD2uV(n.wave.data)), align=8)
         self.wavestd = pad(self.wavedtype(AD2uV(n.wave.std)), align=8)
         self.descr = pad(descr, align=8)
-        
+
     def write(self, f):
         n = self.neuron
         np.int64(n.id).tofile(f) # nid
@@ -2030,9 +2030,9 @@ class PTCSNeuronRecord(object):
         np.uint64(n.chan).tofile(f) # maxchanid
         np.uint64(len(n.wave.ts)).tofile(f) # nt
         np.uint64(self.wavedata.nbytes).tofile(f) # nwavedatabytes
-        self.wavedata.tofile(f) # wavedata 
+        self.wavedata.tofile(f) # wavedata
         np.uint64(self.wavestd.nbytes).tofile(f) # nwavestdbytes
-        self.wavestd.tofile(f) # wavestd 
+        self.wavestd.tofile(f) # wavestd
         np.uint64(len(self.spikets)).tofile(f) # nspikes
         np.uint64(self.spikets).tofile(f) # spike timestamps (us)
 
@@ -2844,8 +2844,8 @@ class SortWindow(SpykeToolWindow):
         else:
             nt = -2
         self.Shift(nt)
-        
-    def on_actionShiftRight_triggered(self):        
+
+    def on_actionShiftRight_triggered(self):
         if QApplication.instance().keyboardModifiers() & Qt.ControlModifier:
             nt = 1
         else:
@@ -3044,7 +3044,7 @@ class SortWindow(SpykeToolWindow):
 
     def Align(self, to):
         """Align all implicitly selected spikes to min or max, or best fit
-        on selected chans"""        
+        on selected chans"""
         s = self.sort
         spikes = s.spikes
         spw = self.spykewindow

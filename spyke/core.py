@@ -149,7 +149,7 @@ class SimpleConverter(object):
 
     def AD2uV(self, AD):
         return self.AD2uVx * np.float32(AD)
-        
+
     def uV2AD(self, uV, dtype=np.int16):
         return dtype(np.round(self.uV2ADx * uV))
 
@@ -178,11 +178,11 @@ class WaveForm(object):
     def __getitem__(self, key):
         """Make waveform data sliceable in time, and directly indexable by channel id(s).
         Return a new WaveForm"""
-        
+
         # check for std field, won't exist for old saved Waveforms in .sort files:
         try: self.std
         except AttributeError: self.std = None
-        
+
         if type(key) == slice: # slice self in time
             if self.ts is None:
                 return WaveForm() # empty WaveForm
@@ -253,7 +253,7 @@ class WaveForm(object):
         return WaveForm(data=self.data-other.data,
                         ts=self.ts, chans=self.chans, tres=self.tres)
 
-           
+
 class SpykeToolWindow(QtWidgets.QMainWindow):
     """Base class for all of spyke's tool windows"""
     def __init__(self, parent, flags=Qt.Tool):
@@ -428,7 +428,7 @@ class SpykeListView(QtWidgets.QListView):
         ## listview behaviour to default doesn't make this go away. Also, seems to happen
         ## for selection of one index at a time, and for doing it all in one go with a
         ## QItemSelection.
-        
+
         rows = toiter(rows)
         m = self.model()
         sm = self.selectionModel()
@@ -1465,7 +1465,7 @@ def concatenate_destroy(arrs):
     except MemoryError:
         raise MemoryError("concatenate_destroy: not enough virtual memory to allocate "
                           "destination array. Create/grow your swap file?")
-        
+
     rowi = 0
     for i in range(len(arrs)):
         arr = arrs.pop(0)
@@ -1675,7 +1675,7 @@ def rollwin(a, width):
     >>> x = np.arange(10).reshape((2,5))
     >>> rollwin(x, 3)
     array([[[0, 1, 2], [1, 2, 3], [2, 3, 4]],
-           [[5, 6, 7], [6, 7, 8], [7, 8, 9]]])    
+           [[5, 6, 7], [6, 7, 8], [7, 8, 9]]])
     >>> np.mean(rollwin(x, 3), -1)
     array([[ 1.,  2.,  3.],
            [ 6.,  7.,  8.]])
@@ -1713,7 +1713,7 @@ def rollwin2D(a, width):
     array([[44, 89, 34, 67, 11, 92, 22, 72, 10, 81],
            [52, 40, 29, 35, 67, 10, 24, 23, 65, 51],
            [70, 58, 14, 34, 11, 66, 47, 68, 11, 56],
-           [70, 55, 47, 30, 39, 79, 71, 70, 67, 33]])    
+           [70, 55, 47, 30, 39, 79, 71, 70, 67, 33]])
     >>> b
     array([[67, 11, 92],
            [35, 67, 10],
@@ -1808,7 +1808,7 @@ def DKL(p, q):
     assert len(p) == len(q)
     p, q = normpdf(np.asarray(p)), normpdf(np.asarray(q))
     return sum(p * np.log2(p/q))
-    
+
 def DJS(p, q):
     """Jensen-Shannon divergence, a symmetric measure of divergence between
     distributions p and q"""
@@ -1929,7 +1929,7 @@ def WMLDR(data, wname="db4", maxlevel=6, mode='sym'):
         recsignal = pywt.waverec(cs, wname, mode=mode)
         ntrec = len(recsignal)
         data[chani] = recsignal[:ntrec-isodd]
-    
+
     return data
 
 def envelope_hilbert(x):

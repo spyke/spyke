@@ -73,7 +73,7 @@ class Cluster(object):
         sids = self.neuron.sids
         nspikes = len(sids)
         if nsamples and nspikes > nsamples: # subsample spikes
-            step = nspikes // nsamples + 1 
+            step = nspikes // nsamples + 1
             print('n%d: update_pos() sampling every %d spikes instead of all %d'
                   % (self.id, step, nspikes))
             sids = sids[::step]
@@ -134,7 +134,7 @@ class Cluster(object):
         mysids = np.intersect1d(sids, mysids, assume_unique=True)
         nspikes = len(mysids)
         if nsamples and nspikes > nsamples: # subsample spikes
-            step = nspikes // nsamples + 1 
+            step = nspikes // nsamples + 1
             print('n%d: update_comppos() sampling every %d spikes instead '
                   'of all %d in last CA' % (self.id, step, nspikes))
             mysids = mysids[::step]
@@ -344,7 +344,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glVertex3f(0, 0, 0)
         GL.glVertex3f(0, 0, l)
         GL.glEnd()
-    
+
     def get_MV(self):
         """Return modelview matrix"""
         return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)
@@ -390,7 +390,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                       [1, 0, 0],
                       [0, 1, 0]]
         self.MV = MV
-        
+
     def lookUpXAxis(self):
         """Look up x axis: make x, y, z axes point in, left, and up"""
         MV = self.MV
@@ -398,7 +398,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                       [-1, 0, 0],
                       [ 0, 1, 0]]
         self.MV = MV
-        
+
     def lookDownYAxis(self):
         """Look down y axis: make x, y, z axes point left, out, and up"""
         MV = self.MV
@@ -641,7 +641,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             self.selectPointsUnderCursor()
         self.lastPressPos = QtCore.QPoint(event.pos())
         self.lastPos = QtCore.QPoint(event.pos())
-    
+
     def mouseReleaseEvent(self, event):
         # seems have to use event.button(), not event.buttons(). I guess you can't
         # release multiple buttons simultaneously the way you can press them simultaneously?
@@ -659,7 +659,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         if event.button() == QtCore.Qt.LeftButton:
             sw = self.spw.windows['Sort']
             sw.clear()
-    
+
     def mouseMoveEvent(self, event):
         buttons = event.buttons()
 
@@ -797,7 +797,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             self.setMouseTracking(True) # while deselecting
             self.selectPointsUnderCursor()
         elif key == Qt.Key_V: # V for View
-            self.showProjectionDialog()            
+            self.showProjectionDialog()
         elif key in [Qt.Key_Enter, Qt.Key_Return]:
             sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
         elif key == Qt.Key_F11:
