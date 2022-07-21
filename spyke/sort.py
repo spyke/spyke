@@ -2079,14 +2079,7 @@ class SortWindow(SpykeToolWindow):
         self.slider.valueChanged.connect(self.on_slider_valueChanged)
         self.slider.sliderPressed.connect(self.on_slider_sliderPressed)
 
-        self.nlist = NList(self)
-        self.nlist.setToolTip('Neuron list')
-        self.nslist = NSList(self)
-        self.nslist.setToolTip('Sorted spike list')
-        self.uslist = USList(self) # should really be multicolumn tableview
-        self.uslist.setToolTip('Unsorted spike list')
         tw = self.spykewindow.sort.tw
-
         self.panel = SpikeSortPanel(self, tw=tw)
         self.panel.setMinimumSize(QtCore.QSize(panelwidth, panelheight))
 
@@ -2094,6 +2087,13 @@ class SortWindow(SpykeToolWindow):
         self.panelscrollarea.setWidget(self.panel)
         self.panelscrollarea.setMinimumWidth(panelwidth + VSCROLLBARWIDTH)
         self.panelscrollarea.setWidgetResizable(True) # allows panel to size bigger than min
+
+        self.nlist = NList(self)
+        self.nlist.setToolTip('Neuron list')
+        self.nslist = NSList(self)
+        self.nslist.setToolTip('Sorted spike list')
+        self.uslist = USList(self) # should really be multicolumn tableview
+        self.uslist.setToolTip('Unsorted spike list')
 
         self.vsplitter = QtWidgets.QSplitter(Qt.Vertical)
         self.vsplitter.addWidget(self.slider)

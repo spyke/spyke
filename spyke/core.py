@@ -502,10 +502,11 @@ class NList(SpykeListView):
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='n')
         selnids = [ i.data() for i in self.selectedIndexes() ]
-        #if 1 <= len(selnids) <= 3: # populate nslist if exactly 1, 2 or 3 neurons selected
-        self.sortwin.nslist.neurons = [ self.sortwin.sort.neurons[nid] for nid in selnids ]
-        #else:
-        #    self.sortwin.nslist.neurons = []
+        try:
+            nslist = self.sortwin.nslist
+        except AttributeError: # nslist hasn't been instantiated yet
+            return
+        nslist.neurons = [ self.sortwin.sort.neurons[nid] for nid in selnids ]
 
     def on_actionItem_triggered(self, index):
         sw = self.sortwin
@@ -519,11 +520,11 @@ class NSList(SpykeListView):
     selection in the list view"""
     def __init__(self, parent):
         SpykeListView.__init__(self, parent)
+        self.clear_fake_selection()
         self.setModel(NSListModel(parent))
         #self.connect(self, QtCore.SIGNAL("activated(QModelIndex)"),
         #             self.on_actionItem_triggered)
         self.activated.connect(self.on_actionItem_triggered)
-        self.clear_fake_selection()
 
     def selectRows(self, rows, on=True):
         """Normal (manual) row selection"""
@@ -683,22 +684,21 @@ class SpykeAbstractListModel(QtCore.QAbstractListModel):
 class NListModel(SpykeAbstractListModel):
     """Model for neuron list view"""
     def rowCount(self, parent=None):
+        # update nlist tooltip before returning, only +ve nids count as neurons:
+        sort = self.sortwin.sort
+        neurons = sort.neurons
+        nneurons = (np.asarray(sort.norder) > 0).sum()
+        goodnids = sort.get_good()
+        ngood = len(goodnids)
+        ngoodspikes = sum(neurons[nid].nspikes for nid in goodnids)
         try:
-            # update nlist tooltip before returning, only +ve nids count as neurons:
-            sort = self.sortwin.sort
-            neurons = sort.neurons
-            nneurons = (np.asarray(sort.norder) > 0).sum()
-            goodnids = sort.get_good()
-            ngood = len(goodnids)
-            ngoodspikes = sum(neurons[nid].nspikes for nid in goodnids)
             self.sortwin.nlist.setToolTip("Neuron list\n"
                                           "%d neurons\n"
                                           "%d good with %d spikes"
                                           % (nneurons, ngood, ngoodspikes))
-            return len(sort.norder)
-        except AttributeError: # sort doesn't exist
-            self.sortwin.nlist.setToolTip("Neuron list")
-            return 0
+        except AttributeError: # nlist hasn't completed instantiation yet
+            pass
+        return len(sort.norder)
 
     def data(self, index, role=Qt.DisplayRole):
         if index.isValid():
@@ -783,7 +783,10 @@ class NSListModel(SListModel):
 
     def rowCount(self, parent=None):
         # update nslist tooltip before returning:
-        self.sortwin.nslist.setToolTip("Sorted spike list\n%d spikes" % self.nspikes)
+        try:
+            self.sortwin.nslist.setToolTip("Sorted spike list\n%d spikes" % self.nspikes)
+        except AttributeError: # nslist hasn't completed instantiation yet
+            pass
         return self.nspikes
 
     def data(self, index, role=Qt.DisplayRole):
@@ -799,14 +802,13 @@ class NSListModel(SListModel):
 class USListModel(SListModel):
     """Model for unsorted spike list view"""
     def rowCount(self, parent=None):
+        # update uslist tooltip before returning:
+        nspikes = len(self.sortwin.sort.usids)
         try:
-            nspikes = len(self.sortwin.sort.usids)
-            # update uslist tooltip before returning:
             self.sortwin.uslist.setToolTip("Unsorted spike list\n%d spikes" % nspikes)
-            return nspikes
-        except AttributeError: # sort doesn't exist
-            self.sortwin.uslist.setToolTip("Unsorted spike list")
-            return 0
+        except AttributeError: # uslist hasn't completed instantiation yet
+            pass
+        return nspikes
 
     def data(self, index, role=Qt.DisplayRole):
         if index.isValid() and role in [Qt.DisplayRole, Qt.ToolTipRole]:
