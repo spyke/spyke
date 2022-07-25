@@ -1,8 +1,18 @@
 - switch to qt5
 
 - use memmap for all large file operations to fix RAM limitations
+    - try memmaping the .wave file to save RAM
+        - open in copy-on-write mode in np.load(mmap_mode='c')?
+        - worry about how shifted waveforms are resaved to disk on demand. Does the memmap need to be closed first, save with np.save, then reopen memmap with np.load()?
 
 - switch to kilosort3 integration
+
+- add waveform display toggle so user can look at purely the population raster plot
+    - add number of raster lines toggle (full/single) to be able to switch from default multichannel tick raster to default single tick per spike
+    - when in single tick per spike mode, only show raster of selected units, if any
+
+- resave all old .sort files as .sort.json files using py2, that way no one ever needs to revert back to an old version of spyke and py2 to open them
+    - use locate *.sort on server?
 
 - jsonpickle:
     - jsonpickle > 1.2 (or at least 1.4.1) gets entries out of order somehow, causing the wrong objects to be dereferenced on load. Had to revert to exactly version 1.2. Not a result of newer simplejson version number. Might be somehow related to sort_keys
@@ -16,14 +26,14 @@
         - maybe the trigger is something like a list or dict of numpy scalars...
         - same problem in both Py2 and Py3, with latest jsonpickle and simplejson and numpy
 
+- add horizontal plane or line in cluster window to show start/end of track/series
+
 - add DMD as another dimension reduction technique:
     - https://towardsdatascience.com/a-case-against-pca-for-time-series-analysis-ac66b47629e0
     - https://mathlab.github.io/PyDMD/
 
 - is partial least squares a useful alternative here for PCA? Does PLS help find directions of max discriminability better than PCA? Inspired by Rumyantsev2020
     - see https://scikit-learn.org/stable/modules/cross_decomposition.html
-
-- add horizontal plane or line in cluster window to show start/end of track/series
 
 - check non alignment sometimes of MPL window bins (autocorr, point distributions, etc.) to ticks and/or 0 timepoint
 
@@ -70,10 +80,6 @@
 - do whitening of raw data? done by Kilosort and spyking-circus
 
 - add export of .clu, .spk and .res files
-
-- try memmaping the .wave file to save RAM
-    - open in copy-on-write mode in np.load(mmap_mode='c')?
-    - worry about how shifted waveforms are resaved to disk on demand. Does the memmap need to be closed first, save with np.save, then reopen memmap with np.load()?
 
 - BUG: in some cases when opening streams and/or sorts of one polytrode layout, closing them, then opening one of another layout, the displayed channel arrangement in at least the sort window is wrong, or you might get a KeyError while trying to index into a channel that doesn't exist, because the new layout has fewer channels than the old one
 
