@@ -1,3 +1,9 @@
+- switch to qt5
+
+- use memmap for all large file operations to fix RAM limitations
+
+- switch to kilosort3 integration
+
 - jsonpickle:
     - jsonpickle > 1.2 (or at least 1.4.1) gets entries out of order somehow, causing the wrong objects to be dereferenced on load. Had to revert to exactly version 1.2. Not a result of newer simplejson version number. Might be somehow related to sort_keys
     - report mysterious .json sort file bug
@@ -10,25 +16,28 @@
         - maybe the trigger is something like a list or dict of numpy scalars...
         - same problem in both Py2 and Py3, with latest jsonpickle and simplejson and numpy
 
+- add DMD as another dimension reduction technique:
+    - https://towardsdatascience.com/a-case-against-pca-for-time-series-analysis-ac66b47629e0
+    - https://mathlab.github.io/PyDMD/
+
 - is partial least squares a useful alternative here for PCA? Does PLS help find directions of max discriminability better than PCA? Inspired by Rumyantsev2020
     - see https://scikit-learn.org/stable/modules/cross_decomposition.html
-
-- switch to kilosort2 integration
 
 - add horizontal plane or line in cluster window to show start/end of track/series
 
 - check non alignment sometimes of MPL window bins (autocorr, point distributions, etc.) to ticks and/or 0 timepoint
 
-- export separation/overlap measure for each pair of units
+- save best projection and separation metric for each unit,
+    - export separation/overlap measure for each pair of units
     - LB: look at Hill2011 again
-    - two birds one stone to make it easy to quickly restore previously manually specified optimal projection of cell pair, and also make it easy to export cell pair separation/overlap metrics:
-        - have some kind of functionality that saves the optimal projection (chans, timepoints, normalization, dimension reduction method) for each cluster pair (say hit the O key?) when comparing two clusters and deciding that you're happy with the separation in that projection, and that projection is what caused you to decide that that pair of clusters is separate enough. Then when you go back later to compare clusters again, you can quickly find the optimal projection (say hit the P key?) without having to manually hunt for it
-        - optimal projections is some dict, say optproj, whose key is the unit ID you're currently comparing to other nearby units, and value is a dict of dicts with keyval pairs
-        {other_nid_1:{'chans':ndarray, 'tis':ndarray, 'dims':list_of_strings', component_analysis:'PCA', 3Dsep':0.989, '1Dsep':1.307, 'overlap_area_ratio':0.086, 'DJS':0.886},
-         other_nid_2:{'3Dsep':0.91, '1Dsep':1.2, 'overlap_area_ratio':0.1, 'DJS':0.82}, ...
-         }
-            - then when the unit identity is changed (split/merge/delete), need to go delete its key in the optproj dict, in addition to clearing its good flag
-        - on export, somehow add this optproj dict to the .ptcs file header as just a string repr, with an associated len field preceding it, as always 8-byte aligned. The the string repr can be eval'd when reading the .ptcs file to reconstruct the pairwise metrics. Could also make it a simpler 2D array, but that would be less explicit
+    - make it easy to quickly restore previously manually specified optimal projection of cell pair, and also make it easy to export cell pair separation/overlap metrics:
+    - have some kind of functionality that saves the optimal projection (chans, timepoints, normalization, dimension reduction method) for each cluster pair (say hit the O key?) when comparing two clusters and deciding that you're happy with the separation in that projection, and that projection is what caused you to decide that that pair of clusters is separate enough. Then when you go back later to compare clusters again, you can quickly find the optimal projection (say hit the P key?) without having to manually hunt for it
+    - optimal projections is some dict, say optproj, whose key is the unit ID you're currently comparing to other nearby units, and value is a dict of dicts with keyval pairs
+    {other_nid_1:{'chans':ndarray, 'tis':ndarray, 'dims':list_of_strings', component_analysis:'PCA', 3Dsep':0.989, '1Dsep':1.307, 'overlap_area_ratio':0.086, 'DJS':0.886},
+     other_nid_2:{'3Dsep':0.91, '1Dsep':1.2, 'overlap_area_ratio':0.1, 'DJS':0.82}, ...
+     }
+        - then when the unit identity is changed (split/merge/delete), need to go delete its key in the optproj dict, in addition to clearing its good flag
+    - on export, somehow add this optproj dict to the .ptcs file header as just a string repr, with an associated len field preceding it, as always 8-byte aligned. The the string repr can be eval'd when reading the .ptcs file to reconstruct the pairwise metrics. Could also make it a simpler 2D array, but that would be less explicit
     - or ditch .ptcs comletely and switch to .json for spike export, even for mean waveforms??? Probably not that much less efficient, but much more readable?
 
 - add ability to export 0tranges.npy files to each cooked subfolder if 0tranges.npy file exists in .track folder - this allows to later throw out trials with saturation
@@ -94,7 +103,7 @@
 - try adding ISO distance (Harris2001) - need to calculate Mahalanobis distance, which requires the covariance matrix of the cluster, which assumes the cluster is Gaussian. Consider adding Lratio (Schmitzer-Torbert2005) as well
 
 - consider using projection pursuit + Silverman's critical bandwidth (Menardi2012) instead of PCA or ICA to maximize clusterability during dimension reduction
-    - this seems to be too slow, and so far hasn't shown any ability to improve clusterability on any of our data 
+    - this seems to be too slow, and so far hasn't shown any ability to improve clusterability on any of our data
 
 - consider implementing Ester1996 - use k-dist metric to help automatically decide the most useful value of sigma
 
@@ -201,7 +210,7 @@
 - something wrong with find next/prev most similar cluster, channel overlap calc is wrong? not finding obvious candidates. Might be a new bug from adding multiunit clusters?
 
 - should I really be scaling all data to have unit variance before feeding to PCA? PCA only requires 0 mean, according to wiki
-    
+
 - WORRY?: climbing.climb() returns int32 nids, while the spikes['nid'] field is int16
 
 - add recalc for current cluster button to match tab - useful when you merge in some spikes and want to see what the plot has changed to, and what the next best usids are
@@ -913,7 +922,7 @@ GL rewrite DONE:
 - implement focus to point
 - implement saving and restoring of camera view (search for view and roll keywords)
     - just save and restore the modelview matrix and the -self._dfocus as the focus
-      
+
 end GL rewrite DONE
 -------------------
 
@@ -1350,7 +1359,7 @@ DONE:
     - this could save a lot of time having to do lots of iteration trying to find an optimum sigma for really big clusters
 - ctrl+scroll in cluster window should modify sigma, step size should be same as scrolling it in the main spyke window
 - make SPACE a keyboard shortcut in sort and cluster windows to cluster the data, so as to avoid having to move mouse over to main spyke window
-- have a clustering layout toggle button in the View menu and the main toolbar that auto arranges windows in an alternate way, more ideal for clustering. Size the MPL window same as the main spyke window. Put it below the main window. Then put Sort window (full height) at right. Then take whatever horizontal space is left, and make that the cluster window width. Its height is the sum of the heights of the MPL and main windows, and it's positioned at the top. This all keeps the controls as close as possible to the cluster window, keeps the cluster window fairly large and centered in the screen, and it keeps a space below all the windows for the terminal messages to remain visible. 
+- have a clustering layout toggle button in the View menu and the main toolbar that auto arranges windows in an alternate way, more ideal for clustering. Size the MPL window same as the main spyke window. Put it below the main window. Then put Sort window (full height) at right. Then take whatever horizontal space is left, and make that the cluster window width. Its height is the sum of the heights of the MPL and main windows, and it's positioned at the top. This all keeps the controls as close as possible to the cluster window, keeps the cluster window fairly large and centered in the screen, and it keeps a space below all the windows for the terminal messages to remain visible.
 - add an optional "notes" attrib to each Neuron, so you can jot down stuff about the cluster, like although it looks like it should be split, it's really just one neuron that's drifted over time. This would save you time having to figure out why you hadn't split it previously, saves duplication
     - or better yet, devise a way of marking clusters that you know/feel are good and clean, maybe by changing their text colour in the nlist. Give each neuron a "good" boolean flag, toggled by G key. Don't prevent changes to it, make it purely a reminder from the user to the user
 - save actual wavestd values to .ptcs files, now that it's being calculated and displayed during sorting
