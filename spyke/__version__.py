@@ -10,44 +10,26 @@ from distutils.version import LooseVersion
 __version__ = '2.1' # incremented mostly to track significant changes to sort file format
 
 # enforce minimum versions of various required libraries:
-PY2_LIBVERSIONS = {'Python': '2.7.15',
-                   'Qt4': '5.12.8',
-                   'PyQt4': '4.12.1',
-                   'PyOpenGL': '3.1.0',
-                   #'setuptools': '39.0.0', # for checking packaged versions
-                   'IPython': '5.8.0',
-                   'numpy': '1.16.5',
-                   'scipy': '1.2.2',
-                   'matplotlib': '2.2.3',
-                   'cython': '0.29.13',
-                   'mdp': '3.5',
-                   'sklearn': '0.20.4',
-                   'pywt': '1.0.3',
-                   'jsonpickle': '1.2',
-                   'simplejson': '3.16.0',
-                  }
-
-PY3_LIBVERSIONS = {'Python': '3.6.8',
-                   'Qt5': '5.12.8',
-                   'PyQt5': '5.14.1',
-                   'PyOpenGL': '3.1.0',
-                   #'setuptools': '39.0.0', # for checking packaged versions
-                   'IPython': '7.4.0',
-                   'numpy': '1.17.2',
-                   'scipy': '1.3.1',
-                   'matplotlib': '3.0.3',
-                   'cython': '0.29.13',
-                   'mdp': '3.5',
-                   'sklearn': '0.21.3',
-                   'pywt': '1.0.3',
-                   'jsonpickle': '1.2',
-                   'simplejson': '3.16.0',
-                  }
+LIBVERSIONS = {'Python': '3.6.8',
+               'Qt5': '5.12.8',
+               'PyQt5': '5.14.1',
+               'PyOpenGL': '3.1.0',
+               #'setuptools': '39.0.0', # for checking packaged versions
+               'IPython': '7.4.0',
+               'numpy': '1.17.2',
+               'scipy': '1.3.1',
+               'matplotlib': '3.0.3',
+               'cython': '0.29.13',
+               'mdp': '3.5',
+               'sklearn': '0.21.3',
+               'pywt': '1.0.3',
+               'jsonpickle': '1.2',
+               'simplejson': '3.16.0',
+              }
 
 PYVER = sys.version_info.major
-PYVER2LIBVERSIONS = {2: PY2_LIBVERSIONS,
-                     3: PY3_LIBVERSIONS}
-LIBVERSIONS = PYVER2LIBVERSIONS[PYVER]
+if PYVER < 3:
+    raise RuntimeError("spyke requires Python 3.x")
 
 # map library names to pip/conda package names, for those few which are not identical:
 LIBNAME2PKGNAME = {'pywt': 'PyWavelets',

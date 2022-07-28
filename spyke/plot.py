@@ -328,7 +328,7 @@ class Rasters(object):
         nsegments = spikes['nlockchans'].sum()
         # 2 points per raster line, x vals in col 0, yvals in col 1
         segments = np.zeros((nsegments, 2, 2))
-        colours = np.zeros(nsegments, dtype='|U7') # length-7 unicode strings for py2 and py3
+        colours = np.zeros(nsegments, dtype='|U7') # length-7 unicode strings
         segmenti = 0
         for spike in spikes:
             nchans = spike['nlockchans']
@@ -381,7 +381,7 @@ class Stims(object):
         nsegments = nrise + nfall
         # 2 points per stim line, x vals in col 0, yvals in col 1
         segments = np.zeros((nsegments, 2, 2))
-        colours = np.zeros(nsegments, dtype='|U7') # length-7 unicode strings for py2 and py3
+        colours = np.zeros(nsegments, dtype='|U7') # length-7 unicode strings
         xpos = 0
         ypos = np.array(list(self.panel.pos.values()))[:, 1]
         ylim = -ypos.max(), 2*ypos.max() # make sure it exceeds vertical limits of window
