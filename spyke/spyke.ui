@@ -223,7 +223,7 @@
           <rect>
            <x>5</x>
            <y>50</y>
-           <width>99</width>
+           <width>111</width>
            <height>20</height>
           </rect>
          </property>
@@ -426,9 +426,9 @@
         <widget class="QDoubleSpinBox" name="dynamicNoiseXSpinBox">
          <property name="geometry">
           <rect>
-           <x>80</x>
+           <x>81</x>
            <y>71</y>
-           <width>62</width>
+           <width>61</width>
            <height>25</height>
           </rect>
          </property>
