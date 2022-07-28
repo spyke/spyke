@@ -2162,27 +2162,3 @@ def write_ks2_chanmap_mat(stream, fname):
             'fs': np.float64(fs)}
     scipy.io.savemat(fname, matd)
     print('Wrote Kilosort2 chanmap file %r' % fname)
-
-
-## TODO: these should be deprecated after moving to Py3 and/or Qt5:
-
-def qvar2list(qvar):
-    """Convert Py2 + Qt4 QVariant to a list"""
-    try:
-        return qvar.toList() # Py2 + Qt4
-    except AttributeError:
-        return qvar # Py3 and/or Qt5
-
-def qvar2str(qvar):
-    """Convert Py2 + Qt4 QVariant to a string"""
-    try:
-        return str(qvar.toString()) # Py2 + Qt4
-    except AttributeError:
-        return str(qvar) # Py3 and/or Qt5
-
-def qvar2int(qvar):
-    """Convert Py2 + Qt4 QVariant to an int"""
-    try:
-        return qvar.toInt()[0] # Py2 + Qt4
-    except AttributeError:
-        return qvar # Py3 and/or Qt5

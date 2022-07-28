@@ -88,8 +88,7 @@ from .gac import gac # .pyx file
 
 from . import core
 from .core import (toiter, tocontig, intround, intceil, printflush, lstrip, matlabize,
-                   g, iterable, ClusterChange, SpykeToolWindow, DJS,
-                   qvar2list, qvar2str, qvar2int, nullwavesat)
+                   g, iterable, ClusterChange, SpykeToolWindow, DJS, nullwavesat)
 from . import dat, nsx, surf, stream, probes
 from .stream import SimpleStream, MultiStream
 from .sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES, NPCSPERCHAN
@@ -2661,7 +2660,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         """Open a filename from the clicked recent file in the File menu"""
         action = self.sender()
         if action:
-            fullfname = qvar2str(action.data())
+            fullfname = action.data()
             self.OpenFile(fullfname)
 
     def updateRecentFiles(self, fullfname=None):
@@ -2669,9 +2668,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         last fname opened or closed, which should hence go to the top of the list.
         Some of this code is taken from PySide's examples/mainwindows/recentfiles.py"""
         settings = QtCore.QSettings('spyke', 'spyke') # retrieve setting
-        fullfnames = qvar2list(settings.value('recentFileList'))
-        for i in range(len(fullfnames)): # Py2: convert each entry from QVariant to QString
-            fullfnames[i] = qvar2str(fullfnames[i])
+        fullfnames = settings.value('recentFileList')
         if fullfname:
             try:
                 fullfnames.remove(fullfname)
