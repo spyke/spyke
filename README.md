@@ -37,8 +37,12 @@ spyke requires recent versions of the following to be installed:
 * [jsonpickle](https://github.com/jsonpickle/jsonpickle)
 * [simplejson](https://github.com/simplejson/simplejson)
 
-spyke is developed in [Xubuntu](http://xubuntu.org) 18.04. It should work in other Linux
+spyke is developed in [Xubuntu](http://xubuntu.org) 20.04. It should work in other Linux
 distributions, and is known to work in OSX. In principle, it should also work in Windows.
+
+spyke is a Qt5 application. To make it look like a normal GTK application on a GTK-based
+desktop like (X)ubuntu, make sure to install the `qt5-style-plugins` package in (X)ubuntu, and
+then launch the `qt5ct` config app to set your Qt style to `gtk2`.
 
 ### Installation
 
@@ -81,12 +85,19 @@ Plotting of spike waveforms in the Sort window can be slow and generate flicker.
 be a problem with matplotlib, and can be fixed by applying the following diff to matplotlib:
 
 ```
-diff --git a/lib/matplotlib/backends/backend_qt5agg.py b/lib/matplotlib/backends/backend_qt5agg.py
-index 5b8e111..55fdb4f 100644
-@@ -165,3 +165,3 @@ class FigureCanvasQTAggBase(object):
+/usr/local/lib/python3.8/dist-packages/matplotlib/backends/backend_qt.py
+
+class FigureCanvasQT(QtWidgets.QWidget, FigureCanvasBase):
+
+     def blit(self, bbox=None):
+         # docstring inherited
+         if bbox is None and self.figure:
+             bbox = self.figure.bbox  # Blit the entire canvas if bbox is None.
+         # repaint uses logical pixels, not physical pixels like the renderer.
+         l, b, w, h = [int(pt / self.device_pixel_ratio) for pt in bbox.bounds]
          t = b + h
--        self.repaint(l, self.renderer.height-t, w, h)
-+        self.update(l, self.renderer.height-t, w, h)
+-        self.repaint(l, self.rect().height() - t, w, h)
++        self.update(l, self.rect().height() - t, w, h)
 
 ```
 
