@@ -58,18 +58,9 @@ LIBNAME2PKGNAME = {'pywt': 'PyWavelets',
 def get_python_version(libname):
     return os.sys.version.split(' ')[0]
 
-def get_qt4_version(libname):
-    from PyQt4.QtCore import QT_VERSION_STR
-    return QT_VERSION_STR
-
 def get_qt5_version(libname):
     from PyQt5.QtCore import QT_VERSION_STR
     return QT_VERSION_STR
-
-def get_pyqt4_version(libname):
-    from PyQt4.pyqtconfig import Configuration
-    cfg = Configuration()
-    return cfg.pyqt_version_str
 
 def get_pyqt5_version(libname):
     from PyQt5.QtCore import PYQT_VERSION_STR
@@ -90,9 +81,7 @@ def get_generic_pkg_version(libname):
     return ver
 
 LIBNAME2VERF = {'Python': get_python_version,
-                'Qt4': get_qt4_version,
                 'Qt5': get_qt5_version,
-                'PyQt4': get_pyqt4_version,
                 'PyQt5': get_pyqt5_version,
                 'PyOpenGL': get_pyopengl_version,
                }
