@@ -162,7 +162,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         self.groupMenuSampling()
         self.addRecentFileActions()
         self.updateRecentFiles()
-        
+
         self.move(0, 0) # top left corner, to make space for data windows
 
         self.streampath = os.getcwd() # init
@@ -183,14 +183,14 @@ class SpykeWindow(QtWidgets.QMainWindow):
         self.cci = -1 # pointer to cluster change for the next undo (add 1 for next redo)
 
         self.dirtysids = set() # sids whose waveforms in .wave file are out of date
-        
+
         # disable most widgets until a stream or a sort is opened:
         self.EnableStreamWidgets(False)
         self.EnableSortWidgets(False)
         self.EnableFilteringMenu(False) # disable by default, not all file types need filtering
         self.EnableCARMenu(False) # disable until stream is open
         self.EnableSamplingMenu(False) # disable until stream is open
-        
+
     def addRecentFileActions(self):
         """Init recent file QActions and insert them into the right place in the
         File menu. Leave them invisible until needed"""
@@ -978,11 +978,11 @@ class SpykeWindow(QtWidgets.QMainWindow):
         if v == 2.0:
             v = self.update_2_0_to_2_1()
         print('Now save me!')
-            
+
     def update_0_3_to_0_4(self):
         """Update sort 0.3 to 0.4:
             - reload all spike waveforms and fix all of their time values
-        """        
+        """
         print('Updating sort from version 0.3 to 0.4')
         s = self.sort
         sids = np.arange(s.nspikes)
@@ -992,7 +992,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         s.__version__ = '0.4' # update
         print('Done updating sort from version 0.3 to 0.4')
         return float(s.__version__)
-        
+
     def update_0_4_to_0_5(self):
         """Update sort 0.4 to 0.5:
             - rename sort.sortfname to sort.fname
@@ -1507,7 +1507,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
                                                                         Reza Lotun<br>
            <a href=http://swindale.ecc.ubc.ca>Swindale</a> Lab,
            University of British Columbia, Vancouver, Canada<br>
-           
+
            <a href=http://www.neuro.bio.lmu.de/members/system_neuro_busse/busse_l/index.html>
            Busse</a> Lab, Ludwig-Maximilians-University, Munich, Germany</p>
 
@@ -1828,7 +1828,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         nids += 1
         print('GAC took %.3f sec' % (time.time()-t0))
         return nids
-    
+
     def get_selchans(self, sids):
         """Return user selected chans. If none, automatically select and
         return chans within a radius encompassing 95% percent of sx values in sids,
@@ -1867,7 +1867,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         spikes = s.spikes
         sw = self.windows['Sort']
         cw = self.windows['Cluster']
-        
+
         # deselect all clusters before potentially deleting any unselected
         # clusters, to avoid lack of Qt selection event when selection values
         # (not rows) change. Also, deselect usids while we're at it:
@@ -1967,7 +1967,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         """Set plot dimensions to x, y, z, and replot"""
         xi = self.ui.xDimComboBox.findText(x)
         yi = self.ui.yDimComboBox.findText(y)
-        zi = self.ui.zDimComboBox.findText(z)        
+        zi = self.ui.zDimComboBox.findText(z)
         self.ui.xDimComboBox.setCurrentIndex(xi)
         self.ui.yDimComboBox.setCurrentIndex(yi)
         self.ui.zDimComboBox.setCurrentIndex(zi)
@@ -2066,7 +2066,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         ledges = edges[:-1] # keep just the left edges, discard the last right edge
         assert len(ledges) == nbins
         binwidth = ledges[1] - ledges[0]
-        # density histogram: npoints / fractional volume        
+        # density histogram: npoints / fractional volume
         dhist = np.float64(rhist) / np.diff(edges**ndims)
         dhist /= (dhist * binwidth).sum() # normalize to unit area
         return dhist, ledges, binwidth, ndims, sids, r
@@ -2139,7 +2139,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         print('Done calculating rmserror between all %d clusters and all %d unsorted spikes'
               % (ncids, nsids))
         return self.match
-        
+
     @QtCore.pyqtSlot()
     def on_plotMatchErrorsButton_clicked(self):
         """Match pane plot match errors button click. Plot histogram of rms error between
@@ -2161,7 +2161,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
                  (cid, len(errs)))
         pl.xlabel('RMS error (uV)')
         pl.ylabel('Count')
-        
+
     @QtCore.pyqtSlot()
     def on_matchButton_clicked(self):
         """Deselect any selected unsorted spikes in uslist, and then select
@@ -2209,11 +2209,11 @@ class SpykeWindow(QtWidgets.QMainWindow):
         ## the second conserves memory, and avoids needless copying, which might be faster
         ## if no array ops are involved. Should check all the code that pulls stuff out of
         ## the spikes recarray, and choose the best one more carefully!
-        
+
         trange = self.ui.xcorrsRangeSpinBox.value() * 1000 # convert to us
         trange = max(1000, trange) # enforce min trange, in us
         trange = np.array([-trange, trange]) # convert to a +/- array, in us
-        
+
         t0 = time.time()
         dts = util.xcorr(xspikets, yspikets, trange=trange) # delta timepoints of y wrt x (us)
         print('xcorr calc took %.3f sec' % (time.time()-t0))
@@ -2943,7 +2943,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
               per cell
             - main thing is to look at how close in space and time spikes can be seeded
               and still be detected and clustered correctly
-    
+
         """
         with open(os.path.join(self.streampath, fname), 'rb') as f:
             header = f.read(16).decode()
@@ -3521,7 +3521,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         # try auto-updating sort to latest version:
         if float(sort.__version__) < float(__version__):
             self.update_sort_version()
-        
+
         # restore Sort's tw to self and to spike and sort windows, if applicable:
         #print('sort.tw is %r' % (sort.tw,))
         self.update_spiketw(sort.tw)
@@ -3834,12 +3834,12 @@ class SpykeWindow(QtWidgets.QMainWindow):
         self.ShowStims(False) # reset
         self.updateTitle()
         self.EnableStreamWidgets(False)
-        
+
     def CloseSortFile(self):
         self.EnableSortWidgets(False)
         self.DeleteSort()
         self.updateTitle()
-        
+
     def RestoreClusters2GUI(self):
         """Stuff that needs to be done to synch the GUI with newly imported clusters"""
         self.UpdateClustersGUI() # restore nlist and uslist
@@ -4117,7 +4117,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
                 panel = self.windows[wintype].panel
                 if panel.tw != spiketw:
                     panel.update_tw(spiketw)
- 
+
     def update_sort_from_gui(self):
         self.update_sort_from_detector_pane()
         self.update_sort_from_cluster_pane()
@@ -4220,7 +4220,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
             self.ui.filePosLineEdit.setText('%.1f' % self.t)
             self.ui.slider.setValue(intround(self.t / self.hpstream.tres))
             self.plot()
-    
+
     def step(self, direction):
         """Step one timepoint left or right"""
         self.seek(self.t + direction*self.hpstream.tres)
@@ -4363,7 +4363,7 @@ class Match(object):
         bestsids = self.best[cid]
         bestsidis = self.sids.searchsorted(bestsids)
         return self.errs[cidi, bestsidis]
-        
+
 
 if __name__ == '__main__':
     # prevents "The event loop is already running" messages when calling ipshell():
