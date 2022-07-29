@@ -386,6 +386,19 @@ class Sort(object):
                 if rightpadded:
                     if (wd[:, -1] == 0).all():
                         rightpadded = False
+                # handle case where spike is right after or right before a big artifact
+                # that puts the amplifier near saturation, and can result in duplicated
+                # values that look like edge padding:
+                if leftpadded:
+                    # calc a threshold based on the remaining right side of the waveform:
+                    thresh = np.median(abs(wd[:, npad:])) * 20
+                    if abs(l).max() > thresh: # left edge likely saturated by artifact
+                        leftpadded = False
+                if rightpadded:
+                    # calc a threshold based on the remaining left side of the waveform:
+                    thresh = np.median(abs(wd[:, :-npad])) * 20
+                    if abs(r).max() > thresh: # right edge likely saturated by artifact
+                        rightpadded = False
                 if leftpadded or rightpadded:
                     msg = ('n%d has s%d that looks like it has been padded.\n'
                            'leftpadded, rightpadded = %r, %r\n'
