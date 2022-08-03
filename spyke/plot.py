@@ -483,7 +483,6 @@ class PlotPanel(FigureCanvas):
         self.ax.set_visible(True)
         self.ax.set_autoscale_on(False) # TODO: not sure if this is necessary
         self.draw()
-        self.black_background = self.copy_from_bbox(self.ax.bbox) # init
 
         # add reference lines and caret in layered order
         self._show_tref(True) # call the _ methods directly, to prevent unnecessary draws
@@ -1321,26 +1320,15 @@ class SortPanel(PlotPanel):
 
     def show_ref(self, ref, enable=True):
         PlotPanel.show_ref(self, ref, enable)
-        self.qrplt = None
-        self.background = None
+        #self.qrplt = None
+        #self.background = None
 
     def addItems(self, items):
         """Add items (spikes/neurons) to self"""
         if items == []:
             return # do nothing
-        if len(items) == 1:
-            # before blitting this single item to screen, grab current buffer,
-            # save as new background for quick restore if the next action is removal of
-            # this very same item:
-            self.background = self.copy_from_bbox(self.ax.bbox)
-            # add the single item, save reference to its plot:
-            self.qrplt = self.addItem(items[0])
-            #print('Saved quick remove plot %r' % self.qrplt)
-        else:
-            self.background = None
-            # add all items
-            for item in items:
-                self.addItem(item)
+        for item in items:
+            self.addItem(item)
         self.blit(self.ax.bbox)
 
     def addItem(self, item):
@@ -1395,25 +1383,13 @@ class SortPanel(PlotPanel):
         for item in items:
             # remove items from .used_plots, use contents of
             # .used_plots to decide how to do the actual plot removal
-            plt = self.removeItem(item)
-        # now remove items from actual plot
-        if self.used_plots == {}:
-            # restore blank background with just the ref lines:
-            self.restore_region(self.reflines_background)
-        elif len(items) == 1 and plt == self.qrplt and self.background != None:
-            # remove the last added plot if a saved bg is available
-            #print('Quick removing plot %r' % self.qrplt)
-            self.restore_region(self.background) # restore saved bg
-        else:
-            # remove more than one, but not all items
-            # restore blank background with just the ref lines:
-            self.restore_region(self.reflines_background)
+            self.removeItem(item)
+        # restore blank background with just the ref lines:
+        self.restore_region(self.reflines_background)
+        # now remove items from actual plot:
+        if len(self.used_plots) > 0:
             for plt in self.used_plots.values():
                 plt.draw() # redraw the remaining plots in .used_plots
-        # what was background is no longer useful for quick restoration on any other
-        # item removal:
-        self.background = None
-        self.qrplt = None # qrplt set in addItems is no longer quickly removable
         self.blit(self.ax.bbox) # blit everything to screen
 
     def removeAllItems(self):
@@ -1453,10 +1429,6 @@ class SortPanel(PlotPanel):
             if item[0] == 'n': # only neuron plots have fills
                 plt.fill.show(enable)
             plt.draw() # redraw each plot with a bound fill
-        # what was background is no longer useful for quick restoration on any other
-        # item removal:
-        self.background = None
-        self.qrplt = None # qrplt set in addItems is no longer quickly removable
         self.blit(self.ax.bbox) # blit everything to screen
 
     def updateAllItems(self):
@@ -1469,20 +1441,10 @@ class SortPanel(PlotPanel):
         Typical use case: spike is added to a neuron, neuron's mean waveform has changed"""
         if items == []: # do nothing
             return
-        plt0 = self.used_plots[items[0]]
-        if len(items) == 1 and plt0 != None and plt0 == self.qrplt and self.background != None:
-            #print('Quick removing and replotting plot %r' % self.qrplt)
-            self.restore_region(self.background) # restore saved bg
-            self.updateItem(items[0])
-        else: # update and redraw all items
-            # restore blank background with just the ref lines:
-            self.restore_region(self.reflines_background)
-            for item in items:
-                self.updateItem(item)
-            # what was background is no longer useful for quick restoration on any other
-            # item removal:
-            self.background = None
-            self.qrplt = None # qrplt set in addItems is no longer quickly removable
+        # restore blank background with just the ref lines:
+        self.restore_region(self.reflines_background)
+        for item in items:
+            self.updateItem(item)
         self.blit(self.ax.bbox) # blit everything to screen
 
     def updateItem(self, item):
