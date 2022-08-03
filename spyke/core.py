@@ -322,7 +322,7 @@ class SpykeListView(QtWidgets.QListView):
     def __init__(self, parent):
         QtWidgets.QListView.__init__(self, parent)
         self.sortwin = parent
-        #self.setSelectionBehavior(QTableWidget.SelectRows)
+        self.setViewMode(QtWidgets.QListView.ListMode) # other option is IconMode
         self.setSelectionMode(QtWidgets.QListView.ExtendedSelection)
         self.setLayoutMode(QtWidgets.QListView.Batched) # prevent lockup for huge layout ops
         # Setting resize mode to "adjust" sometimes results in a bug where Qt seems to
@@ -331,12 +331,11 @@ class SpykeListView(QtWidgets.QListView):
         # But, with this disabled, the contents no longer reflow, and you're forced to use
         # scrollbars unnecessarily to see all the list contents. This might also be
         # interacting with the setWrapping and/or setBatchSize features:
-        #self.setResizeMode(QtWidgets.QListView.Adjust) # recalculates layout on resize
+        self.setResizeMode(QtWidgets.QListView.Adjust) # recalculates layout on resize
         self.setUniformItemSizes(True) # speeds up listview
         self.setFlow(QtWidgets.QListView.LeftToRight) # default is TopToBottom
         self.setWrapping(True)
         self.setBatchSize(300)
-        #self.setViewMode(QtWidgets.QListView.IconMode)
 
     def mousePressEvent(self, event):
         sw = self.sortwin
