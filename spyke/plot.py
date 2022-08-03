@@ -426,8 +426,8 @@ class PlotPanel(FigureCanvas):
 
         self.spykewindow = parent.parent()
 
-        self.available_plots = [] # pool of available Plots
-        self.available_fills = [] # pool of available Fills
+        self.available_plots = {} # pool of available Plots
+        self.available_fills = {} # pool of available Fills
         # plots holding currently displayed spikes/neurons, indexed by sid/nid
         # with s or n prepended:
         self.used_plots = {}
@@ -1291,13 +1291,13 @@ class SortPanel(PlotPanel):
         """Add Plots to the pool of available ones"""
         for i in range(nplots): # Plots are init'd as invisible:
             plt = Plot(chans=self.chans, panel=self)
-            self.available_plots.append(plt)
+            self.available_plots[i] = plt
 
     def init_fills(self, nplots=DEFNFILLS):
         """Add Fills to the pool of available ones"""
         for i in range(nplots): # Fills are init'd as invisible:
             fill = Fill(chans=self.chans, panel=self)
-            self.available_fills.append(fill)
+            self.available_fills[i] = fill
 
     def init_rasters(self):
         """Disable for SortPanel"""
@@ -1336,14 +1336,25 @@ class SortPanel(PlotPanel):
         s = self.sort
         if len(self.available_plots) == 0: # if we've run out of plots for additional items
             self.init_plots() # init another batch of plots
-        plt = self.available_plots.pop() # pop a Plot to assign this item to
+        # pop a Plot to assign this item to:
+        try:
+            plt = self.available_plots.pop(item) # maybe we've plotted this item before?
+        except KeyError:
+            _, plt = self.available_plots.popitem() # pop a random Plot (LIFO)
+            ### TODO: change this to FIFO for better chance of "cache hit"?
         plt.id = item
         id = int(item[1:])
         if item[0] == 'n': # it's a neuron
             if len(self.available_fills) == 0:
                 # if we've run out of fills for additional neurons
                 self.init_fills() # init another batch of fills
-            plt.fill = self.available_fills.pop() # pop a Fill, bind it to plot
+            # pop a Fill, bind it to plot:
+            try:
+                fill = self.available_fills.pop(item) # fill plotted for this item before?
+            except KeyError:
+                _, fill = self.available_fills.popitem() # pop a random Fill (LIFO)
+                ### TODO: change this to FIFO for better chance of "cache hit"?
+            plt.fill = fill ## do we really need to bind this, just use available_ and used_fills instead?
             n = s.neurons[id]
             t = n.t
             colour = CLUSTERCOLOURDICT[id]
@@ -1409,6 +1420,8 @@ class SortPanel(PlotPanel):
             plt = self.used_plots.pop(item)
         except KeyError: # item isn't plotted, return None
             return
+        plt.hide() # hide all chan lines and fills
+        self.available_plots[item] = plt
         # TODO: reset plot colour and line style here, or just set them each time in addItem?
         plt.id = None # clear its index into .used_plots
         if item[0] == 'n': # it's a neuron
@@ -1416,10 +1429,9 @@ class SortPanel(PlotPanel):
             fill = plt.fill
             fill.hide()
             plt.fill = None
-            self.available_fills.append(fill)
         plt.hide() # hide all chan lines and fills
-        self.available_plots.append(plt)
         return plt
+            self.available_fills[item] = fill
 
     def showFills(self, enable=True):
         """Toggle visibility of all currently bound fills"""
