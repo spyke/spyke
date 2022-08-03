@@ -137,29 +137,35 @@ class Plot(object):
         self.id = None
         self.fill = None # associated Fill
 
-    def update(self, wave, tref):
+    def update(self, waves, tref):
         """Update LineCollection segments data from waves. Also update associated Fills.
         It's up to the caller to update colours if needed"""
         self.tref = tref
         panel = self.panel
-        nchans, npoints = wave.data.shape
-        segments = np.zeros((nchans, npoints, 2)) # x vals in col 0, yvals in col 1
-        if wave.ts is not None: # or maybe check if wave.data.size != 0 too
-            if isinstance(panel, SortPanel) and panel.spykewindow.ui.normButton.isChecked():
-                wave = self.norm_wave(wave)
-            x = np.tile(wave.ts-tref, nchans)
-            x.shape = nchans, npoints
-            segments[:, :, 0] = x
-            segments[:, :, 1] = panel.gain * panel.AD2uV(wave.data)
-            # add offsets:
-            for chani, chan in enumerate(wave.chans):
-                xpos, ypos = panel.pos[chan]
-                segments[chani, :, 0] += xpos
-                segments[chani, :, 1] += ypos
+        allsegments = []
+        for wave in waves:
+            nchans, npoints = wave.data.shape
+            segments = np.zeros((nchans, npoints, 2)) # x vals in col 0, yvals in col 1
+            if wave.ts is not None: # or maybe check if wave.data.size != 0 too
+                if isinstance(panel, SortPanel) and panel.spykewindow.ui.normButton.isChecked():
+                    wave = self.norm_wave(wave)
+                x = np.tile(wave.ts-tref, nchans)
+                x.shape = nchans, npoints
+                segments[:, :, 0] = x
+                segments[:, :, 1] = panel.gain * panel.AD2uV(wave.data)
+                # add offsets:
+                for chani, chan in enumerate(wave.chans):
+                    xpos, ypos = panel.pos[chan]
+                    segments[chani, :, 0] += xpos
+                    segments[chani, :, 1] += ypos
+            allsegments.append(segments)
+        # flatten into a list of nt x 2 arrays
+        #segments = [ row for row in segment for segment in allsegments ]
+        segments = [ row for segment in allsegments for row in segment ]
         self.lc.set_segments(segments)
         self.chans = wave.chans
         if self.fill != None:
-            self.fill.update(wave, tref)
+            self.fill.update(waves, tref)
 
     def norm_wave(self, wave):
         """Return wave with data normalized by Vpp of its max chan, subject to the current
@@ -261,30 +267,34 @@ class Fill(object):
                                  visible=visible)
         self.panel.ax.add_collection(self.pc) # add to panel's axes' pool of PCs
 
-    def update(self, wave, tref):
+    def update(self, waves, tref):
         """Update PolyCollection vertex data from wave. It's up to the caller to
         update colours if needed"""
         AD2uV = self.panel.AD2uV
-        nchans, npoints = wave.std.shape
-        # each timepoint has a +ve and a -ve vertex; x vals in col 0, yvals in col 1:
-        verts = np.zeros((nchans, 2*npoints, 2))
-        data = AD2uV(wave.data) # convert AD wave data to uV
-        err = 2 * AD2uV(wave.std) # convert AD wave std to uV, double it for better visibility
-        if wave.ts is None: # or maybe check if data.size == 0 too
-            x = []
-            y = []
-        else:
-            x = wave.ts - tref
-            lower = self.panel.gain * (data - err)
-            upper = self.panel.gain * (data + err)
-            for chani, chan in enumerate(wave.chans):
-                vert = poly_between(x, lower[chani], upper[chani])
-                vert = np.asarray(vert).T
-                # add offsets:
-                xpos, ypos = self.panel.pos[chan]
-                vert[:, 0] += xpos
-                vert[:, 1] += ypos
-                verts[chani] = vert
+        allverts = []
+        for wave in waves:
+            nchans, npoints = wave.std.shape
+            # each timepoint has a +ve and a -ve vertex; x vals in col 0, yvals in col 1:
+            verts = np.zeros((nchans, 2*npoints, 2))
+            data = AD2uV(wave.data) # convert AD wave data to uV
+            err = 2 * AD2uV(wave.std) # convert AD wave std to uV, double it for better visibility
+            if wave.ts is None: # or maybe check if data.size == 0 too
+                x = []
+                y = []
+            else:
+                x = wave.ts - tref
+                lower = self.panel.gain * (data - err)
+                upper = self.panel.gain * (data + err)
+                for chani, chan in enumerate(wave.chans):
+                    vert = poly_between(x, lower[chani], upper[chani])
+                    vert = np.asarray(vert).T
+                    # add offsets:
+                    xpos, ypos = self.panel.pos[chan]
+                    vert[:, 0] += xpos
+                    vert[:, 1] += ypos
+                    verts[chani] = vert
+            allverts.append(verts)
+        verts = [ row for vert in allverts for row in vert ]
         self.pc.set_verts(verts)
 
     def show(self, enable=True):
@@ -781,7 +791,7 @@ class PlotPanel(FigureCanvas):
             tref = wave.ts[0] # use first timestamp in waveform as the reference time point
         self.restore_region(self.reflines_background)
         # update plots and rasters
-        self.qrplt.update(wave, tref)
+        self.qrplt.update([wave], tref)
         self.qrplt.draw()
         if self.spykewindow.ui.actionRasters.isChecked() and self.rasters != None:
             self.update_rasters(tref)
@@ -1381,7 +1391,7 @@ class SortPanel(PlotPanel):
         # slice wave according to time window of this panel:
         wave = wave[t+self.tw[0] : t+self.tw[1]]
         # also updates, shows, and draws Fill, if applicable:
-        plt.update(wave, t)
+        plt.update([wave], t)
         plt.show()
         plt.draw()
 
