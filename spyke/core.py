@@ -779,7 +779,7 @@ class NListDelegate(QtWidgets.QStyledItemDelegate):
         self.focusedpen.setCapStyle(Qt.FlatCap)
 
     def paint(self, painter, option, index):
-        """Change background colour for nids designated as "good"""
+        """Change background color for nids designated as "good"""
         model = index.model()
         nid = model.data(index) # should come out as an int
         good = nid in self.sortwin.sort.get_good()
@@ -1211,36 +1211,36 @@ def hamming(t, N):
     #    N = (len(t) - 1) / 2
     return 0.54 - 0.46 * cos(pi * (2*t + N)/N)
 
-def hex2rgb(hexcolours):
-    """Convert colours RGB hex string list into an RGB int array"""
-    hexcolours = toiter(hexcolours)
+def hex2rgb(hexcolors):
+    """Convert colors RGB hex string list into an RGB int array"""
+    hexcolors = toiter(hexcolors)
     rgb = []
-    for s in hexcolours:
+    for s in hexcolors:
         s = s[len(s)-6:len(s)] # get last 6 characters
         r, g, b = s[0:2], s[2:4], s[4:6]
         r, g, b = int(r, base=16), int(g, base=16), int(b, base=16)
         rgb.append((r, g, b))
     return np.uint8(rgb)
 
-def hex2rgba(hexcolours, alpha=255):
-    """Convert colours RGB hex string list into an RGBA int array"""
+def hex2rgba(hexcolors, alpha=255):
+    """Convert colors RGB hex string list into an RGBA int array"""
     assert type(alpha) == int and 0 <= alpha <= 255
-    rgb = hex2rgb(hexcolours)
+    rgb = hex2rgb(hexcolors)
     alphas = np.repeat(alpha, len(rgb))
     alphas.shape = -1, 1 # make it 2D column vector
     return np.concatenate([rgb, alphas], axis=1)
 
-def hex2floatrgba(hexcolours, alpha=255):
-    """Convert colours RGB hex string list into an RGBA float array"""
+def hex2floatrgba(hexcolors, alpha=255):
+    """Convert colors RGB hex string list into an RGBA float array"""
     assert type(alpha) == int and 0 <= alpha <= 255
-    rgba = hex2rgba(hexcolours, alpha)
+    rgba = hex2rgba(hexcolors, alpha)
     return np.float64(rgba) / 255.
 
-def rgb2hex(rgbcolours):
+def rgb2hex(rgbcolors):
     """Convert RGB int array into a hex string list"""
-    rgbcolours = toiter(rgbcolours)
+    rgbcolors = toiter(rgbcolors)
     hx = []
-    for rgb in rgbcolours:
+    for rgb in rgbcolors:
         r, g, b = rgb
         h = hex(r*2**16 + g*2**8 + b)
         h = lrstrip(h, '0x', 'L')

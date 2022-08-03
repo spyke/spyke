@@ -29,9 +29,9 @@ VIOLET = '#9F3FFF'
 MAGENTA = '#FF00FF'
 WHITE = '#FFFFFF'
 BROWN = '#AF5050'
-GREY = '#555555' # reserve as junk cluster colour
+GREY = '#666666' # reserve as junk cluster color
 
-COLOURS = np.asarray([RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, WHITE, BROWN])
+COLORS = np.asarray([RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA, WHITE, BROWN])
 '''
 data = np.load('/home/mspacek/data/ptc18/tr1/14-tr1-mseq32_40ms_7deg/2010-05-20_17.18.12_full_scaled_x0_y0_Vpp_t.npy')
 data = data[:50000, :4].copy() # limit npoints and ndims, copy to make it contig
@@ -122,27 +122,27 @@ np.save('/home/mspacek/Desktop/poshist_manhattan_real_sigma_0.2.npy', poshist)
 '''
 nclusters = len(positions)
 
-ncolours = len(COLOURS)
-samplecolours = COLOURS[cids % ncolours]
-clustercolours = COLOURS[np.arange(nclusters) % ncolours]
-#colours[cids == -1] = GREY # unclassified points
+ncolors = len(COLORS)
+samplecolors = COLORS[cids % ncolors]
+clustercolors = COLORS[np.arange(nclusters) % ncolors]
+#colors[cids == -1] = GREY # unclassified points
 
 # plot x vs y
 f = makefigure()
-scatter(data[:, 0], data[:, 1], s=1, c=samplecolours, edgecolors='none')
-scatter(positions[:, 0], positions[:, 1], c=clustercolours)
+scatter(data[:, 0], data[:, 1], s=1, c=samplecolors, edgecolors='none')
+scatter(positions[:, 0], positions[:, 1], c=clustercolors)
 
 if data.shape[1] > 2:
     # plot Vpp vs y
     f = makefigure()
-    scatter(data[:, 2], data[:, 1], s=1, c=samplecolours, edgecolors='none')
-    scatter(positions[:, 2], positions[:, 1], c=clustercolours)
+    scatter(data[:, 2], data[:, 1], s=1, c=samplecolors, edgecolors='none')
+    scatter(positions[:, 2], positions[:, 1], c=clustercolors)
 
 if data.shape[1] > 3:
     # plot t vs y
     f = makefigure()
-    scatter(data[:, 3], data[:, 1], s=1, c=samplecolours, edgecolors='none')
-    scatter(positions[:, 3], positions[:, 1], c=clustercolours)
+    scatter(data[:, 3], data[:, 1], s=1, c=samplecolors, edgecolors='none')
+    scatter(positions[:, 3], positions[:, 1], c=clustercolors)
 
 
 show()

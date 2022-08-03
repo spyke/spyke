@@ -16,7 +16,7 @@ getSaveFileName = QtWidgets.QFileDialog.getSaveFileName
 from OpenGL import GL, GLU
 
 from .core import SpykeToolWindow, lstrip, lst2shrtstr, tocontig
-from .plot import CLUSTERCOLOURSRGB, GREYRGB, CLUSTERCOLOURRGBDICT
+from .plot import CLUSTERCLRSRGB, GREYRGB, CLUSTERCLRRGBDICT
 
 CLUSTERPARAMMAXSAMPLES = 2000
 VIEWDISTANCE = 50.0
@@ -42,10 +42,10 @@ class Cluster(object):
     id = property(get_id, set_id)
     '''
     # unused:
-    def get_colour(self):
-        return CLUSTERCOLOURRGBDICT[self.id]
+    def get_color(self):
+        return CLUSTERCLRRGBDICT[self.id]
 
-    colour = property(get_colour)
+    color = property(get_color)
     '''
     def __getstate__(self):
         """Get object state for pickling"""
@@ -186,7 +186,7 @@ class ClusterWindow(SpykeToolWindow):
         gw.npoints = len(X)
         gw.sids = sids
         gw.nids = nids
-        gw.colour() # set colours
+        gw.color() # set colors
         gw.updateGL()
 
 
@@ -235,20 +235,20 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     sids = property(get_sids, set_sids)
 
-    def colour(self, sids=None, sat=1):
-        """Set colours of points corresponding to sids according to their nids, with
+    def color(self, sids=None, sat=1):
+        """Set colors of points corresponding to sids according to their nids, with
         saturation level sat. Caller is responsible for calling self.updateGL()"""
-        if sids is None: # init/overwrite self.colours
+        if sids is None: # init/overwrite self.colors
             nids = self.nids
             # uint8, single unit nids are 1-based:
-            self.colours = CLUSTERCOLOURSRGB[nids % len(CLUSTERCOLOURSRGB) - 1] * sat
+            self.colors = CLUSTERCLRSRGB[nids % len(CLUSTERCLRSRGB) - 1] * sat
             # overwrite unclustered/multiunit points with GREYRGB
-            self.colours[nids < 1] = GREYRGB * sat
-        else: # assume self.colours exists
+            self.colors[nids < 1] = GREYRGB * sat
+        else: # assume self.colors exists
             sidis = self.sids.searchsorted(sids)
             nids = self.nids[sidis]
-            self.colours[sidis] = CLUSTERCOLOURSRGB[nids % len(CLUSTERCOLOURSRGB) - 1] * sat
-            self.colours[sidis[nids < 1]] = GREYRGB * sat
+            self.colors[sidis] = CLUSTERCLRSRGB[nids % len(CLUSTERCLRSRGB) - 1] * sat
+            self.colors[sidis[nids < 1]] = GREYRGB * sat
 
     def initializeGL(self):
         # these are the defaults anyway, but just to be thorough:
@@ -279,7 +279,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
         GL.glEnableClientState(GL.GL_COLOR_ARRAY)
         GL.glEnableClientState(GL.GL_VERTEX_ARRAY)
-        GL.glColorPointerub(self.colours) # should be n x rgb uint8, ie usigned byte
+        GL.glColorPointerub(self.colors) # should be n x rgb uint8, ie usigned byte
         GL.glVertexPointerf(self.points) # should be n x 3 contig float32
         GL.glDrawArrays(GL.GL_POINTS, 0, self.npoints)
 
@@ -881,7 +881,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             sat = 0.2 # desaturate
         else: # self.selecting == False
             sat = 1 # resaturate
-        self.colour(sids, sat=sat)
+        self.color(sids, sat=sat)
         self.updateGL()
 
     def showProjectionDialog(self):

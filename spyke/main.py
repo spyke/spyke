@@ -1930,7 +1930,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
             # if clustering only some spikes, select all newly created cluster(s)
             self.SelectClusters(newclusters)
         if len(sids) == len(cw.glWidget.sids) and np.all(sids == cw.glWidget.sids):
-            self.ColourPoints(newclusters) # just recolour
+            self.ColorPoints(newclusters) # just recolor
         else:
             self.on_plotButton_clicked() # need to do a full replot
         cc.message += ' into %r' % [c.id for c in newclusters]
@@ -2018,7 +2018,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
 
     @QtCore.pyqtSlot()
     def on_plotButton_clicked(self):
-        """Cluster pane plot button click. Plot points and colour them
+        """Cluster pane plot button click. Plot points and color them
         according to their clusters."""
         s = self.sort
         ctrl = QtWidgets.QApplication.instance().keyboardModifiers() == Qt.ControlModifier
@@ -2500,7 +2500,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         self.SelectClusters(clusters, on=False) # first deselect them all
         sw = self.windows['Sort']
         cw = self.windows['Cluster']
-        self.ColourPoints(clusters, setnid=0) # decolour before clusters lose their sids
+        self.ColorPoints(clusters, setnid=0) # decolor before clusters lose their sids
         for cluster in clusters:
             sw.RemoveNeuron(cluster.neuron, update=update)
         cw.glWidget.updateGL()
@@ -2516,10 +2516,10 @@ class SpykeWindow(QtWidgets.QMainWindow):
         s.update_usids()
         sw.uslist.updateAll()
 
-    def ColourPoints(self, clusters, setnid=None):
-        """Colour the points that fall within each cluster (as specified
-        by cluster.neuron.sids) the same colour as the cluster itself. Or, if
-        setnid != None, colour all points in clusters according to setnid value"""
+    def ColorPoints(self, clusters, setnid=None):
+        """Color the points that fall within each cluster (as specified
+        by cluster.neuron.sids) the same color as the cluster itself. Or, if
+        setnid != None, color all points in clusters according to setnid value"""
         clusters = toiter(clusters)
         gw = self.windows['Cluster'].glWidget
         for cluster in clusters:
@@ -2533,7 +2533,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
                     gw.nids[sidis] = neuron.id
                 else:
                     gw.nids[sidis] = setnid
-                gw.colour(commonsids) # recolour commonsids according to their nids
+                gw.color(commonsids) # recolor commonsids according to their nids
         gw.updateGL()
 
     def GetClusterPlotDims(self):
@@ -2612,7 +2612,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
 
         # now do some final updates
         self.UpdateClustersGUI()
-        self.ColourPoints(oldclusters)
+        self.ColorPoints(oldclusters)
         #print('Applying clusters to plot took %.3f sec' % (time.time()-t0))
         # select newly recreated oldclusters
         self.SelectClusters(oldclusters)
@@ -3806,7 +3806,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         else: # treat it the same as an hpstream
             self.lpstream.chans = chans
 
-        # set chans in plotpanels to reset colours:
+        # set chans in plotpanels to reset colors:
         for wintype in WINDOWUPDATEORDER:
             try:
                 self.windows[wintype].panel.set_chans(chans)
@@ -3844,8 +3844,8 @@ class SpykeWindow(QtWidgets.QMainWindow):
         self.UpdateClustersGUI() # restore nlist and uslist
         try:
             self.sort.spikes
-            # colour points for all clusters in one shot:
-            self.ColourPoints(self.sort.clusters.values())
+            # color points for all clusters in one shot:
+            self.ColorPoints(self.sort.clusters.values())
         except AttributeError: pass # no spikes
         self.OpenWindow('Sort')
 

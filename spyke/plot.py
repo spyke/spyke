@@ -53,28 +53,28 @@ STIMSLINEWIDTH = 2
 STIMSLINESTYLE = '-'
 TREFANTIALIASED = True
 TREFLINEWIDTH = 0.5
-TREFCOLOUR = DARKGREY
+TREFCLR = DARKGREY
 VREFANTIALIASED = True
 VREFLINEWIDTH = 0.5
 SELECTEDVREFLINEWIDTH = 3
-VREFCOLOUR = DARKGREY
-VREFSELECTEDCOLOUR = GREEN
+VREFCLR = DARKGREY
+VREFSELECTEDCLR = GREEN
 SCALE = 1000, 100 # scalebar size in (us, uV)
 SCALEXOFFSET = 25
 SCALEYOFFSET = 15
 SCALELINEWIDTH = 2
-SCALECOLOUR = WHITE
-CARETCOLOUR = LIGHTBLACK
+SCALECLR = WHITE
+CARETCLR = LIGHTBLACK
 CHANVBORDER = 175 # uV, vertical border space between top and bottom chans and axes edge
 
-BACKGROUNDCOLOUR = 'black'
+BACKGROUNDCLR = 'black'
 
-PLOTCOLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA,
-               GREY, WHITE, BROWN]
-CLUSTERCOLOURS = copy(PLOTCOLOURS)
-CLUSTERCOLOURS.remove(GREY)
+PLOTCLRS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA,
+            GREY, WHITE, BROWN]
+CLUSTERCLRS = copy(PLOTCLRS)
+CLUSTERCLRS.remove(GREY)
 
-CLUSTERCOLOURSRGB = hex2rgb(CLUSTERCOLOURS)
+CLUSTERCLRSRGB = hex2rgb(CLUSTERCLRS)
 GREYRGB = hex2rgb([GREY])[0] # pull it out of the list
 
 NCLOSESTCHANSTOSEARCH = 10
@@ -94,27 +94,27 @@ RASTERZORDER = 6
 STIMSZORDER = 7
 
 
-class ColourDict(dict):
-    """Just an easy way to cycle through colours given some index,
+class ColorDict(dict):
+    """Just an easy way to cycle through colors given some index,
     like say a chan id or a neuron id. Better than using a generator,
     because you don't need to keep calling next(). This is like a dict
     of infinite length"""
-    def __init__(self, colours=None, nocolour=None):
-        self.colours = colours
-        self.nocolour = nocolour
+    def __init__(self, colors=None, nocolor=None):
+        self.colors = colors
+        self.nocolor = nocolor
 
     def __getitem__(self, key):
         if key < 1: # unclustered/multiunit
-            return self.nocolour
-        i = key % len(self.colours) - 1 # single unit nids are 1 based
-        return self.colours[i]
+            return self.nocolor
+        i = key % len(self.colors) - 1 # single unit nids are 1 based
+        return self.colors[i]
 
     def __setitem__(self, key, val):
-        raise RuntimeError('ColourDict is unsettable')
+        raise RuntimeError('ColorDict is unsettable')
 
 
-CLUSTERCOLOURDICT = ColourDict(colours=CLUSTERCOLOURS, nocolour=GREY)
-CLUSTERCOLOURRGBDICT = ColourDict(colours=CLUSTERCOLOURSRGB, nocolour=GREYRGB)
+CLUSTERCLRDICT = ColorDict(colors=CLUSTERCLRS, nocolor=GREY)
+CLUSTERCLRRGBDICT = ColorDict(colors=CLUSTERCLRSRGB, nocolor=GREYRGB)
 
 
 class Plot(object):
@@ -123,7 +123,7 @@ class Plot(object):
     def __init__(self, chans, panel, visible=False):
         self.panel = panel # panel that self belongs to
         self.chans = chans # channels corresponding to current set of lines in LineCollection
-        colors = [ self.panel.vcolours[chan] for chan in chans ]
+        colors = [ self.panel.vcolors[chan] for chan in chans ]
         self.lc = LineCollection([], linewidth=SPIKELINEWIDTH, linestyle=SPIKELINESTYLE,
                                  colors=colors,
                                  zorder=PLOTZORDER,
@@ -139,8 +139,8 @@ class Plot(object):
 
     def update(self, waves, tref):
         """Update LineCollection segments data from waves. Also update associated Fills.
-        It's up to the caller to update colours if needed"""
         self.tref = tref
+        It's up to the caller to update colors if needed"""
         panel = self.panel
         allsegments = []
         for wave in waves:
@@ -231,15 +231,15 @@ class Plot(object):
         """Set alpha transparency for LC"""
         self.lc.set_alpha(alpha)
 
-    def set_colours(self, colours):
-        """Set colour(s) for LC"""
-        self.lc.set_color(colours)
+    def set_colors(self, colors):
+        """Set color(s) for LC"""
+        self.lc.set_colors(colors)
         if self.fill != None:
-            self.fill.set_colours(colours)
+            self.fill.set_colors(colors)
 
-    def update_colours(self):
-        colours = [ self.panel.vcolours[chan] for chan in self.chans ]
-        self.set_colours(colours)
+    def update_colors(self):
+        colors = [ self.panel.vcolors[chan] for chan in self.chans ]
+        self.set_colors(colors)
 
     def set_stylewidth(self, style, width):
         """Set LC style and width"""
@@ -269,7 +269,7 @@ class Fill(object):
 
     def update(self, waves, tref):
         """Update PolyCollection vertex data from wave. It's up to the caller to
-        update colours if needed"""
+        update colors if needed"""
         AD2uV = self.panel.AD2uV
         allverts = []
         for wave in waves:
@@ -309,9 +309,9 @@ class Fill(object):
         """Visibility status"""
         return self.pc.get_visible()
 
-    def set_colours(self, colours):
-        """Set colour for PC, colours should really only ever be of length 1"""
-        self.pc.set_color(colours)
+    def set_colors(self, colors):
+        """Set colors for PC"""
+        self.pc.set_colors(colors)
 
     def draw(self):
         """Draw PC to axes buffer (or whatever), avoiding unnecessary
@@ -338,12 +338,12 @@ class Rasters(object):
         nsegments = spikes['nlockchans'].sum()
         # 2 points per raster line, x vals in col 0, yvals in col 1
         segments = np.zeros((nsegments, 2, 2))
-        colours = np.zeros(nsegments, dtype='|U7') # length-7 unicode strings
+        colors = np.zeros(nsegments, dtype='|U7') # length-7 unicode strings
         segmenti = 0
         for spike in spikes:
             nchans = spike['nlockchans']
-            # colour segments according to each spike's max chan:
-            colours[segmenti:segmenti+nchans] = self.panel.vcolours[spike['chan']]
+            # color segments according to each spike's max chan:
+            colors[segmenti:segmenti+nchans] = self.panel.vcolors[spike['chan']]
             spikechans = spike['lockchans'][:nchans]
             for chan in spikechans:
                 xpos, ypos = self.panel.pos[chan]
@@ -354,7 +354,7 @@ class Rasters(object):
                 segments[segmenti, :, 1] = ylims
                 segmenti += 1
         self.lc.set_segments(segments)
-        self.lc.set_color(list(colours))
+        self.lc.set_color(list(colors))
 
     def show(self, enable=True):
         """Show/hide LC"""
@@ -391,20 +391,20 @@ class Stims(object):
         nsegments = nrise + nfall
         # 2 points per stim line, x vals in col 0, yvals in col 1
         segments = np.zeros((nsegments, 2, 2))
-        colours = np.zeros(nsegments, dtype='|U7') # length-7 unicode strings
+        colors = np.zeros(nsegments, dtype='|U7') # length-7 unicode strings
         xpos = 0
         ypos = np.array(list(self.panel.pos.values()))[:, 1]
         ylim = -ypos.max(), 2*ypos.max() # make sure it exceeds vertical limits of window
         segmenti = 0
-        colours[:nrise] = GREEN # rising edge colour
-        colours[nrise:] = RED # falling edge colour
+        colors[:nrise] = GREEN # rising edge color
+        colors[nrise:] = RED # falling edge color
         for stimtedge in np.concatenate([stimtons, stimtoffs]):
             x = stimtedge - tref + xpos
             segments[segmenti, :, 0] = x, x
             segments[segmenti, :, 1] = ylim
             segmenti += 1
         self.lc.set_segments(segments)
-        self.lc.set_color(colours)
+        self.lc.set_color(colors)
 
     def show(self, enable=True):
         """Show/hide LC"""
@@ -451,9 +451,9 @@ class PlotPanel(FigureCanvas):
         self.tw = tw # temporal window of each channel, in plot units (us ostensibly)
         self.cw = cw # temporal window of caret, in plot units
 
-        self.figure.set_facecolor(BACKGROUNDCOLOUR)
+        self.figure.set_facecolor(BACKGROUNDCLR)
         # should really just turn off the edge line altogether, but how?
-        self.figure.set_edgecolor(BACKGROUNDCOLOUR)
+        self.figure.set_edgecolor(BACKGROUNDCLR)
         #self.figure.set_frameon(False) # not too sure what this does, causes painting problems
 
         self.mpl_connect('button_press_event', self.OnButtonPress) # bind figure mouse click
@@ -486,7 +486,7 @@ class PlotPanel(FigureCanvas):
 
         self.init_axes()
         self.pos = {} # positions of line centers, in plot units (us, uV)
-        self.vcolours = {} # colour mapping that cycles vertically in space
+        self.vcolors = {} # color mapping that cycles vertically in space
         self.do_layout() # defined by subclasses, sets self.pos
         self.xy_um = self.get_xy_um()
         x = self.xy_um[0]
@@ -548,7 +548,7 @@ class PlotPanel(FigureCanvas):
     def init_axes(self):
         """Init the axes and ref lines"""
         self.ax = self.figure.add_axes([0, 0, 1, 1], # lbwh relative to figure?
-                                       facecolor=BACKGROUNDCOLOUR,
+                                       facecolor=BACKGROUNDCLR,
                                        frameon=False,
                                        alpha=1.)
 
@@ -615,7 +615,7 @@ class PlotPanel(FigureCanvas):
     def _add_tref(self):
         """Add vertical time reference LineCollection, one line per probe column"""
         self.tlc = LineCollection([], linewidth=TREFLINEWIDTH,
-                                  colors=TREFCOLOUR,
+                                  colors=TREFCLR,
                                   zorder=TREFLINEZORDER,
                                   antialiased=TREFANTIALIASED,
                                   visible=False)
@@ -625,7 +625,7 @@ class PlotPanel(FigureCanvas):
     def _add_vref(self):
         """Add horizontal voltage reference LineCollection, one line per probe channel"""
         self.vlc = LineCollection([], linewidth=VREFLINEWIDTH,
-                                  colors=VREFCOLOUR,
+                                  colors=VREFCLR,
                                   zorder=VREFLINEZORDER,
                                   antialiased=VREFANTIALIASED,
                                   visible=False)
@@ -639,7 +639,7 @@ class PlotPanel(FigureCanvas):
         tbar = (l, b), (l+SCALE[0], b) # us
         vbar = (l, b), (l, b+SCALE[1]*self.gain) # uV
         self.scale = LineCollection([tbar, vbar], linewidth=SCALELINEWIDTH,
-                                    colors=SCALECOLOUR,
+                                    colors=SCALECLR,
                                     zorder=SCALEZORDER,
                                     antialiased=True,
                                     visible=False)
@@ -652,7 +652,7 @@ class PlotPanel(FigureCanvas):
         width = self.cw[1] - self.cw[0]
         height = ylim[1] - ylim[0]
         self.caret = Rectangle(xy, width, height,
-                               facecolor=CARETCOLOUR,
+                               facecolor=CARETCLR,
                                zorder=CARETZORDER,
                                linewidth=0,
                                antialiased=False,
@@ -740,9 +740,9 @@ class PlotPanel(FigureCanvas):
         self.caret.set_visible(enable)
 
     def set_chans(self, chans):
-        """Reset chans for this plot panel, triggering colour update"""
+        """Reset chans for this plot panel, triggering color update"""
         self.qrplt.chans = chans
-        self.qrplt.update_colours()
+        self.qrplt.update_colors()
 
     def get_xy_um(self):
         """Pull xy tuples in um out of self.pos, store in (2 x nchans) array,
@@ -1148,13 +1148,13 @@ class SpikePanel(PlotPanel):
                          self.um2us(self.siteloc[hchans[-1]][0]) + self.tw[1])
         self.ax.set_ylim(self.um2uv(self.siteloc[vchans[0]][1]) - CHANVBORDER,
                          self.um2uv(self.siteloc[vchans[-1]][1]) + CHANVBORDER)
-        colourgen = itertools.cycle(iter(PLOTCOLOURS))
+        colorgen = itertools.cycle(iter(PLOTCLRS))
         for chan in vchans:
-            # chan order doesn't matter for setting .pos, but it does for setting .colours
+            # chan order doesn't matter for setting .pos, but it does for setting .colors
             self.pos[chan] = (self.um2us(self.siteloc[chan][0]),
                               self.um2uv(self.siteloc[chan][1]))
-            # assign colours so that they cycle vertically in space:
-            self.vcolours[chan] = next(colourgen)
+            # assign colors so that they cycle vertically in space:
+            self.vcolors[chan] = next(colorgen)
 
     def _add_caret(self):
         """Disable for SpikePanel"""
@@ -1189,13 +1189,13 @@ class ChartPanel(PlotPanel):
         ngaps = max(self.nchans-1, 1) # at least 1
         vspace = (maxy - miny) / ngaps
         self.ax.set_ylim(miny - CHANVBORDER, maxy + CHANVBORDER)
-        colourgen = itertools.cycle(iter(PLOTCOLOURS))
+        colorgen = itertools.cycle(iter(PLOTCLRS))
         for chani, chan in enumerate(vchans):
             #self.pos[chan] = (0, self.um2uv(self.siteloc[chan][1])) # x=0 centers horizontally
             # x=0 centers horizontally, equal vertical spacing:
             self.pos[chan] = (0, chani*vspace)
-            # assign colours so that they cycle vertically in space:
-            self.vcolours[chan] = next(colourgen)
+            # assign colors so that they cycle vertically in space:
+            self.vcolors[chan] = next(colorgen)
 
     def _add_vref(self):
         """Disable for ChartPanel"""
@@ -1251,7 +1251,7 @@ class LFPPanel(ChartPanel):
         self.pos = newpos
 
     def set_chans(self, chans):
-        """Reset chans for this LFPPanel, triggering colour update. Take intersection of
+        """Reset chans for this LFPPanel, triggering color update. Take intersection of
         stream file's channels and chans, conserving order in stream file's channels.
         This overloads ChartPanel.set_chans only to handle the special case of .srf LFP"""
         stream = self.stream
@@ -1367,7 +1367,7 @@ class SortPanel(PlotPanel):
             self.used_fills[plt.id] = fill # push it to the used fill stack
             n = s.neurons[id]
             t = n.t
-            colour = CLUSTERCOLOURDICT[id]
+            color = CLUSTERCLRDICT[id]
             alpha = 1
             style = NEURONLINESTYLE
             width = NEURONLINEWIDTH
@@ -1377,14 +1377,14 @@ class SortPanel(PlotPanel):
         else: # item[0] == 's' # it's a spike
             t = s.spikes['t'][id]
             nid = s.spikes['nid'][id]
-            colour = CLUSTERCOLOURDICT[nid]
+            color = CLUSTERCLRDICT[nid]
             alpha = 0.5
             if nid < 1:
                 alpha = 0.75 # junk/multiunit GREY is just a bit too dark to leave at 0.5 alpha
             style = SPIKELINESTYLE
             width = SPIKELINEWIDTH
             wave = s.get_wave(id)
-        plt.set_colours([colour])
+        plt.set_colors([color])
         plt.set_alpha(alpha) # doesn't affect Fill alpha, if any
         plt.set_stylewidth(style, width)
         self.used_plots[plt.id] = plt # push it to the used plot stack
@@ -1431,7 +1431,7 @@ class SortPanel(PlotPanel):
             return
         plt.hide() # hide all chan lines and fills
         self.available_plots[item] = plt
-        # TODO: reset plot colour and line style here, or just set them each time in addItem?
+        # TODO: reset plot color and line style here, or just set them each time in addItem?
         if item[0] == 'n': # it's a neuron
             plt.n.plt = None # unbind plot from neuron
             fill = self.used_fills.pop(item)
@@ -1526,12 +1526,12 @@ class SortPanel(PlotPanel):
         self.draw_refs() # update
 
     def update_selvrefs(self):
-        """Set line widths, lengths, and colours of vrefs according to chans in
+        """Set line widths, lengths, and colors of vrefs according to chans in
         self.chans_selected. Note that any changes to the display code here should also be
         made in the timepoint selection code for dimension reduction in
         SortWindow.get_tis()"""
         segments = self.segments.copy()
-        colours = np.repeat(VREFCOLOUR, len(self.pos)) # clear all lines
+        colors = np.repeat(VREFCLR, len(self.pos)) # clear all lines
         linewidths = np.repeat(VREFLINEWIDTH, len(self.pos)) # clear all lines
         inclt = self.sortwin.inclt
         # scale time selection around t=0 according to window asymmetry:
@@ -1539,16 +1539,16 @@ class SortPanel(PlotPanel):
         incltleft = intround(abs(self.tw[0]) / dtw * inclt) # left fraction wrt xpos
         incltright = inclt - incltleft # right fraction wrt xpos
         #print("self.tw, incltleft, incltright", self.tw, incltleft, incltright)
-        for chan in self.chans_selected: # set line colour of selected chans
+        for chan in self.chans_selected: # set line color of selected chans
             vrefsegmenti = self.chan2vrefsegmenti[chan] # one vref for every enabled chan
             xpos = self.pos[chan][0] # chan xpos center (us)
             # modify the x values of this segment:
             x0, x1 = intround(xpos-incltleft), intround(xpos+incltright)
             segments[vrefsegmenti][:, 0] = x0, x1
-            colours[vrefsegmenti] = VREFSELECTEDCOLOUR
+            colors[vrefsegmenti] = VREFSELECTEDCLR
             linewidths[vrefsegmenti] = SELECTEDVREFLINEWIDTH
         self.vlc.set_segments(segments)
-        self.vlc.set_color(list(colours))
+        self.vlc.set_color(list(colors))
         self.vlc.set_linewidth(list(linewidths))
 
 

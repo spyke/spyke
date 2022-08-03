@@ -41,11 +41,11 @@ def toiter(x):
         return [x]
 
 # copied from spyke/core.py:
-def hex2rgb(hexcolours):
-    """Convert colours RGB hex string list into an RGB int array"""
-    hexcolours = toiter(hexcolours)
+def hex2rgb(hexcolors):
+    """Convert colors RGB hex string list into an RGB int array"""
+    hexcolors = toiter(hexcolors)
     rgb = []
-    for s in hexcolours:
+    for s in hexcolors:
         s = s[len(s)-6:len(s)] # get last 6 characters
         r, g, b = s[0:2], s[2:4], s[4:6]
         r, g, b = int(r, base=16), int(g, base=16), int(b, base=16)
@@ -59,7 +59,7 @@ def tocontig(x):
         x = x.copy()
     return x
 
-# colour stuff copied from spyke/plot.py:
+# color stuff copied from spyke/plot.py:
 RED = '#ff0000'
 ORANGE = '#ff7f00'
 YELLOW = '#ffff00'
@@ -84,31 +84,31 @@ RASTERLINEWIDTH = 1
 RASTERLINESTYLE = '-'
 TREFANTIALIASED = True
 TREFLINEWIDTH = 0.5
-TREFCOLOUR = DARKGREY
+TREFCLR = DARKGREY
 VREFANTIALIASED = True
 VREFLINEWIDTH = 0.5
 SELECTEDVREFLINEWIDTH = 3
-VREFCOLOUR = DARKGREY
-VREFSELECTEDCOLOUR = GREEN
+VREFCLR = DARKGREY
+VREFSELECTEDCLR = GREEN
 SCALE = 1000, 100 # scalebar size in (us, uV)
 SCALEXOFFSET = 25
 SCALEYOFFSET = 15
 SCALELINEWIDTH = 2
-SCALECOLOUR = WHITE
-CARETCOLOUR = LIGHTBLACK
+SCALECLR = WHITE
+CARETCLR = LIGHTBLACK
 CHANVBORDER = 175 # uV, vertical border space between top and bottom chans and axes edge
 
 DEFUVPERUM = 20
 DEFUSPERUM = 100
 
-BACKGROUNDCOLOUR = 'black'
+BACKGROUNDCLR = 'black'
 
-PLOTCOLOURS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA,
-               GREY, WHITE, BROWN]
-CLUSTERCOLOURS = copy(PLOTCOLOURS)
-CLUSTERCOLOURS.remove(GREY)
+PLOTCLRS = [RED, ORANGE, YELLOW, GREEN, CYAN, LIGHTBLUE, VIOLET, MAGENTA,
+            GREY, WHITE, BROWN]
+CLUSTERCLRS = copy(PLOTCLRS)
+CLUSTERCLRS.remove(GREY)
 
-CLUSTERCOLOURSRGB = hex2rgb(CLUSTERCOLOURS)
+CLUSTERCLRSRGB = hex2rgb(CLUSTERCLRS)
 GREYRGB = hex2rgb([GREY])[0] # pull it out of the list
 
 
@@ -128,7 +128,7 @@ class ClusterWindow(QtGui.QMainWindow):
         #    SpykeToolWindow.keyPressEvent(self, event) # pass it up
         #else:
         self.glWidget.keyPressEvent(event) # pass it down
-        
+
     def keyReleaseEvent(self, event):
         self.glWidget.keyReleaseEvent(event) # pass it down
 
@@ -140,7 +140,7 @@ class ClusterWindow(QtGui.QMainWindow):
         gw.npoints = len(X)
         gw.sids = sids
         gw.nids = nids
-        gw.colour() # set colours
+        gw.color() # set colors
         gw.updateGL()
 
 
@@ -180,20 +180,20 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     sids = property(get_sids, set_sids)
 
-    def colour(self, sids=None, sat=1):
-        """Set colours of points corresponding to sids according to their nids, with
+    def color(self, sids=None, sat=1):
+        """Set colors of points corresponding to sids according to their nids, with
         saturation level sat. Caller is responsible for calling self.updateGL()"""
-        if sids == None: # init/overwrite self.colours
+        if sids == None: # init/overwrite self.colors
             nids = self.nids
             # uint8, single unit nids are 1-based:
-            self.colours = CLUSTERCOLOURSRGB[nids % len(CLUSTERCOLOURSRGB) - 1] * sat
+            self.colors = CLUSTERCLRSRGB[nids % len(CLUSTERCLRSRGB) - 1] * sat
             # overwrite unclustered/multiunit points with GREYRGB
-            self.colours[nids < 1] = GREYRGB * sat
-        else: # assume self.colours exists
+            self.colors[nids < 1] = GREYRGB * sat
+        else: # assume self.colors exists
             sidis = self.sids.searchsorted(sids)
             nids = self.nids[sidis]
-            self.colours[sidis] = CLUSTERCOLOURSRGB[nids % len(CLUSTERCOLOURSRGB) - 1] * sat
-            self.colours[sidis[nids < 1]] = GREYRGB * sat
+            self.colors[sidis] = CLUSTERCLRSRGB[nids % len(CLUSTERCLRSRGB) - 1] * sat
+            self.colors[sidis[nids < 1]] = GREYRGB * sat
 
     def initializeGL(self):
         # these are the defaults anyway, but just to be thorough:
@@ -224,7 +224,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
         GL.glEnableClientState(GL.GL_COLOR_ARRAY)
         GL.glEnableClientState(GL.GL_VERTEX_ARRAY)
-        GL.glColorPointerub(self.colours) # should be n x rgb uint8, ie usigned byte
+        GL.glColorPointerub(self.colors) # should be n x rgb uint8, ie usigned byte
         GL.glVertexPointerf(self.points) # should be n x 3 contig float32
         GL.glDrawArrays(GL.GL_POINTS, 0, self.npoints)
 
@@ -287,7 +287,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         GL.glVertex3f(0, 0, 0)
         GL.glVertex3f(0, 0, l)
         GL.glEnd()
-    
+
     def get_MV(self):
         """Return modelview matrix"""
         return GL.glGetDoublev(GL.GL_MODELVIEW_MATRIX)
@@ -333,7 +333,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                       [1, 0, 0],
                       [0, 1, 0]]
         self.MV = MV
-        
+
     def lookUpXAxis(self):
         """Look up x axis: make x, y, z axes point in, left, and up"""
         MV = self.MV
@@ -341,7 +341,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                       [-1, 0, 0],
                       [ 0, 1, 0]]
         self.MV = MV
-        
+
     def lookDownYAxis(self):
         """Look down y axis: make x, y, z axes point left, out, and up"""
         MV = self.MV
@@ -584,7 +584,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             self.selectPointsUnderCursor()
         self.lastPressPos = QtCore.QPoint(event.pos())
         self.lastPos = QtCore.QPoint(event.pos())
-    
+
     def mouseReleaseEvent(self, event):
         # seems have to use event.button(), not event.buttons(). I guess you can't
         # release multiple buttons simultaneously the way you can press them simultaneously?
@@ -599,13 +599,13 @@ class GLWidget(QtOpenGL.QGLWidget):
         #elif button == QtCore.Qt.RightButton:
             #if QtCore.QPoint(event.pos()) == self.lastPressPos: # mouse didn't move
                 #sw.on_actionSelectRandomSpikes_triggered()
-    
+
     #def mouseDoubleClickEvent(self, event):
         #"""Clear selection, if any"""
         #if event.button() == QtCore.Qt.RightButton:
             #sw = self.spw.windows['Sort']
             #sw.clear()
-    
+
     def mouseMoveEvent(self, event):
         buttons = event.buttons()
 
@@ -742,7 +742,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             self.setMouseTracking(True) # while deselecting
             self.selectPointsUnderCursor()
         elif key == Qt.Key_V: # V for View
-            self.showProjectionDialog()            
+            self.showProjectionDialog()
         elif key in [Qt.Key_Enter, Qt.Key_Return]:
             pass #sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
         #elif key == Qt.Key_F11:
@@ -837,7 +837,7 @@ class GLWidget(QtOpenGL.QGLWidget):
             sat = 0.2 # desaturate
         else: # self.selecting == False
             sat = 1 # resaturate
-        self.colour(sids, sat=sat)
+        self.color(sids, sat=sat)
         self.updateGL()
 
     def showProjectionDialog(self):
@@ -872,6 +872,6 @@ if __name__ == '__main__':
     X = np.float32(X)
     #import pdb; pdb.set_trace()
     sids = np.arange(NPOINTS)
-    nids = sids % len(CLUSTERCOLOURSRGB)
+    nids = sids % len(CLUSTERCLRSRGB)
     cw.plot(X, sids, nids)
     sys.exit(app.exec_())

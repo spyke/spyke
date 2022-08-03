@@ -38,7 +38,7 @@ from .core import (WaveForm, Gaussian, MAXLONGLONG, R, toiter, intround, printfl
                    USList, ClusterChange, SpikeSelectionSlider, lrrep2Darrstripis, rollwin2D)
 from .detect import DEBUG
 from .surf import EPOCH
-from .plot import SpikeSortPanel, CLUSTERCOLOURDICT, WHITE
+from .plot import SpikeSortPanel, CLUSTERCLRDICT, WHITE
 from .__version__ import __version__
 
 #MAXCHANTOLERANCE = 100 # um
@@ -2437,9 +2437,9 @@ class SortWindow(SpykeToolWindow):
                 break
         else:
             self.nlist.clearSelection()
-        # reset colours in cluster plot:
+        # reset colors in cluster plot:
         gw = spw.windows['Cluster'].glWidget
-        gw.colour()
+        gw.color()
         gw.updateGL()
 
     def on_actionDelete_triggered(self):
@@ -2550,7 +2550,7 @@ class SortWindow(SpykeToolWindow):
 
         # now do some final updates
         spw.UpdateClustersGUI()
-        spw.ColourPoints(newcluster)
+        spw.ColorPoints(newcluster)
         #print('applying clusters to plot took %.3f sec' % (time.time()-t0))
         # select newly created cluster
         spw.SelectClusters(newcluster)
@@ -2565,7 +2565,7 @@ class SortWindow(SpykeToolWindow):
         for cluster in clusters:
             cluster.neuron.good = not cluster.neuron.good
             cids.append(cluster.id)
-        self.nlist.updateAll() # nlist item colouring will change as a result
+        self.nlist.updateAll() # nlist item coloring will change as a result
         print("Toggled 'good' flag of clusters %r" % cids)
 
     def on_actionLabelMultiunit_triggered(self):
@@ -2636,7 +2636,7 @@ class SortWindow(SpykeToolWindow):
 
     def renumber_selected_cluster(self):
         """Renumber a single selected cluster to whatever free ID the user wants, for
-        colouring purposes"""
+        coloring purposes"""
         spw = self.spykewindow
         s = self.sort
         spikes = s.spikes
@@ -2667,8 +2667,8 @@ class SortWindow(SpykeToolWindow):
         del s.neurons[oldid]
         # replace oldid with newid in norder
         s.norder[s.norder.index(oldid)] = newid
-        # update colour of any relevant points in cluster plot
-        spw.ColourPoints(cluster)
+        # update color of any relevant points in cluster plot
+        spw.ColorPoints(cluster)
         # reselect cluster
         spw.SelectClusters(cluster)
         # some cluster changes in stack may no longer be applicable, reset cchanges
@@ -2681,7 +2681,7 @@ class SortWindow(SpykeToolWindow):
         same for multiunit (-ve number) clusters, starting from -1. Sorting by y position
         makes user inspection of clusters more orderly, makes the presence of duplicate
         clusters more obvious, and allows for maximal spatial separation between clusters of
-        the same colour, reducing colour conflicts"""
+        the same color, reducing color conflicts"""
         val = QtWidgets.QMessageBox.question(self.panel, "Renumber all clusters",
               "Are you sure? This will clear the undo/redo stack, and is not undoable.",
               QtWidgets.QMessageBox.Yes, QtWidgets.QMessageBox.No)
@@ -2762,7 +2762,7 @@ class SortWindow(SpykeToolWindow):
 
         # now do some final updates
         spw.UpdateClustersGUI()
-        spw.ColourPoints(s.clusters.values())
+        spw.ColorPoints(s.clusters.values())
         # reselect the previously selected (but now renumbered) clusters,
         # helps user keep track
         oldiis = [ list(oldids).index(oldselid) for oldselid in oldselids ]
@@ -3216,7 +3216,7 @@ class SortWindow(SpykeToolWindow):
                      % (ndims, NDsep, oneDsep, overlaparearatio, djs))
             print(title)
             a.set_title(title)
-        cs = [ CLUSTERCOLOURDICT[unid] for unid in unids ]
+        cs = [ CLUSTERCLRDICT[unid] for unid in unids ]
         for i, c in enumerate(cs):
             # due to white background, replace white clusters with black:
             if c == WHITE:
