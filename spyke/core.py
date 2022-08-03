@@ -415,20 +415,6 @@ class SpykeListView(QtWidgets.QListView):
 
     def selectRows(self, rows, on=True):
         """Row selection in listview is complex. This makes it simpler"""
-        ## TODO: There's a bug here, where if you select the last two neurons in nlist,
-        ## (perhaps these last two need to be near a list edge), merge them, and then
-        ## undo, then merge again (instead of just redoing), then undo again, they're
-        ## both selected, but only the first is replotted because the selchanged event
-        ## is only passed the first of the two as being newly selected. If however
-        ## before remerging, you clear the selection or select something else, and then
-        ## go back and select those same two neurons and merge, and undo, it works fine,
-        ## and the selchanged event gets both items as newly selected. Seems like a Qt
-        ## bug, or at least some very subtle timing problem of some kind. This might have
-        ## something to do with reflow when changing list contents, but even resetting
-        ## listview behaviour to default doesn't make this go away. Also, seems to happen
-        ## for selection of one index at a time, and for doing it all in one go with a
-        ## QItemSelection.
-
         rows = toiter(rows)
         m = self.model()
         sm = self.selectionModel()
@@ -492,9 +478,7 @@ class NList(SpykeListView):
         SpykeListView.__init__(self, parent)
         self.setModel(NListModel(parent))
         self.setItemDelegate(NListDelegate(parent))
-        #self.connect(self, QtCore.SIGNAL("activated(QModelIndex)"),
-        #             self.on_actionItem_triggered)
-        # alternate style of connecting signals, seems "activated" is needed now with
+        # New style of connecting signals, seems "activated" is needed now with
         # new style signals and slots, instead of "triggered", even though "activated"
         # is supposed to be deprecated:
         self.activated.connect(self.on_actionItem_triggered)
@@ -518,8 +502,6 @@ class NSList(SpykeListView):
     def __init__(self, parent):
         SpykeListView.__init__(self, parent)
         self.setModel(NSListModel(parent))
-        #self.connect(self, QtCore.SIGNAL("activated(QModelIndex)"),
-        #             self.on_actionItem_triggered)
         self.activated.connect(self.on_actionItem_triggered)
 
     def selectedRows(self):
@@ -598,8 +580,6 @@ class USList(SpykeListView):
     def __init__(self, parent):
         SpykeListView.__init__(self, parent)
         self.setModel(USListModel(parent))
-        #self.connect(self, QtCore.SIGNAL("activated(QModelIndex)"),
-        #             self.on_actionItem_triggered)
         self.activated.connect(self.on_actionItem_triggered)
 
     def keyPressEvent(self, event):
@@ -1210,7 +1190,8 @@ def RM(theta):
 
 
 class Poo(object):
-    """Poo function, works with ndarray inputs"""
+    """Poo function, works with ndarray inputs. Approximation of STDP curve from
+    Bi & Poo, 1998, but also good way to parametrically approximate an action potential"""
     def __init__(self, a, b, c):
         self.a = a
         self.b = b
