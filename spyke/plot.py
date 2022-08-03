@@ -1283,7 +1283,7 @@ class SortPanel(PlotPanel):
     """A plot panel specialized for overplotting spikes and neurons"""
     def __init__(self, parent, tw=None):
         PlotPanel.__init__(self, parent, tw=tw)
-        self.manual_selection = False
+        self.manual_chan_selection = False
         self.enable_fills = False # global enable flag for all fills
         self.sortwin = self.parent()
 
@@ -1515,13 +1515,13 @@ class SortPanel(PlotPanel):
                 self.chans_selected.append(chan)
             else: # it's selected, unselect it
                 self.chans_selected.remove(chan)
-            self.manual_selection = True
+            self.manual_chan_selection = True
         elif button == 2: # middle click
             self.sortwin.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
             #self.sortwin.on_actionSelectRandomSpikes_triggered()
         elif button == 3: # right click
             self.chans_selected = [] # clear channel selection
-            self.manual_selection = False
+            self.manual_chan_selection = False
         self.update_selvrefs()
         self.draw_refs() # update
 

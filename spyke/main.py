@@ -1838,7 +1838,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         panel = self.windows['Sort'].panel
         selchans = panel.chans_selected # a list
         selchans.sort()
-        if selchans and panel.manual_selection:
+        if selchans and panel.manual_chan_selection:
             return selchans # always return whatever's manually selected
         sxs = spikes['sx'][sids]
         sxs = np.sort(sxs) # get a sorted copy
@@ -1857,7 +1857,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         panel.chans_selected = selchans
         panel.update_selvrefs()
         panel.draw_refs()
-        panel.manual_selection = False
+        panel.manual_chan_selection = False
         return selchans
 
     def apply_clustering(self, oldclusters, sids, nids, verb=''):
@@ -3570,7 +3570,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         # try and restore saved sort window channel selection, and manual selection flag:
         try:
             sw.panel.chans_selected = s.selchans
-            sw.panel.manual_selection = s.selchansmanual
+            sw.panel.manual_chan_selection = s.selchansmanual
             # don't save x, y, z dimension selection, leave it at default xyVpp
             # for maximum speed when loading sort file
         except AttributeError: pass # wasn't saved, loading from old sort file
@@ -3689,7 +3689,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         s.selCA = str(self.ui.componentAnalysisComboBox.currentText())
         s.selnids = self.GetClusterIDs() # save current cluster selection
         s.selchans = sw.panel.chans_selected
-        s.selchansmanual = sw.panel.manual_selection
+        s.selchansmanual = sw.panel.manual_chan_selection
         s.selinclt = str(sw.incltComboBox.currentText())
         try:
             cw = self.windows['Cluster']
