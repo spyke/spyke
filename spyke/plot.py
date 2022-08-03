@@ -138,7 +138,7 @@ class Plot(object):
         self.fill = None # associated Fill
 
     def update(self, wave, tref):
-        """Update LineCollection segments data from wave, and associated Fill.
+        """Update LineCollection segments data from waves. Also update associated Fills.
         It's up to the caller to update colours if needed"""
         self.tref = tref
         panel = self.panel
@@ -776,7 +776,7 @@ class PlotPanel(FigureCanvas):
         return chans
 
     def plot(self, wave, tref=None):
-        """Plot waveforms and optionally rasters wrt a reference time point"""
+        """Plot waveforms and optionally rasters and stim times wrt a reference time point"""
         if tref == None:
             tref = wave.ts[0] # use first timestamp in waveform as the reference time point
         self.restore_region(self.reflines_background)
@@ -1321,10 +1321,6 @@ class SortPanel(PlotPanel):
         PlotPanel._add_vref(self)
         self.vlc.set_pickradius(PICKRADIUS)
 
-    def show_ref(self, ref, enable=True):
-        PlotPanel.show_ref(self, ref, enable)
-        #self.qrplt = None
-        #self.background = None
 
     def addItems(self, items):
         """Add items (spikes/neurons) to self"""
@@ -1388,7 +1384,6 @@ class SortPanel(PlotPanel):
         plt.update(wave, t)
         plt.show()
         plt.draw()
-        return plt
 
     def removeItems(self, items):
         """Remove items from plots
@@ -1427,15 +1422,10 @@ class SortPanel(PlotPanel):
         plt.hide() # hide all chan lines and fills
         self.available_plots[item] = plt
         # TODO: reset plot colour and line style here, or just set them each time in addItem?
-        plt.id = None # clear its index into .used_plots
         if item[0] == 'n': # it's a neuron
             plt.n.plt = None # unbind plot from neuron
             fill = self.used_fills.pop(item)
-            #fill = plt.fill
             fill.hide()
-            plt.fill = None
-        plt.hide() # hide all chan lines and fills
-        return plt
             self.available_fills[item] = fill
 
     def showFills(self, enable=True):
