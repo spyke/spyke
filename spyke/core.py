@@ -514,69 +514,30 @@ class NList(SpykeListView):
 
 
 class NSList(SpykeListView):
-    """Neuron-Spike list view. Displays spikes of currently selected neuron(s).
-    For high performance when quickly selecting large numbers of points via 'painting'
-    in the cluster window, a 'fake' selection is maintained separately from the actual
-    selection in the list view"""
+    """Neuron-Spike list view. Displays spikes of currently selected neuron(s)"""
     def __init__(self, parent):
         SpykeListView.__init__(self, parent)
-        self.clear_fake_selection()
         self.setModel(NSListModel(parent))
         #self.connect(self, QtCore.SIGNAL("activated(QModelIndex)"),
         #             self.on_actionItem_triggered)
         self.activated.connect(self.on_actionItem_triggered)
 
-    def selectRows(self, rows, on=True):
-        """Normal (manual) row selection"""
-        self.clear_fake_selection()
-        SpykeListView.selectRows(self, rows, on=on)
-
-    def fake_selectRows(self, rows, on=True, plot=True):
-        """Fake row selection, same interface as normal selectRows()"""
-        panel = self.sortwin.panel
-        SpykeListView.clearSelection(self) # clear any manually selected rows
-        if on: # fake select
-            self.fake_selected_rows = np.union1d(self.fake_selected_rows, rows)
-            if plot:
-                # add at most MAXNSPIKEPLOTS to sort panel:
-                nfreeplots = MAXNSPIKEPLOTS - len(panel.used_plots)
-                if nfreeplots < len(rows):
-                    panel.removeAllSpikes()
-                    nfreeplots = MAXNSPIKEPLOTS
-                plot_sids = self.sids[rows[:nfreeplots]]
-                panel.addItems([ 's'+str(sid) for sid in plot_sids ])
-        else: # fake deselect
-            self.fake_selected_rows = np.setxor1d(self.fake_selected_rows, rows)
-            # Remove at most all currently plotted spikes in sort panel.
-            # Not all fake selected spikes are necessarily plotted, and therefore
-            # deselecting fake selected spikes in cluster window won't necessarily
-            # have corresponding spikes to remove from the sort panel:
-            panel.removeItems([ 's'+str(i) for i in self.sids[rows] ])
-            #panel.removeAllSpikes() # more drastic, but less interactive
-
     def selectedRows(self):
         """Return selected rows"""
-        real = np.int64([ i.row() for i in self.selectedIndexes() ])
-        fake = self.fake_selected_rows
-        return np.concatenate([real, fake])
+        return np.int64([ i.row() for i in self.selectedIndexes() ])
 
     def rowSelected(self, row):
         """Simple way to check if a row is selected"""
-        return (self.model().index(row) in self.selectedIndexes() or
-                row in self.fake_selected_rows)
+        return self.model().index(row) in self.selectedIndexes()
 
     def get_nrowsSelected(self):
-        return len(self.selectedIndexes()) + len(self.fake_selected_rows)
+        return len(self.selectedIndexes())
 
     nrowsSelected = property(get_nrowsSelected)
 
     def clearSelection(self):
         SpykeListView.clearSelection(self)
-        self.clear_fake_selection()
         self.sortwin.panel.removeAllSpikes()
-
-    def clear_fake_selection(self):
-        self.fake_selected_rows = np.array([], dtype=int)
 
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected, prefix='s')

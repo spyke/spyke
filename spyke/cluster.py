@@ -206,7 +206,6 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.focus = np.float32([0.0, 0.0, 0.0]) # init camera focus
         self.axes = 'both' # display both mini and focal xyz axes by default
         self.selecting = None # True (selecting), False (deselecting), or None
-        self.plot_selection = True # plot selection in sort panel? False for quicker selection
         self.update_sigma()
         self.spw.ui.sigmaSpinBox.valueChanged.connect(self.update_focal_axes)
 
@@ -784,8 +783,6 @@ class GLWidget(QtOpenGL.QGLWidget):
         elif key == Qt.Key_S:
             if event.isAutoRepeat():
                 return # event.ignore()?
-            if shift:
-                self.plot_selection = False # for quicker selection
             # select points under the cursor, if any:
             self.selecting = True
             self.setMouseTracking(True) # while selecting
@@ -816,10 +813,9 @@ class GLWidget(QtOpenGL.QGLWidget):
         modifiers = event.modifiers()
         shift = modifiers == Qt.ShiftModifier # only modifier is shift
         if not event.isAutoRepeat() and key in [Qt.Key_S, Qt.Key_D]:
-            # stop selecting/deselecting, reset plot_selection flag
+            # stop selecting/deselecting:
             self.selecting = None
             self.setMouseTracking(False)
-            self.plot_selection = True
 
     def save(self):
         """Save cluster plot to file"""
@@ -879,7 +875,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         if sids is None:
             return
         #t0 = time.time()
-        spw.SelectSpikes(sids, on=self.selecting, nslistplot=self.plot_selection)
+        spw.SelectSpikes(sids, on=self.selecting)
         #print('SelectSpikes took %.3f sec' % (time.time()-t0))
         if self.selecting == True:
             sat = 0.2 # desaturate
