@@ -431,6 +431,9 @@ class PlotPanel(FigureCanvas):
         # plots holding currently displayed spikes/neurons, indexed by sid/nid
         # with s or n prepended:
         self.used_plots = {}
+        # fills holding currently displayed spikes/neurons, indexed by sid/nid
+        # with s or n prepended:
+        self.used_fills = {}
         self.qrplt = None # current quickly removable Plot with associated .background
         self.rasters = None # Rasters object
         self.stims = None # Stims object
@@ -1355,6 +1358,7 @@ class SortPanel(PlotPanel):
                 _, fill = self.available_fills.popitem() # pop a random Fill (LIFO)
                 ### TODO: change this to FIFO for better chance of "cache hit"?
             plt.fill = fill ## do we really need to bind this, just use available_ and used_fills instead?
+            self.used_fills[plt.id] = fill # push it to the used fill stack
             n = s.neurons[id]
             t = n.t
             colour = CLUSTERCOLOURDICT[id]
@@ -1426,7 +1430,8 @@ class SortPanel(PlotPanel):
         plt.id = None # clear its index into .used_plots
         if item[0] == 'n': # it's a neuron
             plt.n.plt = None # unbind plot from neuron
-            fill = plt.fill
+            fill = self.used_fills.pop(item)
+            #fill = plt.fill
             fill.hide()
             plt.fill = None
         plt.hide() # hide all chan lines and fills
