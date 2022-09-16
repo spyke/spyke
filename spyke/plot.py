@@ -1521,10 +1521,11 @@ class SpikeSortPanel(SortPanel, SpikePanel):
             cbox = sw.incltComboBox
             on_box_triggered = sw.on_incltComboBox_triggered
         nitems = cbox.count()
-        di = event.angleDelta().y() / 120
+        di = intround(event.angleDelta().y() / 120)
         # both combo boxes are sorted in decreasing order, hence the negation of di:
         i = min(max(cbox.currentIndex()-di, 0), nitems-1)
         cbox.setCurrentIndex(i)
         on_box_triggered() # as if it were user selected
+        event.accept() # ensure event doesn't propagate to parent, prevent view scrolling
 
 #class ChartSortPanel(SortPanel, ChartPanel):

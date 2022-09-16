@@ -2221,7 +2221,7 @@ class SortWindow(SpykeToolWindow):
         gainComboBox.setFocusPolicy(Qt.NoFocus)
         gainComboBox.addItems(['4', '3.75', '3.5', '3.25', '3', '2.75', '2.5', '2.25', '2',
                                '1.75', '1.5', '1.25', '1', '0.75', '0.5', '0.25'])
-        gainComboBox.setCurrentIndex(3)
+        gainComboBox.setCurrentIndex(10)
         toolbar.addWidget(gainComboBox)
         gainComboBox.activated.connect(self.on_gainComboBox_triggered)
         self.gainComboBox = gainComboBox
