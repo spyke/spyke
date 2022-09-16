@@ -1289,19 +1289,27 @@ class SpykeWindow(QtWidgets.QMainWindow):
         try:
             sw = self.windows['Sort']
         except KeyError:
-            QtWidgets.QMainWindow.keyPressEvent(self, event) # pass it on
+            sw = None
+            QtWidgets.QMainWindow.keyPressEvent(self, event) # pass it on to parent class
         if key == Qt.Key_A:
             self.ui.plotButton.click()
         elif key == Qt.Key_X:
             self.ui.plotXcorrsButton.click()
         elif key == Qt.Key_N:
             self.ui.normButton.click()
-        elif key in [Qt.Key_Escape, Qt.Key_E]:
-            sw.clear()
-        elif key == Qt.Key_R: # doesn't fire when certain widgets have focus
-            sw.on_actionSelectRandomSpikes_triggered()
-        elif key == Qt.Key_B:
-            sw.on_actionAlignBest_triggered()
+        elif sw and key in [Qt.Key_Escape, Qt.Key_E, Qt.Key_R, Qt.Key_B]:
+            sw.keyPressEvent(event) # pass it on to the SortWindow
+
+    def keyReleaseEvent(self, event):
+        key = event.key()
+        try:
+            sw = self.windows['Sort']
+        except KeyError:
+            sw = None
+            QtWidgets.QMainWindow.keyPressEvent(self, event) # pass it on to parent class
+            return
+        if sw and key == Qt.Key_R:
+            sw.keyReleaseEvent(event) # pass it on to the SortWindow
 
     @QtCore.pyqtSlot()
     def on_actionUndo_triggered(self):
