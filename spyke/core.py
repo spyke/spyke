@@ -360,50 +360,6 @@ class SpykeListView(QtWidgets.QListView):
         else:
             QtWidgets.QListView.keyPressEvent(self, event) # handle it as usual
 
-    def selectionChanged(self, selected, deselected, prefix=None):
-        """Plot neurons or spikes on list item selection"""
-        # For short lists, display the actual selection in the list, otherwise, if there are
-        # too many entries in the list, selection gets unbearably slow, especially as you
-        # select items further down the list. So for very long lists, don't actually show the
-        # selection. The selection events all still seem to work though, and for some reason
-        # sometimes the selections themselves are displayed, even when selected
-        # programmatically:
-        if self.nrows < MAXNROWSLISTSELECTION:
-            QtWidgets.QListView.selectionChanged(self, selected, deselected)
-        panel = self.sortwin.panel
-        addis = [ i.data() for i in selected.indexes() ]
-        remis = [ i.data() for i in deselected.indexes() ]
-        panel.removeItems([ prefix+str(i) for i in remis ])
-        # for speed, don't allow more than MAXNSPIKEPLOTS spikes to be plotted in sort panel:
-        if prefix == 's':
-            '''
-            # note that self.nrowsSelected seems to report nrows selected *including* those
-            # added and removed by the current selection event
-            net = len(addis) - len(remis)
-            print('nselected: %d' % self.nrowsSelected)
-            print('Net change: %d' % net)
-            nwereselected = self.nrowsSelected - net
-            print('num were selected is %d' % nwereselected)
-            maxnadd = max(MAXNSPIKEPLOTS - nwereselected + len(remis), 0)
-            print('maxnadd is %d' % maxnadd)
-            addis = addis[:maxnadd]
-            '''
-            nadd = len(addis)
-            maxnadd = max(MAXNSPIKEPLOTS - self.nrowsSelected + nadd, 0)
-            if maxnadd == 0:
-                return
-            if nadd > maxnadd:
-                # if we can't add all the requested spikes to the sort panel without
-                # exceeding MAXNSPIKEPLOTS, then randomly sample however many we can still
-                # add (maxnadd), and add them to the sort panel
-                #print('Adding %d randomly sampled plots of %d selected spikes'
-                #      % (maxnadd, self.nrowsSelected))
-                addis = random.sample(addis, maxnadd)
-        #t0 = time.time()
-        panel.addItems([ prefix+str(i) for i in addis ])
-        #print('addItems took %.3f sec' % (time.time()-t0))
-        #print("Done selchanged, %r, addis=%r, remis=%r" % (prefix, addis, remis))
-
     def updateAll(self):
         self.model().updateAll()
 
@@ -414,7 +370,6 @@ class SpykeListView(QtWidgets.QListView):
 
     def selectRows(self, rows, on=True):
         """Row selection in listview is complex. This makes it simpler"""
-        rows = toiter(rows)
         m = self.model()
         sm = self.selectionModel()
         if on:
@@ -422,14 +377,10 @@ class SpykeListView(QtWidgets.QListView):
         else:
             flag = sm.Deselect
         #print('start select=%r loop for rows %r' % (on, rows))
-        '''
-        # unnecessarily emits nrows selectionChanged signals, causes slow
-        # plotting in mpl commit 50fc548465b1525255bc2d9f66a6c7c95fd38a75 (pre
-        # 1.0) and later:
-        [ sm.select(m.index(row), flag) for row in rows ]
-        '''
-        # emits single selectionChanged signal, more efficient, but causes a bit of
-        # flickering, or at least used to in Qt 4.7.0:
+        # unnecessarily emits one selectionChanged signal per row, causes very slow plotting:
+        #[ sm.select(m.index(row), flag) for row in rows ]
+
+        # emits only a single selectionChanged signal, much more efficient:
         sel = QtCore.QItemSelection()
         for row in rows:
             index = m.index(row)
@@ -440,12 +391,11 @@ class SpykeListView(QtWidgets.QListView):
         #    print(index, index.row(), index.column(), index.data())
         sm.select(sel, flag)
         #print('end select loop')
-        '''
         # constantly scrolling to selection slows everything quite noticeably, especially
         # when using the spike selection sortwin.slider
-        if scrollTo and on and len(rows) > 0: # scroll to last row that was just selected
-            self.scrollTo(m.index(rows[-1]))
-        '''
+        #if scrollTo and on and len(rows) > 0: # scroll to last row that was just selected
+        #    self.scrollTo(m.index(rows[-1]))
+
     def selectedRows(self):
         """Return list of selected rows"""
         return [ i.row() for i in self.selectedIndexes() ]
@@ -483,13 +433,17 @@ class NList(SpykeListView):
         self.activated.connect(self.on_actionItem_triggered)
 
     def selectionChanged(self, selected, deselected):
-        SpykeListView.selectionChanged(self, selected, deselected, prefix='n')
-        selnids = [ i.data() for i in self.selectedIndexes() ]
+        SpykeListView.selectionChanged(self, selected, deselected)
+        nids = [ i.data() for i in self.selectedIndexes() ]
+        panel = self.sortwin.panel
+        panel.plot_spikes([]) # clear any plotted spikes
+        panel.plot_neurons(nids)
+        panel.clear_draw_blit()
         try:
             nslist = self.sortwin.nslist
         except AttributeError: # nslist hasn't been instantiated yet
             return
-        nslist.neurons = [ self.sortwin.sort.neurons[nid] for nid in selnids ]
+        nslist.neurons = [ self.sortwin.sort.neurons[nid] for nid in nids ]
 
     def on_actionItem_triggered(self, index):
         sw = self.sortwin
@@ -518,10 +472,15 @@ class NSList(SpykeListView):
 
     def clearSelection(self):
         SpykeListView.clearSelection(self)
-        self.sortwin.panel.removeAllSpikes()
+        self.sortwin.panel.clear_spikes()
 
     def selectionChanged(self, selected, deselected):
-        SpykeListView.selectionChanged(self, selected, deselected, prefix='s')
+        SpykeListView.selectionChanged(self, selected, deselected)
+        sids = [ i.data() for i in self.selectedIndexes() ]
+        sids = sids[-MAXNSPIKEPLOTS:]
+        panel = self.sortwin.panel
+        panel.plot_spikes(sids)
+        panel.clear_draw_blit()
 
     def on_actionItem_triggered(self, index):
         sw = self.sortwin
@@ -537,7 +496,7 @@ class NSList(SpykeListView):
 
     def set_neurons(self, neurons):
         """Every time neurons are set, clear any existing selection and update data model"""
-        self.clearSelection() # remove any plotted sids, at least for now
+        self.reset()
         self.model().neurons = neurons
 
     neurons = property(get_neurons, set_neurons)
@@ -567,11 +526,14 @@ class NSList(SpykeListView):
         if self.model().sliding == True:
             self.neurons = self.neurons # trigger NSListModel.set_neurons() call
             self.model().sliding = False
+        rowss = []
         for neuron in self.neurons:
             allrows = self.sids.searchsorted(neuron.sids)
             nsamples = min(nsamples, len(allrows))
             rows = np.random.choice(allrows, nsamples, replace=False)
-            self.selectRows(rows)
+            rowss.append(rows)
+        rows = np.concatenate(rowss)
+        self.selectRows(rows) # generate a single selectionChanged signal
 
 
 class USList(SpykeListView):
@@ -590,7 +552,7 @@ class USList(SpykeListView):
             SpykeListView.keyPressEvent(self, event) # handle it as usual
 
     def selectionChanged(self, selected, deselected):
-        SpykeListView.selectionChanged(self, selected, deselected, prefix='s')
+        SpykeListView.selectionChanged(self, selected, deselected)
 
     def on_actionItem_triggered(self, index):
         sw = self.sortwin

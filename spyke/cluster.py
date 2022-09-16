@@ -810,12 +810,13 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def keyReleaseEvent(self, event):
         key = event.key()
-        modifiers = event.modifiers()
-        shift = modifiers == Qt.ShiftModifier # only modifier is shift
-        if not event.isAutoRepeat() and key in [Qt.Key_S, Qt.Key_D]:
+        sw = self.spw.windows['Sort']
+        if key in [Qt.Key_S, Qt.Key_D] and not event.isAutoRepeat():
             # stop selecting/deselecting:
             self.selecting = None
             self.setMouseTracking(False)
+        elif key in [Qt.Key_R]:
+            sw.keyReleaseEvent(event) # pass it on to Sort window
 
     def save(self):
         """Save cluster plot to file"""

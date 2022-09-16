@@ -61,6 +61,8 @@ DEFMINISI = 50 # default minimum ISI to check for on export, us
 MAXGROUPISI = 100000 # us (100 ms)
 MAXGROUPDT = 100000000 # us (100 s)
 
+SELRNDSPKSDT = 50 # ms
+
 
 class Sort(object):
     """A spike sorting session, in which you can detect spikes and sort them into Neurons.
@@ -2116,6 +2118,9 @@ class SortWindow(SpykeToolWindow):
         self.toolbar = self.setupToolbar()
         self.addToolBar(self.toolbar)
 
+        self.selrndspkstimer = QtCore.QTimer()
+        self.selrndspkstimer.timeout.connect(self.on_actionSelectRandomSpikes_triggered)
+
     def setupToolbar(self):
         toolbar = QtWidgets.QToolBar(self)
         toolbar.setObjectName('toolbar')
@@ -2365,8 +2370,10 @@ class SortWindow(SpykeToolWindow):
                 self.FindSpike()
             else:
                 self.FindCluster()
-        elif key == Qt.Key_R: # ignored in SpykeListViews
+        elif key == Qt.Key_R and not event.isAutoRepeat(): # ignored in SpykeListViews
+            #print('R pressed, autorepeat is', event.isAutoRepeat())
             self.on_actionSelectRandomSpikes_triggered()
+            self.selrndspkstimer.start(SELRNDSPKSDT)
         elif key == Qt.Key_Space: # ignored in SpykeListViews
             if ctrl:
                 SpykeToolWindow.keyPressEvent(self, event) # pass it on
@@ -2416,7 +2423,15 @@ class SortWindow(SpykeToolWindow):
             # in the various listview controls
             pass
         else:
-            SpykeToolWindow.keyPressEvent(self, event) # pass it on
+            SpykeToolWindow.keyPressEvent(self, event) # pass it on to parent class
+
+    def keyReleaseEvent(self, event):
+        key = event.key()
+        if key == Qt.Key_R and not event.isAutoRepeat():
+            #print('R released, autorepeat is', event.isAutoRepeat())
+            self.selrndspkstimer.stop()
+        else:
+            SpykeToolWindow.keyReleaseEvent(self, event) # pass it on to parent class
 
     def clear(self):
         """Clear selections in this order: unsorted spikes, sorted spikes,
@@ -2817,7 +2832,11 @@ class SortWindow(SpykeToolWindow):
             slist = self.nslist
         else:
             slist = self.uslist
-        slist.clearSelection() # emits selectionChanged signal, .reset() doesn't
+        # Emits selectionChanged signal, and therefore causes flicker:
+        #slist.clearSelection()
+        # Instead, use reset, and then update the LineCollection with exactly the desired
+        # spikes, then blit it once:
+        slist.reset()
         slist.selectRandom(nsamples)
 
     def on_gainComboBox_triggered(self):
@@ -2827,7 +2846,7 @@ class SortWindow(SpykeToolWindow):
         panel.do_layout() # resets axes lims and recalcs panel.pos
         panel._update_scale()
         panel.draw_refs()
-        panel.updateAllItems()
+        panel.update_plots()
 
     def on_actionAlignMin_triggered(self):
         self.Align('min')
@@ -2896,7 +2915,7 @@ class SortWindow(SpykeToolWindow):
         # add sids to the set of dirtysids to be resaved to .wave file:
         spw.update_dirtysids(sids)
         # auto-refresh all plots:
-        self.panel.updateAllItems()
+        self.panel.update_plots()
 
     def on_actionFindPrevMostSimilar_triggered(self):
         self.findMostSimilarCluster('previous')
@@ -2905,10 +2924,11 @@ class SortWindow(SpykeToolWindow):
         self.findMostSimilarCluster('next')
 
     def on_actionToggleErrors_toggled(self, checked):
-        self.panel.showFills(checked)
+        self.panel.show_fills(checked)
 
     def on_slider_valueChanged(self, slideri):
-        self.nslist.clearSelection() # emits selectionChanged signal, .reset() doesn't
+        #self.nslist.clearSelection() # emits selectionChanged signal
+        self.nslist.reset() # doesn't emit selectionChanged signal
         if self.nslist.model().sliding == False:
             self.nslist.model().sids.sort() # change from nid order to sid order
             self.nslist.updateAll() # update to reflect new ordering
@@ -3039,8 +3059,8 @@ class SortWindow(SpykeToolWindow):
             neuron.update_wave() # update affected mean waveforms
         # add dirtysids to the set to be resaved to .wave file:
         spw.update_dirtysids(sids)
-        # auto-refresh all plots
-        self.panel.updateAllItems()
+        # auto-refresh all plots:
+        self.panel.update_plots()
 
     def Align(self, to):
         """Align all implicitly selected spikes to min or max, or best fit
@@ -3078,7 +3098,7 @@ class SortWindow(SpykeToolWindow):
         # add dirtysids to the set to be resaved to .wave file:
         spw.update_dirtysids(dirtysids)
         # auto-refresh all plots:
-        self.panel.updateAllItems()
+        self.panel.update_plots()
 
     def RemoveNeuron(self, neuron, update=True):
         """Remove neuron and all its spikes from the GUI and the Sort"""

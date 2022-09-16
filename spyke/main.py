@@ -3758,21 +3758,14 @@ class SpykeWindow(QtWidgets.QMainWindow):
 
     def DeleteSort(self):
         """Delete any existing Sort"""
-        try:
-            # TODO: if Save button is enabled, check if Sort is saved,
-            # if not, prompt to save
-            #print('Deleting existing Sort and entries in list controls')
-            #self.sort.spikes.resize(0, recheck=False) # doesn't work, doesn't own memory
-            del self.sort
-        except AttributeError:
-            pass
+        # first, disable a bunch of UI elements:
         if 'Sort' in self.windows:
             sw = self.windows['Sort']
             sw.nlist.reset()
             sw.nslist.reset()
             sw.nslist.neurons = []
             sw.uslist.reset()
-            sw.panel.removeAllItems()
+            sw.panel.clear_plots()
             self.HideWindow('Sort')
         if 'Cluster' in self.windows:
             cw = self.windows['Cluster']
@@ -3786,9 +3779,17 @@ class SpykeWindow(QtWidgets.QMainWindow):
         del self.cchanges[:]
         self.cci = -1
         self.ui.progressBar.setFormat('0 spikes')
+        # now try and delete self.sort itself:
+        try:
+            # TODO: if Save button is enabled, check if Sort is saved,
+            # if not, prompt to save
+            #print('Deleting existing Sort and entries in list controls')
+            #self.sort.spikes.resize(0, recheck=False) # doesn't work, doesn't own memory
+            del self.sort
+        except AttributeError:
+            pass
         # make sure self.sort and especially self.sort.spikes is really gone
-        # TODO: check if this is necessary once everything works with new streamlined
-        # (no objects) spikes struct array
+        ## TODO: check if this is still necessary:
         gc.collect()
 
     def get_chans_enabled(self):
