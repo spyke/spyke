@@ -84,7 +84,6 @@ assert KERNELSIZE % 2 == 0
 XSWIDEBANDPOINTS = 200
 
 MAXLONGLONG = 2**63-1
-MAXNBYTESTOFILE = 2**31 # max array size safe to call .tofile() on in Numpy 1.5.0 on Windows
 
 MAXNSPIKEPLOTS = 50
 MAXNROWSLISTSELECTION = 10000
@@ -476,7 +475,10 @@ class NSList(SpykeListView):
 
     def selectionChanged(self, selected, deselected):
         SpykeListView.selectionChanged(self, selected, deselected)
+        # self.selectedIndexes() is ordered from least recently to most recently selected:
         sids = [ i.data() for i in self.selectedIndexes() ]
+        #print('sids', sids)
+        # take only the most recently selected MAXNSPIKEPLOTS sids, plot only those for speed:
         sids = sids[-MAXNSPIKEPLOTS:]
         panel = self.sortwin.panel
         panel.plot_spikes(sids)
@@ -524,6 +526,7 @@ class NSList(SpykeListView):
     def selectRandom(self, nsamples):
         """Select up to nsamples random rows per neuron"""
         if self.model().sliding == True:
+            ## TODO: this is a bit silly. Call self.set_neurons instead?
             self.neurons = self.neurons # trigger NSListModel.set_neurons() call
             self.model().sliding = False
         rowss = []
