@@ -2217,11 +2217,11 @@ class SortWindow(SpykeToolWindow):
         self.nsamplesComboBox = nsamplesComboBox
 
         gainComboBox = QtWidgets.QComboBox(self)
-        gainComboBox.setToolTip('Waveform gain (default: 1.5)')
+        gainComboBox.setToolTip('Waveform gain (default: 1)')
         gainComboBox.setFocusPolicy(Qt.NoFocus)
         gainComboBox.addItems(['4', '3.75', '3.5', '3.25', '3', '2.75', '2.5', '2.25', '2',
                                '1.75', '1.5', '1.25', '1', '0.75', '0.5', '0.25'])
-        gainComboBox.setCurrentIndex(10)
+        gainComboBox.setCurrentIndex(12)
         toolbar.addWidget(gainComboBox)
         gainComboBox.activated.connect(self.on_gainComboBox_triggered)
         self.gainComboBox = gainComboBox

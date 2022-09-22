@@ -1506,7 +1506,7 @@ class SortPanel(PlotPanel):
 
 class SpikeSortPanel(SortPanel, SpikePanel):
     def __init__(self, parent, tw=None):
-        self.gain = 1.5
+        self.gain = 1.0
         SortPanel.__init__(self, parent, tw=tw)
 
     def wheelEvent(self, event):
