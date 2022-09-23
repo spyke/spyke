@@ -136,11 +136,11 @@ class Plot(object):
         It's up to the caller to update colors if needed"""
         self.tref = tref
         panel = self.panel
-        nchans, npoints = wave.data.shape
-        segments = np.zeros((nchans, npoints, 2)) # x vals in col 0, yvals in col 1
+        nchans, nt = wave.data.shape
+        segments = np.zeros((nchans, nt, 2)) # x vals in col 0, yvals in col 1
         if wave.ts is not None: # or maybe check if wave.data.size != 0 too
             x = np.tile(wave.ts-tref, nchans)
-            x.shape = nchans, npoints
+            x.shape = nchans, nt
             segments[:, :, 0] = x
             segments[:, :, 1] = panel.gain * panel.AD2uV(wave.data)
             # add offsets:
@@ -211,13 +211,13 @@ class SpikePlot(Plot):
         panel = self.panel
         allsegments = []
         for wave, tref in zip(waves, trefs):
-            nchans, npoints = wave.data.shape
-            segments = np.zeros((nchans, npoints, 2)) # x vals in col 0, yvals in col 1
+            nchans, nt = wave.data.shape
+            segments = np.zeros((nchans, nt, 2)) # x vals in col 0, yvals in col 1
             if wave.ts is not None: # or maybe check if wave.data.size != 0 too
                 if isinstance(panel, SortPanel) and panel.spykewindow.ui.normButton.isChecked():
                     wave = self.norm_wave(wave)
-                x = np.tile(wave.ts-tref, nchans)
-                x.shape = nchans, npoints
+                x = np.tile(wave.ts-tref, nchans) # nt*nchans 1D array
+                x.shape = nchans, nt
                 segments[:, :, 0] = x
                 segments[:, :, 1] = panel.gain * panel.AD2uV(wave.data)
                 # add offsets:
@@ -226,7 +226,7 @@ class SpikePlot(Plot):
                     segments[chani, :, 0] += xpos
                     segments[chani, :, 1] += ypos
             allsegments.append(segments)
-        # flatten into a list of nt x 2 arrays
+        # flatten into a list of nt x 2 arrays:
         segments = [ row for segment in allsegments for row in segment ]
         self.lc.set_segments(segments)
         self.nsegments = len(segments)
