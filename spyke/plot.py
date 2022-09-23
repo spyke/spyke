@@ -46,7 +46,7 @@ SPIKELINEWIDTH = 1 # in points
 SPIKELINESTYLE = '-'
 NEURONLINEWIDTH = 1.5
 NEURONLINESTYLE = '-'
-ERRORALPHA = 0.15
+ERRORALPHA = 0.3
 RASTERLINEWIDTH = 1
 RASTERLINESTYLE = '-'
 STIMSLINEWIDTH = 2
@@ -132,8 +132,8 @@ class Plot(object):
         self.panel.ax.add_collection(self.lc) # add to panel's axes' pool of LCs
 
     def update(self, wave, tref):
-        """Update LineCollection segments data from wave. Also update associated Fills.
-        It's up to the caller to update colors if needed"""
+        """Update LineCollection segments data from wave. It's up to the caller to update
+        colors if needed"""
         self.tref = tref
         panel = self.panel
         nchans, nt = wave.data.shape
@@ -206,8 +206,8 @@ class SpikePlot(Plot):
 
     def update(self, waves, trefs):
         """Update LineCollection segments data from waves. Each entry in waves is a 2D array
-        representing a multichannel spike. Also update any associated Fills.
-        It's up to the caller to update colors if needed"""
+        representing a multichannel spike. It's up to the caller to update colors if needed.
+        Also update any associated Fill"""
         panel = self.panel
         allsegments = []
         for wave, tref in zip(waves, trefs):
@@ -238,6 +238,8 @@ class SpikePlot(Plot):
         if len(colors) != self.nsegments:
             raise ValueError("Expected %d color values, one for each segment" % self.nsegments)
         self.lc.set_colors(colors)
+        if self.fill != None:
+            self.fill.set_colors(colors)
 
     def norm_wave(self, wave):
         """Return wave with data normalized by Vpp of its max chan, subject to the current
@@ -280,6 +282,13 @@ class SpikePlot(Plot):
             pass
         return wave
 
+    def draw(self):
+        """Draw fill and LC to axes buffer (or whatever), avoiding unnecessary
+        draws of all other artists in axes"""
+        if self.fill != None:
+            self.fill.draw()
+        self.panel.ax.draw_artist(self.lc)
+
 
 class Fill(object):
     """Fill slot, holds a PolyCollection of filled errors of visible neuron
@@ -292,27 +301,27 @@ class Fill(object):
                                  antialiased=True,
                                  visible=visible)
         self.panel.ax.add_collection(self.pc) # add to panel's axes' pool of PCs
+        self.nverts = 0
 
     def update(self, waves, trefs):
-        """Update PolyCollection vertex data from wave. It's up to the caller to
-        update colors if needed"""
-        AD2uV = self.panel.AD2uV
+        """Update PolyCollection vertex data from wave. Each entry in waves is a 2D array
+        representing a multichannel spike. It's up to the caller to update colors if needed"""
+        panel = self.panel
         allverts = []
         for wave, tref in zip(waves, trefs):
-            nchans, npoints = wave.std.shape
-            # each timepoint has a +ve and a -ve vertex; x vals in col 0, yvals in col 1:
-            verts = np.zeros((nchans, 2*npoints, 2))
-            data = AD2uV(wave.data) # convert AD wave data to uV
-            err = 2 * AD2uV(wave.std) # convert AD wave std to uV, 2X for better visibility
-            if wave.ts is None: # or maybe check if data.size == 0 too
-                x = []
-                y = []
-            else:
-                x = wave.ts - tref
+            nchans, nt = wave.std.shape
+            # each chan has 2*nt number of points, nt +ve and nt -ve vertices;
+            # for each vertex has two values, the x vals in col 0, yvals in col 1:
+            verts = np.zeros((nchans, 2*nt, 2))
+            data = panel.AD2uV(wave.data) # convert AD wave data to uV
+            err = 1 * panel.AD2uV(wave.std) # convert AD wave std to uV, plot +/- 1 z-score
+            if wave.ts is not None: # or maybe check if data.size != 0 too
+                x = np.tile(wave.ts-tref, nchans) # nt*nchans 1D array
+                x.shape = nchans, nt
                 lower = self.panel.gain * (data - err)
                 upper = self.panel.gain * (data + err)
                 for chani, chan in enumerate(wave.chans):
-                    vert = poly_between(x, lower[chani], upper[chani])
+                    vert = poly_between(x[chani], lower[chani], upper[chani])
                     vert = np.asarray(vert).T
                     # add offsets:
                     xpos, ypos = self.panel.pos[chan]
@@ -320,8 +329,10 @@ class Fill(object):
                     vert[:, 1] += ypos
                     verts[chani] = vert
             allverts.append(verts)
+        # flatten into a list of nt x 2 arrays:
         verts = [ row for vert in allverts for row in vert ]
         self.pc.set_verts(verts)
+        self.nverts = len(verts)
 
     def show(self, enable=True):
         """Show/hide PC"""
@@ -337,7 +348,10 @@ class Fill(object):
 
     def set_colors(self, colors):
         """Set colors for PC"""
-        self.pc.set_colors(colors)
+        if len(colors) != self.nverts:
+            raise ValueError("Expected %d color values, one for each vert" % self.nverts)
+        self.pc.set_facecolors(colors)
+        #self.pc.set_edgecolors(colors) # not necessary, creates too much clutter
 
     def draw(self):
         """Draw PC to axes buffer (or whatever), avoiding unnecessary
@@ -1337,8 +1351,8 @@ class SortPanel(PlotPanel):
 
     def draw_refs(self):
         """Redraw all enabled reflines, resave reflines_background"""
-        plots = [self.splt, self.nplt]
-        visibles = [False, False]
+        plots = [self.splt, self.nplt, self.nplt.fill]
+        visibles = [False, False, False]
         for i, plt in enumerate(plots):
             if plt != None: # has been initialized
                 visibles[i] = plt.visible()
