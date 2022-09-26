@@ -169,7 +169,7 @@ class Plot(object):
 
     def set_colors(self, colors):
         """Set color(s) for LC"""
-        self.lc.set_colors(colors)
+        self.lc.set_color(colors) # synonymous with .set_colors() in newer MPL versions
 
     def update_colors(self):
         colors = [ self.panel.vcolors[chan] for chan in self.chans ]
@@ -237,7 +237,7 @@ class SpikePlot(Plot):
         """Set color(s) for LC"""
         if len(colors) != self.nsegments:
             raise ValueError("Expected %d color values, one for each segment" % self.nsegments)
-        self.lc.set_colors(colors)
+        self.lc.set_color(colors) # synonymous with .set_colors() in newer MPL versions
         if self.fill != None:
             self.fill.set_colors(colors)
 
