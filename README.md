@@ -46,17 +46,23 @@ then launch the `qt5ct` config app to set your Qt style to `gtk2`.
 
 ### Installation
 
-Most often, you'll want to install spyke in-place in "[development
-mode](http://setuptools.readthedocs.io/en/latest/setuptools.html#development-mode)", allowing
-you to launch it or import it from any path on your system, while still being able to update
-from git or work on the code wherever you cloned it:
+Most often, you'll want to do a "developer" install, which lets you work on or otherwise
+update spyke in-place, in whatever folder you cloned it into with git, while still being able
+to call `import spyke` and use it as a library system-wide. This creates an egg-link in your
+system site-packages or dist-packages folder to the source code:
 
 ```
 $ sudo python setup.py develop
 ```
 
-This also installs a startup script in your system path that allows you to launch spyke from
-anywhere on your system by simply typing:
+or the equivalent using pip:
+
+```
+$ sudo pip3 install -e .
+```
+
+This will also install a bash script on your system so that you can simply type `spyke` at the
+command line to launch it from anywhere.
 
 ```
 $ spyke
