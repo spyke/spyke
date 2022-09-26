@@ -81,26 +81,6 @@ $ sudo python setup.py install
 However, unlike in developer mode, every time you update from git, you'll have to re-run the
 above installation command.
 
-Plotting of spike waveforms in the Sort window can be slow and generate flicker. This seems to
-be a problem with matplotlib, and can be fixed by applying the following diff to matplotlib:
-
-```
-/usr/local/lib/python3.8/dist-packages/matplotlib/backends/backend_qt.py
-
-class FigureCanvasQT(QtWidgets.QWidget, FigureCanvasBase):
-
-     def blit(self, bbox=None):
-         # docstring inherited
-         if bbox is None and self.figure:
-             bbox = self.figure.bbox  # Blit the entire canvas if bbox is None.
-         # repaint uses logical pixels, not physical pixels like the renderer.
-         l, b, w, h = [int(pt / self.device_pixel_ratio) for pt in bbox.bounds]
-         t = b + h
--        self.repaint(l, self.rect().height() - t, w, h)
-+        self.update(l, self.rect().height() - t, w, h)
-
-```
-
 ### Documentation
 
 See [TUTORIAL.md](TUTORIAL.md) for a fairly brief tutorial.
