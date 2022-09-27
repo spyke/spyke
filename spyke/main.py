@@ -27,16 +27,22 @@ LENJSONPICKLENUMERICKEYPREFIX = len(JSONPICKLENUMERICKEYPREFIX)
 
 def sort_numeric_json_keys(keyval):
     """Process string keys to sort jsonpickle json:// keys properly as int placeholders
-    in natural numeric order (1, 2, 3) instead of alpha order (1, 11, 12, ..., 2, 21, 22...)"""
+    in natural numerical order (-1, 0, 1, 2, 3, ...) instead of alphabetical order
+    (-1, 0, 1, 11, 12, ..., 2, 21, 22,...)"""
     k, v = keyval
     #if type(k) not in [str, unicode]:
     #    print('Unexpected key type:', type(k))
     if k.startswith(JSONPICKLENUMERICKEYPREFIX):
-        newk = k[LENJSONPICKLENUMERICKEYPREFIX:] # left strip prefix
-        if newk.isdigit(): # sort json int keys as natural numbers ahead of string keys
-            newk = int(newk)
-            #print('k=%r, newk=%r' % (k, newk))
-            return newk
+        numk = k[LENJSONPICKLENUMERICKEYPREFIX:] # left strip prefix
+        try:
+            numk = int(numk) # try and convert what's left to an int
+            return numk
+        except ValueError:
+            print("Found a jsonpickle key %r with a numeric key prefix %r "
+                  "followed by an unexpected non-integer-like string %r "
+                  "that couldn't be converted to an int for sorting, "
+                  "leaving the jsonpickle key as-is to be sorted as a string"
+                  % (k, JSONPICKLENUMERICKEYPREFIX, numk))
     return k
 
 import jsonpickle
