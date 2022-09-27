@@ -46,15 +46,16 @@ def sort_numeric_json_keys(keyval):
     return k
 
 import jsonpickle
+import jsonpickle.ext.numpy
 jsonpickle.set_preferred_backend('simplejson') # make default explicit
 jsonpickle.set_encoder_options('simplejson',
-                               indent=' ',
-                               separators=(',', ':'),
+                               indent=' ', # also adds newline after each key:val pair
+                               separators=(',', ':'), # minimize unnecessary whitespace
                                #sort_keys=True, # overridden by item_sort_key callable
                                item_sort_key=sort_numeric_json_keys
                                )
-import jsonpickle.ext.numpy as jsonpickle_numpy
-jsonpickle_numpy.register_handlers()
+jsonpickle.enable_fallthrough(False) # raise simplejson errors, don't fallback to json
+jsonpickle.ext.numpy.register_handlers()
 
 try:
     import cPickle as pickle
