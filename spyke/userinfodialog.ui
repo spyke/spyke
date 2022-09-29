@@ -52,9 +52,6 @@
    </item>
    <item row="2" column="1">
     <widget class="QDialogButtonBox" name="buttonBox">
-     <property name="toolTip">
-      <string>hello</string>
-     </property>
      <property name="standardButtons">
       <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
      </property>
