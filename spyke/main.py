@@ -948,41 +948,41 @@ class SpykeWindow(QtWidgets.QMainWindow):
     def update_sort_version(self):
         """Update self.sort to latest version"""
         s = self.sort
-        v = float(s.__version__) # sort version
-        lv = float(__version__) # latest version
-        if v > lv:
+        v = s.__version__ # sort version
+        lv = __version__ # latest version
+        if float(v) > float(lv):
             raise RuntimeError('Versioning error')
         if v == lv:
             print('No update necessary')
             return
-        if v < 0.3:
+        if float(v) < 0.3:
             print("Can't auto update from sort version < 0.3")
             return
-        if v == 0.3:
+        if v == '0.3':
             v = self.update_0_3_to_0_4()
-        if v == 0.4:
+        if v == '0.4':
             v = self.update_0_4_to_0_5()
-        if v == 0.5:
+        if v == '0.5':
             v = self.update_0_5_to_0_6()
-        if v == 0.6:
+        if v == '0.6':
             v = self.update_0_6_to_0_7()
-        if v == 0.7:
+        if v == '0.7':
             v = self.update_0_7_to_0_8()
-        if v == 0.8:
+        if v == '0.8':
             v = self.update_0_8_to_0_9()
-        if v == 0.9:
+        if v == '0.9':
             v = self.update_0_9_to_1_0()
-        if v == 1.0:
+        if v == '1.0':
             v = self.update_1_0_to_1_1()
-        if v == 1.1:
+        if v == '1.1':
             v = self.update_1_1_to_1_2()
-        if v == 1.2:
+        if v == '1.2':
             v = self.update_1_2_to_1_3()
-        if v == 1.3:
+        if v == '1.3':
             v = self.update_1_3_to_1_4()
-        if v == 1.4:
+        if v == '1.4':
             v = self.update_1_4_to_2_0()
-        if v == 2.0:
+        if v == '2.0':
             v = self.update_2_0_to_2_1()
         print('Now save me!')
 
@@ -998,7 +998,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         self.dirtysids.update(sids)
         s.__version__ = '0.4' # update
         print('Done updating sort from version 0.3 to 0.4')
-        return float(s.__version__)
+        return s.__version__
 
     def update_0_4_to_0_5(self):
         """Update sort 0.4 to 0.5:
@@ -1010,7 +1010,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         del s.sortfname
         s.__version__ = '0.5' # update
         print('Done updating sort from version 0.4 to 0.5')
-        return float(s.__version__)
+        return s.__version__
 
     def update_0_5_to_0_6(self):
         """Update sort 0.5 to 0.6:
@@ -1058,7 +1058,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
 
         s.__version__ = '0.6' # update
         print('Done updating sort from version 0.5 to 0.6')
-        return float(s.__version__)
+        return s.__version__
 
     def update_0_6_to_0_7(self):
         """Update sort 0.6 to 0.7:
@@ -1070,7 +1070,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         s.tw = -500, 500
         s.__version__ = '0.7' # update
         print('Done updating sort from version 0.6 to 0.7')
-        return float(s.__version__)
+        return s.__version__
 
     def update_0_7_to_0_8(self):
         """Update sort 0.7 to 0.8:
@@ -1106,7 +1106,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
 
         s.__version__ = '0.8' # update
         print('Done updating sort from version 0.7 to 0.8')
-        return float(s.__version__)
+        return s.__version__
 
     def update_0_8_to_0_9(self):
         """Update sort 0.8 to 0.9:
@@ -1120,7 +1120,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
             s.filtmeth = None
         s.__version__ = '0.9' # update
         print('Done updating sort from version 0.8 to 0.9')
-        return float(s.__version__)
+        return s.__version__
 
     def update_0_9_to_1_0(self):
         """Update sort 0.9 to 1.0:
@@ -1162,7 +1162,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
 
         s.__version__ = '1.0' # update
         print('Done updating sort from version 0.9 to 1.0')
-        return float(s.__version__)
+        return s.__version__
 
     def update_1_0_to_1_1(self):
         """Update sort 1.0 to 1.1:
@@ -1176,7 +1176,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
             s.car = None
         s.__version__ = '1.1' # update
         print('Done updating sort from version 1.0 to 1.1')
-        return float(s.__version__)
+        return s.__version__
 
     def update_1_1_to_1_2(self):
         """Update sort 1.1 to 1.2:
@@ -1196,7 +1196,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
                 stream.f.fileheader.adaptername = None
         s.__version__ = '1.2' # update
         print('Done updating sort from version 1.1 to 1.2')
-        return float(s.__version__)
+        return s.__version__
 
     def update_1_2_to_1_3(self):
         """Update sort 1.2 to 1.3:
@@ -1213,7 +1213,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
             print('sort.probe.name is now %r' % s.probe.name)
         s.__version__ = '1.3' # update
         print('Done updating sort from version 1.2 to 1.3')
-        return float(s.__version__)
+        return s.__version__
 
     def update_1_3_to_1_4(self):
         """Update sort 1.3 to 1.4:
@@ -1236,8 +1236,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
                 wave.tres = tres
         s.__version__ = '1.4' # update
         print('Done updating sort from version 1.3 to 1.4')
-        return float(s.__version__)
-
+        return s.__version__
 
     def update_1_4_to_2_0(self):
         """Update sort 1.4 to 2.0:
@@ -1255,7 +1254,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         print('Done updating sort from version 1.4 to 2.0.\n'
               'Consider saving as .json instead of .sort\n'
               'Click "File->Save Sort As" and then change the extension to .json')
-        return float(s.__version__)
+        return s.__version__
 
     def update_2_0_to_2_1(self):
         """Update sort 2.0 to 2.1:
@@ -1267,7 +1266,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         s.notes = ''
         s.__version__ = '2.1' # update
         print('Done updating sort from version 2.0 to 2.1')
-        return float(s.__version__)
+        return s.__version__
 
     @QtCore.pyqtSlot()
     def on_actionCloseSort_triggered(self):
