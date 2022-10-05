@@ -2061,7 +2061,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
             print('Normalizing spike amplitudes')
         else:
             print('Un-normalizing spike amplitudes')
-        self.windows['Sort'].panel.updateAllItems() # refresh plotted waveforms
+        self.windows['Sort'].panel.update_plots() # refresh plotted waveforms
         self.on_plotButton_clicked() # refresh cluster plot
 
     @QtCore.pyqtSlot()
