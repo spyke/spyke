@@ -2318,7 +2318,7 @@ class SortWindow(SpykeToolWindow):
             if len(selrows) > 0:
                 selrow = selrows[0]
                 nlist = spw.windows['Sort'].nlist
-                nlist.selectRows(selrow) # TODO: this sets selection, but not focus
+                nlist.selectRows([selrow]) # TODO: this sets selection, but not focus
             #else: # first of deleted clusters was last in norder, don't select anything
 
         # save more undo/redo stuff
