@@ -256,7 +256,7 @@ class SpikePlot(Plot):
         # For display, scale up by Vpp of the highest amplitude plotted neuron.
         # This makes multiple neuron mean waveforms the same amplitude when plotted
         # simultaneously, allowing visual comparison purely by shape:
-        neurons = panel.get_neurons() # neurons currently plotted
+        neurons = [ panel.sort.neurons[nid] for nid in panel.nids ] # neurons currently plotted
         scales = []
         for neuron in neurons:
             nwave = neuron.wave
@@ -1317,11 +1317,6 @@ class SortPanel(PlotPanel):
             return self.stream.converter.AD2uV
 
     AD2uV = property(get_AD2uV) # convenience for Plot objects to reference
-
-    def get_neurons(self):
-        nids = self.nplt.nids
-        neurons = [ self.sort.neurons[nid] for nid in nids ]
-        return neurons
 
     def get_tres(self):
         return self.sort.tres # override PlotPanel's definition
