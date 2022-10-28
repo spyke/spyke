@@ -1873,8 +1873,8 @@ class PanelScrollArea(QtWidgets.QScrollArea):
         # seems the ENTER key needs be handled to directly call plot, unlike in sortwin
         # where the event is passed on to be handled by the list widgets
         if key in [Qt.Key_Enter, Qt.Key_Return]:
-            sortwin = self.nativeParentWidget()
-            sortwin.parent().ui.plotButton.click()
+            spw = self.window().parent() # spyke window
+            spw.plotButton.click()
         else:
             QtWidgets.QScrollArea.keyPressEvent(self, event) # pass it on
 
@@ -2153,7 +2153,7 @@ class SortWindow(SpykeToolWindow):
         buttons = event.buttons()
         if buttons == QtCore.Qt.MiddleButton:
             #self.on_actionSelectRandomSpikes_triggered()
-            self.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
+            self.spykewindow.plotButton.click() # same as hitting ENTER in nslist
         elif buttons == QtCore.Qt.RightButton:
             self.clear()
 
@@ -2167,11 +2167,11 @@ class SortWindow(SpykeToolWindow):
         ctrl = modifiers & Qt.ControlModifier # ctrl is down
         spw = self.spykewindow
         if key == Qt.Key_A: # ignored in SpykeListViews
-            spw.ui.plotButton.click() # same as hitting ENTER in nslist
+            spw.plotButton.click() # same as hitting ENTER in nslist
         elif key == Qt.Key_X: # ignored in SpykeListViews
-            spw.ui.plotXcorrsButton.click()
+            spw.plotXcorrsButton.click()
         elif key == Qt.Key_N: # ignored in SpykeListViews
-            spw.ui.normButton.click()
+            spw.normButton.click()
         elif key == Qt.Key_Escape: # deselect all spikes and all clusters
             self.clear()
         elif key == Qt.Key_Delete:
@@ -2224,26 +2224,26 @@ class SortWindow(SpykeToolWindow):
             else:
                 self.clear() # E is synonymous with ESC
         elif key == Qt.Key_C: # toggle between PCA and ICA, ignored in SpykeListViews
-            c = str(spw.ui.componentAnalysisComboBox.currentText())
+            c = str(spw.componentAnalysisComboBox.currentText())
             if c == 'PCA':
-                index = spw.ui.componentAnalysisComboBox.findText('ICA')
-                spw.ui.componentAnalysisComboBox.setCurrentIndex(index)
+                index = spw.componentAnalysisComboBox.findText('ICA')
+                spw.componentAnalysisComboBox.setCurrentIndex(index)
             elif c == 'ICA':
-                index = spw.ui.componentAnalysisComboBox.findText('PCA')
-                spw.ui.componentAnalysisComboBox.setCurrentIndex(index)
+                index = spw.componentAnalysisComboBox.findText('PCA')
+                spw.componentAnalysisComboBox.setCurrentIndex(index)
             spw.on_plotButton_clicked()
         elif key == Qt.Key_T: # toggle plotting against time, ignored in SpykeListViews
-            z = str(spw.ui.zDimComboBox.currentText())
+            z = str(spw.zDimComboBox.currentText())
             if z == 't':
                 spw.on_c0c1c2Button_clicked() # plot in pure component analysis space
             else:
                 spw.on_c0c1tButton_clicked() # plot against time
         elif key == Qt.Key_W: # toggle plotting against RMSError, ignored in SpykeListViews
-            z = str(spw.ui.zDimComboBox.currentText())
+            z = str(spw.zDimComboBox.currentText())
             if z == 'RMSerror':
                 spw.on_c0c1c2Button_clicked() # plot in pure component analysis space
             else:
-                spw.ui.zDimComboBox.setCurrentIndex(3)
+                spw.zDimComboBox.setCurrentIndex(3)
                 spw.on_plotButton_clicked() # plot against RMSError
         elif key in [Qt.Key_Enter, Qt.Key_Return]:
             # this is handled at a lower level by on_actionItem_triggered
@@ -2702,7 +2702,7 @@ class SortWindow(SpykeToolWindow):
         """Change length of chan selection lines, optionally trigger cluster replot"""
         self.panel.update_selvrefs()
         self.panel.draw_refs()
-        #self.spykewindow.ui.plotButton.click()
+        #self.spykewindow.plotButton.click()
 
     def get_inclt(self):
         """Return inclt value in incltComboBox"""
@@ -2804,7 +2804,7 @@ class SortWindow(SpykeToolWindow):
         else:
             srcchans = source.neuron.wave.chans
 
-        if self.spykewindow.ui.normButton.isChecked():
+        if self.spykewindow.normButton.isChecked():
             print("NOTE: findMostSimilarCluster() doesn't currently take spike amplitude "
                   "normalization into account. To see the true amplitudes used to compare "
                   "neuron pairs, turn off normalization")

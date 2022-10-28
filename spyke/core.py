@@ -446,7 +446,7 @@ class NList(SpykeListView):
 
     def on_actionItem_triggered(self, index):
         sw = self.sortwin
-        sw.parent().ui.plotButton.click()
+        sw.parent().plotButton.click()
 
 
 class NSList(SpykeListView):
@@ -491,7 +491,7 @@ class NSList(SpykeListView):
             spike = sw.sort.spikes[sid]
             sw.parent().seek(spike['t'])
         else:
-            sw.parent().ui.plotButton.click()
+            sw.parent().plotButton.click()
 
     def get_neurons(self):
         return self.model().neurons
@@ -564,7 +564,7 @@ class USList(SpykeListView):
             spike = sw.sort.spikes[sid]
             sw.parent().seek(spike['t'])
         else:
-            sw.parent().ui.plotButton.click()
+            sw.parent().plotButton.click()
 
     def selectRandom(self, nsamples):
         """Select up to nsamples random rows"""
@@ -794,7 +794,7 @@ class ClusterTabSpinBox(QtWidgets.QSpinBox):
     """Intercept CTRL+Z key event for cluster undo instead of spinbox edit undo"""
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
-            self.nativeParentWidget().on_actionUndo_triggered()
+            self.window().on_actionUndo_triggered()
         else:
             QtWidgets.QSpinBox.keyPressEvent(self, event) # handle it as usual
 
@@ -803,7 +803,7 @@ class ClusterTabDoubleSpinBox(QtWidgets.QDoubleSpinBox):
     """Intercept CTRL+Z key event for cluster undo instead of spinbox edit undo"""
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Z and event.modifiers() == Qt.ControlModifier:
-            self.nativeParentWidget().on_actionUndo_triggered()
+            self.window().on_actionUndo_triggered()
         else:
             QtWidgets.QDoubleSpinBox.keyPressEvent(self, event) # handle it as usual
 
@@ -812,7 +812,7 @@ class ClusteringGroupBox(QtWidgets.QGroupBox):
     """Make ENTER key event activate the cluster button"""
     def keyPressEvent(self, event):
         if event.key() in [Qt.Key_Enter, Qt.Key_Return]:
-            self.nativeParentWidget().ui.clusterButton.click()
+            self.window().clusterButton.click()
         else:
             QtWidgets.QGroupBox.keyPressEvent(self, event) # handle it as usual
 
@@ -821,7 +821,7 @@ class PlottingGroupBox(QtWidgets.QGroupBox):
     """Make ENTER key event activate the plot button"""
     def keyPressEvent(self, event):
         if event.key() in [Qt.Key_Enter, Qt.Key_Return]:
-            self.nativeParentWidget().ui.plotButton.click()
+            self.window().plotButton.click()
         else:
             QtWidgets.QGroupBox.keyPressEvent(self, event) # handle it as usual
 
@@ -830,7 +830,7 @@ class XCorrsGroupBox(QtWidgets.QGroupBox):
     """Make ENTER key event activate the correlograms plot button"""
     def keyPressEvent(self, event):
         if event.key() in [Qt.Key_Enter, Qt.Key_Return]:
-            self.nativeParentWidget().ui.plotXcorrsButton.click()
+            self.window().plotXcorrsButton.click()
         else:
             QtWidgets.QGroupBox.keyPressEvent(self, event) # handle it as usual
 
@@ -839,7 +839,7 @@ class SpikeSelectionSlider(QtWidgets.QSlider):
     """Make ENTER key event activate the plot button"""
     def keyPressEvent(self, event):
         if event.key() in [Qt.Key_Enter, Qt.Key_Return]:
-            self.nativeParentWidget().spykewindow.ui.plotButton.click()
+            self.window().plotButton.click()
         else:
             QtWidgets.QSlider.keyPressEvent(self, event) # handle it as usual
 

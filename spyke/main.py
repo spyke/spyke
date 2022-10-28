@@ -207,8 +207,8 @@ class SpykeWindow(QtWidgets.QMainWindow):
             action.setVisible(False)
             action.triggered.connect(self.OpenRecentFile)
             self.recentFileActions.append(action)
-            self.ui.menuFile.insertAction(self.ui.actionSaveSort, action)
-        self.ui.menuFile.insertSeparator(self.ui.actionSaveSort)
+            self.menuFile.insertAction(self.actionSaveSort, action)
+        self.menuFile.insertSeparator(self.actionSaveSort)
 
     def groupMenuFiltering(self):
         """Group filtering methods in filtering menu into a QActionGroup such that only
@@ -575,7 +575,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
 
         print('Exporting %d channels:' % self.hpstream.nchans)
         print('chans = %s' % self.hpstream.chans)
-        blocksize = int(float(self.ui.blockSizeLineEdit.text()))
+        blocksize = int(float(self.blockSizeLineEdit.text()))
         print('Exporting in blocks of %d us' % blocksize)
         for hps in hpstreams:
             fname = hps.fname + export_ext
@@ -663,7 +663,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
             print(fullfname)
             # collect low-pass data in blocks, to prevent MemoryErrors when trying to
             # low-pass filter an entire raw ephys data file:
-            blocksize = int(float(self.ui.blockSizeLineEdit.text())) # allow exp notation
+            blocksize = int(float(self.blockSizeLineEdit.text())) # allow exp notation
             t0s = np.arange(lps.t0, lps.t1, blocksize)
             data = []
             for t0 in t0s:
@@ -724,7 +724,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
             ysortis = np.argsort(ypos)
             ychans = enabledchans[ysortis]
             with open(fullfname, 'wb') as datf:
-                blocksize = int(float(self.ui.blockSizeLineEdit.text())) # allow exp notation
+                blocksize = int(float(self.blockSizeLineEdit.text())) # allow exp notation
                 t0s = np.arange(hps.t0, hps.t1, blocksize)
                 for t0 in t0s:
                     t1 = t0 + blocksize
@@ -1298,11 +1298,11 @@ class SpykeWindow(QtWidgets.QMainWindow):
             sw = None
             QtWidgets.QMainWindow.keyPressEvent(self, event) # pass it on to parent class
         if key == Qt.Key_A:
-            self.ui.plotButton.click()
+            self.plotButton.click()
         elif key == Qt.Key_X:
-            self.ui.plotXcorrsButton.click()
+            self.plotXcorrsButton.click()
         elif key == Qt.Key_N:
-            self.ui.normButton.click()
+            self.normButton.click()
         elif sw and key in [Qt.Key_Escape, Qt.Key_E, Qt.Key_R, Qt.Key_B]:
             sw.keyPressEvent(event) # pass it on to the SortWindow
 
@@ -1493,12 +1493,12 @@ class SpykeWindow(QtWidgets.QMainWindow):
     @QtCore.pyqtSlot()
     def on_actionSampleAndHoldCorrect_triggered(self):
         """Sample & hold menu event"""
-        enable = self.ui.actionSampleAndHoldCorrect.isChecked()
+        enable = self.actionSampleAndHoldCorrect.isChecked()
         self.SetSHCorrect(enable)
 
     #def onFilePosLineEdit_textChanged(self, text): # updates immediately
     def on_filePosLineEdit_editingFinished(self): # updates on Enter/loss of focus
-        text = str(self.ui.filePosLineEdit.text())
+        text = str(self.filePosLineEdit.text())
         try:
             t = self.str2t[text]
         except KeyError: # convert to float to allow exp notation shorthand
@@ -1555,12 +1555,12 @@ class SpykeWindow(QtWidgets.QMainWindow):
     def update_slider(self):
         """Update slider limits and step sizes. Slider ticks are multiples of tres"""
         tres = self.hpstream.tres
-        self.ui.slider.setRange(intround(self.trange[0] / tres),
+        self.slider.setRange(intround(self.trange[0] / tres),
                                 intround(self.trange[1] / tres))
-        self.ui.slider.setValue(intround(self.t / tres))
-        self.ui.slider.setSingleStep(1)
-        self.ui.slider.setPageStep(intround((self.spiketw[1]-self.spiketw[0]) / tres))
-        self.ui.slider.setInvertedControls(True)
+        self.slider.setValue(intround(self.t / tres))
+        self.slider.setSingleStep(1)
+        self.slider.setPageStep(intround((self.spiketw[1]-self.spiketw[0]) / tres))
+        self.slider.setInvertedControls(True)
 
     @QtCore.pyqtSlot()
     def on_detectButton_clicked(self):
@@ -1579,7 +1579,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         sort.sampfreq = sort.stream.sampfreq
         sort.shcorrect = sort.stream.shcorrect
 
-        self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
+        self.progressBar.setFormat("%d spikes" % sort.nspikes)
         self.EnableSortWidgets(True)
         sw = self.OpenWindow('Sort') # ensure it's open
         if sort.nspikes > 0:
@@ -1826,7 +1826,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
     def gac(self, sids, dims):
         """Cluster sids along dims, using NVS's gradient ascent algorithm"""
         s = self.sort
-        norm = self.ui.normButton.isChecked()
+        norm = self.normButton.isChecked()
         data, sids = self.get_param_matrix(sids=sids, dims=dims, norm=norm, scale=True)
         data = tocontig(data) # ensure it's contiguous for gac()
         # grab gac() params and run it
@@ -1979,12 +1979,12 @@ class SpykeWindow(QtWidgets.QMainWindow):
 
     def SetPlotDims(self, x, y, z):
         """Set plot dimensions to x, y, z, and replot"""
-        xi = self.ui.xDimComboBox.findText(x)
-        yi = self.ui.yDimComboBox.findText(y)
-        zi = self.ui.zDimComboBox.findText(z)
-        self.ui.xDimComboBox.setCurrentIndex(xi)
-        self.ui.yDimComboBox.setCurrentIndex(yi)
-        self.ui.zDimComboBox.setCurrentIndex(zi)
+        xi = self.xDimComboBox.findText(x)
+        yi = self.yDimComboBox.findText(y)
+        zi = self.zDimComboBox.findText(z)
+        self.xDimComboBox.setCurrentIndex(xi)
+        self.yDimComboBox.setCurrentIndex(yi)
+        self.zDimComboBox.setCurrentIndex(zi)
         self.on_plotButton_clicked() # replot
 
     def get_param_matrix(self, sids=None, dims=None, norm=False, scale=True):
@@ -2010,8 +2010,8 @@ class SpykeWindow(QtWidgets.QMainWindow):
             tis = sw.tis # waveform time indices to include, centered on spike
             selchans = self.get_selchans(sids)
         if comps:
-            kind = str(self.ui.componentAnalysisComboBox.currentText())
-        norm = self.ui.normButton.isChecked()
+            kind = str(self.componentAnalysisComboBox.currentText())
+        norm = self.normButton.isChecked()
         X = s.get_param_matrix(kind=kind, sids=sids, tis=tis, selchans=selchans,
                                norm=norm, dims=dims, scale=scale)
         return X, sids
@@ -2021,13 +2021,13 @@ class SpykeWindow(QtWidgets.QMainWindow):
         identifying hash for the dimension reduced matrix if it were to be calculated at this
         point in time"""
         sw = self.OpenWindow('Sort') # in case it isn't already open
-        kind = str(self.ui.componentAnalysisComboBox.currentText())
+        kind = str(self.componentAnalysisComboBox.currentText())
         sids = self.GetAllSpikes() # only selected spikes
         tis = sw.tis # waveform time indices to include, centered on spike
         selchans = np.asarray(self.get_selchans(sids))
         chans = self.sort.get_common_chans(sids, selchans)[0]
         npcsperchan = self.sort.npcsperchan
-        norm = self.ui.normButton.isChecked()
+        norm = self.normButton.isChecked()
         return kind, sids, tis, chans, npcsperchan, norm
 
     @QtCore.pyqtSlot()
@@ -2057,7 +2057,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
     @QtCore.pyqtSlot()
     def on_normButton_clicked(self):
         """Cluster pane norm button click"""
-        if self.ui.normButton.isChecked():
+        if self.normButton.isChecked():
             print('Normalizing spike amplitudes')
         else:
             print('Un-normalizing spike amplitudes')
@@ -2115,7 +2115,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         of nstds distance away in the cluster density histogram plotted above"""
         # r vals are in nstds units:
         dhist, ledges, binwidth, ndims, sids, r = self.get_cleaning_density_hist()
-        nstds = self.ui.cleanNstdsSpinBox.value()
+        nstds = self.cleanNstdsSpinBox.value()
         nids = self.sort.spikes[sids]['nid']
         unids = np.unique(nids)
         oldclusters = [ self.sort.clusters[unid] for unid in unids ]
@@ -2169,7 +2169,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         f = pl.gcf()
         pl.clf()
         f.canvas.parent().setWindowTitle('cluster %d rmserror histogram' % cid)
-        binsize = self.ui.matchErrorPlotBinSizeSpinBox.value()
+        binsize = self.matchErrorPlotBinSizeSpinBox.value()
         pl.hist(errs, bins=np.arange(0, 50, binsize))
         pl.title('RMS error between cluster %d and %d unsorted spikes' %
                  (cid, len(errs)))
@@ -2190,7 +2190,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
             print('No unsorted spikes fit cluster %d' % cid)
             return
         bestsids = self.match.best[cid]
-        thresh = self.ui.matchThreshSpinBox.value()
+        thresh = self.matchThreshSpinBox.value()
         sids = bestsids[errs <= thresh]
         sidis = self.sort.usids.searchsorted(sids)
         # clear uslist selection, select sidis rows in uslist
@@ -2224,7 +2224,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         ## if no array ops are involved. Should check all the code that pulls stuff out of
         ## the spikes recarray, and choose the best one more carefully!
 
-        trange = self.ui.xcorrsRangeSpinBox.value() * 1000 # convert to us
+        trange = self.xcorrsRangeSpinBox.value() * 1000 # convert to us
         trange = max(1000, trange) # enforce min trange, in us
         trange = np.array([-trange, trange]) # convert to a +/- array, in us
 
@@ -2273,7 +2273,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         respectively, according to the same single ISI threshold. As implemented, the latter
         is not undoable"""
         clusters = self.GetClusters()
-        minISI = self.ui.minISISpinBox.value()
+        minISI = self.minISISpinBox.value()
         spikes = self.sort.spikes
         nids = [ cluster.id for cluster in clusters ] # selected neurons, in norder
         if len(nids) == 0: # if no neurons selected, clean all neurons
@@ -2552,9 +2552,9 @@ class SpykeWindow(QtWidgets.QMainWindow):
 
     def GetClusterPlotDims(self):
         """Return 3-tuple of strings of cluster dimension names, in (x, y, z) order"""
-        x = str(self.ui.xDimComboBox.currentText())
-        y = str(self.ui.yDimComboBox.currentText())
-        z = str(self.ui.zDimComboBox.currentText())
+        x = str(self.xDimComboBox.currentText())
+        y = str(self.yDimComboBox.currentText())
+        z = str(self.zDimComboBox.currentText())
         return x, y, z
 
     def AddClusterChangeToStack(self, cc):
@@ -2810,14 +2810,14 @@ class SpykeWindow(QtWidgets.QMainWindow):
         self.updateTitle()
         self.updateRecentFiles(os.path.join(self.streampath, fname))
 
-        self.ui.__dict__['actionFiltmeth%s' % self.hpstream.filtmeth ].setChecked(True)
-        self.ui.__dict__['actionCAR%s' % self.hpstream.car ].setChecked(True)
+        self.__dict__['actionFiltmeth%s' % self.hpstream.filtmeth ].setChecked(True)
+        self.__dict__['actionCAR%s' % self.hpstream.car ].setChecked(True)
         try:
             sampfreqkHz = self.hpstream.sampfreq / 1000
-            self.ui.__dict__['action%dkHz' % sampfreqkHz].setChecked(True)
+            self.__dict__['action%dkHz' % sampfreqkHz].setChecked(True)
         except KeyError:
             print('WARNING: %d kHz is not a sampling menu option' % sampfreqkHz)
-        self.ui.actionSampleAndHoldCorrect.setChecked(self.hpstream.shcorrect)
+        self.actionSampleAndHoldCorrect.setChecked(self.hpstream.shcorrect)
 
         self.spiketw = SPIKETW[ext] # spike window temporal window (us)
         self.charttw = CHARTTW[ext] # chart window temporal window (us)
@@ -2826,8 +2826,8 @@ class SpykeWindow(QtWidgets.QMainWindow):
         self.uVperum = UVPERUM[ext]
         self.usperum = USPERUM[ext]
 
-        self.ui.dynamicNoiseXSpinBox.setValue(DYNAMICNOISEX[ext])
-        self.ui.dtSpinBox.setValue(DT[ext])
+        self.dynamicNoiseXSpinBox.setValue(DYNAMICNOISEX[ext])
+        self.dtSpinBox.setValue(DT[ext])
 
         # if a sort file is already open, enable only those channels that were used
         # by the sort's Detector:
@@ -2852,9 +2852,9 @@ class SpykeWindow(QtWidgets.QMainWindow):
         self.OpenWindow('Spike')
         self.OpenWindow('Chart')
 
-        self.ui.filePosLineEdit.setText('%.1f' % self.t)
-        self.ui.filePosStartButton.setText('%.1f' % self.trange[0])
-        self.ui.filePosEndButton.setText('%.1f' % self.trange[1])
+        self.filePosLineEdit.setText('%.1f' % self.t)
+        self.filePosStartButton.setText('%.1f' % self.trange[0])
+        self.filePosEndButton.setText('%.1f' % self.trange[1])
         self.update_slider() # set slider limits and step sizes
 
         self.EnableStreamWidgets(True)
@@ -2868,7 +2868,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         stimriseis, stimfallis = dinf.trangeis('stim')
         self.stimtons = dinf.tsec[stimriseis] * 1e6 # us
         self.stimtoffs = dinf.tsec[stimfallis] * 1e6
-        self.ui.actionStims.setEnabled(True)
+        self.actionStims.setEnabled(True)
         self.ShowStims()
 
     def OpenQuirogaMATFile(self, fname):
@@ -3207,7 +3207,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         #sort.sampfreq = sort.stream.sampfreq
         #sort.shcorrect = sort.stream.shcorrect
 
-        self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
+        self.progressBar.setFormat("%d spikes" % sort.nspikes)
         self.EnableSortWidgets(True)
         sw = self.OpenWindow('Sort') # ensure it's open
         if sort.nspikes > 0:
@@ -3317,7 +3317,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         sort.sampfreq = sort.stream.sampfreq
         sort.shcorrect = sort.stream.shcorrect
 
-        self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
+        self.progressBar.setFormat("%d spikes" % sort.nspikes)
         self.EnableSortWidgets(True)
         sw = self.OpenWindow('Sort') # ensure it's open
         if sort.nspikes > 0:
@@ -3545,7 +3545,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         # restore sampfreq and shcorrect:
         self.SetSampfreq(sort.sampfreq)
         self.SetSHCorrect(sort.shcorrect)
-        self.ui.progressBar.setFormat("%d spikes" % sort.nspikes)
+        self.progressBar.setFormat("%d spikes" % sort.nspikes)
 
         self.SPIKEWINDOWWIDTH = sort.probe.ncols * SPIKEWINDOWWIDTHPERCOLUMN
         sw = self.OpenWindow('Sort') # ensure it's open
@@ -3575,8 +3575,8 @@ class SpykeWindow(QtWidgets.QMainWindow):
         cw = self.OpenWindow('Cluster')
         # try and restore saved component analysis selection:
         try:
-            i = self.ui.componentAnalysisComboBox.findText(s.selCA)
-            self.ui.componentAnalysisComboBox.setCurrentIndex(i)
+            i = self.componentAnalysisComboBox.findText(s.selCA)
+            self.componentAnalysisComboBox.setCurrentIndex(i)
         except AttributeError: pass # wasn't saved, loading from old sort file
         # try and restore saved cluster selection:
         try: self.SelectClusters(s.selnids)
@@ -3700,7 +3700,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         yet they're useful to restore when sort file is reopened"""
         s = self.sort
         sw = self.windows['Sort'] # should be open if s.spikes exists
-        s.selCA = str(self.ui.componentAnalysisComboBox.currentText())
+        s.selCA = str(self.componentAnalysisComboBox.currentText())
         s.selnids = self.GetClusterIDs() # save current cluster selection
         s.selchans = sw.panel.chans_selected
         s.selchansmanual = sw.panel.manual_chan_selection
@@ -3792,7 +3792,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
             self.HideWindow('MPL')
         del self.cchanges[:]
         self.cci = -1
-        self.ui.progressBar.setFormat('0 spikes')
+        self.progressBar.setFormat('0 spikes')
         # now try and delete self.sort itself:
         try:
             # TODO: if Save button is enabled, check if Sort is saved,
@@ -3928,7 +3928,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
             window.show()
         else:
             window.hide()
-        self.ui.__dict__['action%sWindow' % wintype].setChecked(enable)
+        self.__dict__['action%sWindow' % wintype].setChecked(enable)
         if enable and isinstance(window, DataWindow):
             # update the newly shown data window's data, in case self.t changed since
             # it was last visible
@@ -3953,12 +3953,12 @@ class SpykeWindow(QtWidgets.QMainWindow):
 
     def ToggleRasters(self):
         """Toggle visibility of rasters"""
-        enable = self.ui.actionRasters.isChecked()
+        enable = self.actionRasters.isChecked()
         self.ShowRasters(enable)
 
     def ShowRasters(self, enable=True):
         """Show/hide rasters for all applicable windows. Force menu states to correspond"""
-        self.ui.actionRasters.setChecked(enable)
+        self.actionRasters.setChecked(enable)
         for wintype, window in self.windows.items():
             if wintype in ['Spike', 'Chart', 'LFP']:
                 window.panel.show_rasters(enable=enable)
@@ -3966,12 +3966,12 @@ class SpykeWindow(QtWidgets.QMainWindow):
 
     def ToggleStims(self):
         """Toggle visibility of stimulus edges"""
-        enable = self.ui.actionStims.isChecked()
+        enable = self.actionStims.isChecked()
         self.ShowStims(enable)
 
     def ShowStims(self, enable=True):
         """Show/hide stim edges for all applicable windows. Force menu states to correspond"""
-        self.ui.actionStims.setChecked(enable)
+        self.actionStims.setChecked(enable)
         for wintype, window in self.windows.items():
             if wintype in ['Chart', 'LFP']:
                 window.panel.show_stims(enable=enable)
@@ -3979,13 +3979,13 @@ class SpykeWindow(QtWidgets.QMainWindow):
 
     def ToggleRef(self, ref):
         """Toggle visibility of TimeRef, VoltageRef, Scale, or the Caret"""
-        enable = self.ui.__dict__['action%s' % ref].isChecked()
+        enable = self.__dict__['action%s' % ref].isChecked()
         self.ShowRef(ref, enable)
 
     def ShowRef(self, ref, enable=True):
         """Show/hide a TimeRef, VoltageRef, Scale, or the Caret. Force menu states to
         correspond"""
-        self.ui.__dict__['action%s' % ref].setChecked(enable)
+        self.__dict__['action%s' % ref].setChecked(enable)
         for wintype, window in self.windows.items():
             if wintype in ['Spike', 'Chart', 'LFP', 'Sort']:
                 window.panel.show_ref(ref, enable=enable)
@@ -3995,14 +3995,14 @@ class SpykeWindow(QtWidgets.QMainWindow):
         if self.hpstream != None:
             self.hpstream.filtmeth = filtmeth
             self.plot()
-        self.ui.__dict__['actionFiltmeth%s' % filtmeth].setChecked(True)
+        self.__dict__['actionFiltmeth%s' % filtmeth].setChecked(True)
 
     def SetCAR(self, car):
         """Set common average reference method"""
         if self.hpstream != None:
             self.hpstream.car = car
             self.plot()
-        self.ui.__dict__['actionCAR%s' % car].setChecked(True)
+        self.__dict__['actionCAR%s' % car].setChecked(True)
 
     def SetSampfreq(self, sampfreq):
         """Set highpass stream sampling frequency, update widgets"""
@@ -4010,13 +4010,13 @@ class SpykeWindow(QtWidgets.QMainWindow):
             self.hpstream.sampfreq = sampfreq
             self.update_slider() # update slider to account for new tres
             self.plot()
-        self.ui.__dict__['action%dkHz' % (sampfreq / 1000)].setChecked(True)
+        self.__dict__['action%dkHz' % (sampfreq / 1000)].setChecked(True)
 
     def SetSHCorrect(self, enable):
         """Set highpass stream sample & hold correct flag, update widgets"""
         if self.hpstream != None:
             self.hpstream.shcorrect = enable
-        self.ui.actionSampleAndHoldCorrect.setChecked(enable)
+        self.actionSampleAndHoldCorrect.setChecked(enable)
         self.plot()
 
     def EnableStreamWidgets(self, enable):
@@ -4030,12 +4030,12 @@ class SpykeWindow(QtWidgets.QMainWindow):
             self.EnableSamplingMenu(enable)
         self.EnableExportMenu(enable)
         self.EnableConvertMenu(enable)
-        self.ui.actionStims.setEnabled(enable)
-        self.ui.filePosStartButton.setEnabled(enable)
-        self.ui.filePosLineEdit.setEnabled(enable)
-        self.ui.filePosEndButton.setEnabled(enable)
-        self.ui.slider.setEnabled(enable)
-        self.ui.detectButton.setEnabled(enable)
+        self.actionStims.setEnabled(enable)
+        self.filePosStartButton.setEnabled(enable)
+        self.filePosLineEdit.setEnabled(enable)
+        self.filePosEndButton.setEnabled(enable)
+        self.slider.setEnabled(enable)
+        self.detectButton.setEnabled(enable)
 
     def EnableSortWidgets(self, enable):
         """Enable/disable all widgets that require a sort"""
@@ -4044,45 +4044,45 @@ class SpykeWindow(QtWidgets.QMainWindow):
         self.EnableSamplingMenu(not enable)
         self.EnableExportMenu(enable)
         self.EnableExportSpikesMenu(enable)
-        self.ui.actionRasters.setEnabled(enable)
+        self.actionRasters.setEnabled(enable)
         self.ShowRasters(enable)
-        self.ui.tabWidget.setCurrentIndex(int(enable)) # select cluster or detect tab
+        self.tabWidget.setCurrentIndex(int(enable)) # select cluster or detect tab
         self.EnableSpikeWidgets(enable)
 
     def EnableFilteringMenu(self, enable):
         """Enable/disable all items in Filtering menu, while still allowing
         the menu to be opened and its contents viewed"""
-        for action in self.ui.menuFiltering.actions():
+        for action in self.menuFiltering.actions():
             action.setEnabled(enable)
 
     def EnableCARMenu(self, enable):
         """Enable/disable all items in CAR menu, while still allowing
         the menu to be opened and its contents viewed"""
-        for action in self.ui.menuCAR.actions():
+        for action in self.menuCAR.actions():
             action.setEnabled(enable)
 
     def EnableSamplingMenu(self, enable):
         """Enable/disable all items in Sampling menu, while still allowing
         the menu to be opened and its contents viewed"""
-        for action in self.ui.menuSampling.actions():
+        for action in self.menuSampling.actions():
             action.setEnabled(enable)
 
     def EnableExportMenu(self, enable):
         """Enable/disable all items in File->Export menu, while still allowing
         the menu to be opened and its contents viewed"""
-        for action in self.ui.menuExport.actions():
+        for action in self.menuExport.actions():
             action.setEnabled(enable)
 
     def EnableExportSpikesMenu(self, enable):
         """Enable/disable all items in File->Export->Spikes menu, while still allowing
         the menu to be opened and its contents viewed"""
-        for action in self.ui.menuSpikes.actions():
+        for action in self.menuSpikes.actions():
             action.setEnabled(enable)
 
     def EnableConvertMenu(self, enable):
         """Enable/disable all items in File->Convert menu, while still allowing
         the menu to be opened and its contents viewed"""
-        for action in self.ui.menuConvert.actions():
+        for action in self.menuConvert.actions():
             action.setEnabled(enable)
 
     def EnableSpikeWidgets(self, enable):
@@ -4201,8 +4201,8 @@ class SpykeWindow(QtWidgets.QMainWindow):
     def get_detectortrange(self):
         """Get detector time range from combo boxes, and convert
         start, now, and end to appropriate vals"""
-        t0 = str(self.ui.rangeStartLineEdit.text())
-        t1 = str(self.ui.rangeEndLineEdit.text())
+        t0 = str(self.rangeStartLineEdit.text())
+        t1 = str(self.rangeEndLineEdit.text())
         try:
             t0 = self.str2t[t0]
         except KeyError:
@@ -4231,8 +4231,8 @@ class SpykeWindow(QtWidgets.QMainWindow):
         # only plot if t has actually changed, though this doesn't seem to improve
         # performance, maybe mpl is already doing something like this?
         if self.t != oldt: # update controls first so they don't lag
-            self.ui.filePosLineEdit.setText('%.1f' % self.t)
-            self.ui.slider.setValue(intround(self.t / self.hpstream.tres))
+            self.filePosLineEdit.setText('%.1f' % self.t)
+            self.slider.setValue(intround(self.t / self.hpstream.tres))
             self.plot()
 
     def step(self, direction):

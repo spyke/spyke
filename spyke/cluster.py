@@ -207,7 +207,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         self.axes = 'both' # display both mini and focal xyz axes by default
         self.selecting = None # True (selecting), False (deselecting), or None
         self.update_sigma()
-        self.spw.ui.sigmaSpinBox.valueChanged.connect(self.update_focal_axes)
+        self.spw.sigmaSpinBox.valueChanged.connect(self.update_focal_axes)
 
         # enable double buffering, though this seems to be the default anyway:
         format = QtOpenGL.QGLFormat()
@@ -328,7 +328,7 @@ class GLWidget(QtOpenGL.QGLWidget):
 
     def update_sigma(self):
         """Update self.sigma from main spyke window"""
-        self.sigma = self.spw.ui.sigmaSpinBox.value()
+        self.sigma = self.spw.sigmaSpinBox.value()
 
     def paint_axes(self, l=1):
         """Paint axes at origin, with lines of length l"""
@@ -634,7 +634,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         buttons = event.buttons()
         if buttons == QtCore.Qt.MiddleButton:
             #sw.on_actionSelectRandomSpikes_triggered()
-            #sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
+            #sw.spykewindow.plotButton.click() # same as hitting ENTER in nslist
             self.selecting = True
             self.setMouseTracking(True) # while selecting
             self.selectPointsUnderCursor()
@@ -678,7 +678,7 @@ class GLWidget(QtOpenGL.QGLWidget):
                     self.pitch(0.5*dy)
             elif buttons == QtCore.Qt.RightButton:
                 if shift or ctrl:
-                    self.spw.ui.sigmaSpinBox.stepBy(-dy)
+                    self.spw.sigmaSpinBox.stepBy(-dy)
                 else:
                     self.zoom(-dy/500) # qt viewport y axis points down
             self.updateGL()
@@ -701,7 +701,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         if shift or ctrl: # modify sigma
             # event.angleDelta() is a multiple of 120:
             # https://doc-snapshots.qt.io/qt5-dev/qwheelevent.html#angleDelta
-            self.spw.ui.sigmaSpinBox.stepBy(5 * event.angleDelta().y() / 120)
+            self.spw.sigmaSpinBox.stepBy(5 * event.angleDelta().y() / 120)
         else: # zoom
             self.zoom(event.angleDelta().y() / 2000)
             self.updateGL()
@@ -796,7 +796,7 @@ class GLWidget(QtOpenGL.QGLWidget):
         elif key == Qt.Key_V: # V for View
             self.showProjectionDialog()
         elif key in [Qt.Key_Enter, Qt.Key_Return]:
-            sw.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
+            sw.spykewindow.plotButton.click() # same as hitting ENTER in nslist
         elif key == Qt.Key_F11:
             self.parent().keyPressEvent(event) # pass it on to parent Cluster window
         elif key in [Qt.Key_A, Qt.Key_X, Qt.Key_N, Qt.Key_Escape, Qt.Key_Delete, Qt.Key_M,

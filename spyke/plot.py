@@ -214,7 +214,7 @@ class SpikePlot(Plot):
             nchans, nt = wave.data.shape
             segments = np.zeros((nchans, nt, 2)) # x vals in col 0, yvals in col 1
             if wave.ts is not None: # or maybe check if wave.data.size != 0 too
-                if isinstance(panel, SortPanel) and panel.spykewindow.ui.normButton.isChecked():
+                if isinstance(panel, SortPanel) and panel.spykewindow.normButton.isChecked():
                     wave = self.norm_wave(wave)
                 x = np.tile(wave.ts-tref, nchans) # nt*nchans 1D array
                 x.shape = nchans, nt
@@ -536,7 +536,7 @@ class PlotPanel(FigureCanvas):
         self._show_caret(True)
         for ref in ['TimeRef', 'VoltageRef', 'Scale', 'Caret']:
             # enforce menu item toggle state
-            self.spykewindow.ui.__dict__['action%s' % ref].setChecked(True)
+            self.spykewindow.__dict__['action%s' % ref].setChecked(True)
         self.draw() # do a full draw of the ref lines
         self.reflines_background = self.copy_from_bbox(self.ax.bbox) # init
         self.init_plots()
@@ -814,10 +814,10 @@ class PlotPanel(FigureCanvas):
         # update plots and rasters:
         self.plt.update(wave, tref)
         self.plt.draw()
-        if self.spykewindow.ui.actionRasters.isChecked() and self.rasters != None:
+        if self.spykewindow.actionRasters.isChecked() and self.rasters != None:
             self.update_rasters(tref)
             self.rasters.draw()
-        if self.spykewindow.ui.actionStims.isChecked() and self.stims != None:
+        if self.spykewindow.actionStims.isChecked() and self.stims != None:
             self.update_stims(tref)
             self.stims.draw()
         self.blit(self.ax.bbox)
@@ -951,7 +951,7 @@ class PlotPanel(FigureCanvas):
         to assume that a .srf or .track file is open"""
         #if srff not open:
         #    print("can't align selected spike without .srf file(s)")
-        spw = self.nativeParentWidget().parent() # spyke window
+        spw = self.window().parent() # spyke window
         spikes = spw.sort.spikes
         try:
             sid = spw.GetSpike()
@@ -1478,7 +1478,7 @@ class SortPanel(PlotPanel):
                 self.chans_selected.remove(chan)
             self.manual_chan_selection = True
         elif button == 2: # middle click
-            self.sortwin.spykewindow.ui.plotButton.click() # same as hitting ENTER in nslist
+            self.sortwin.spykewindow.plotButton.click() # same as hitting ENTER in nslist
             #self.sortwin.on_actionSelectRandomSpikes_triggered()
         elif button == 3: # right click
             self.chans_selected = [] # clear channel selection
@@ -1522,7 +1522,7 @@ class SpikeSortPanel(SortPanel, SpikePanel):
         """Scroll gainComboBox or incltComboBox on mouse wheel scroll"""
         modifiers = event.modifiers()
         ctrl = modifiers == Qt.ControlModifier # only modifier is ctrl
-        sw = self.nativeParentWidget() # SortWindow
+        sw = self.window() # SortWindow
         if ctrl: # scroll gainComboBox
             cbox = sw.gainComboBox
             on_box_triggered = sw.on_gainComboBox_triggered
