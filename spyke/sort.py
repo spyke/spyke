@@ -896,7 +896,7 @@ class Sort(object):
             # don't update pos of junk cluster, if any, since it might not have any chans
             # common to all its spikes, and therefore can't have PCA/ICA done on it
             if nid != 0:
-                self.clusters[nid].update_comppos(X, sids)
+                self.clusters[nid].update_comppos(self, X, sids)
         return X
 
     def get_rms_error(self, sids, tis=None, chans=None):
@@ -2302,7 +2302,8 @@ class SortWindow(SpykeToolWindow):
         spikes = s.spikes
         sids = []
         for cluster in clusters:
-            sids.append(cluster.neuron.sids)
+            neuron = s.neurons[cluster.id]
+            sids.append(neuron.sids)
         sids = np.concatenate(sids)
 
         # save some undo/redo stuff
@@ -2345,7 +2346,8 @@ class SortWindow(SpykeToolWindow):
         spikes = s.spikes
         sids = [] # spikes to merge
         for cluster in clusters:
-            sids.append(cluster.neuron.sids)
+            neuron = s.neurons[cluster.id]
+            sids.append(neuron.sids)
         # merge any selected usids as well
         sids.append(spw.GetUnsortedSpikes())
         sids = np.concatenate(sids)
@@ -2381,10 +2383,10 @@ class SortWindow(SpykeToolWindow):
         # create new cluster
         #t0 = time.time()
         newcluster = spw.CreateCluster(update=False, id=newnid, inserti=inserti)
-        neuron = newcluster.neuron
-        self.MoveSpikes2Neuron(sids, neuron, update=False)
+        newneuron = s.neurons[newcluster.id]
+        self.MoveSpikes2Neuron(sids, newneuron, update=False)
         plotdims = spw.GetClusterPlotDims()
-        newcluster.update_pos()
+        newcluster.update_pos(s)
 
         # save more undo/redo stuff
         cc.save_new([newcluster], s.norder, s.good)
@@ -2405,7 +2407,8 @@ class SortWindow(SpykeToolWindow):
         clusters = spw.GetClusters()
         cids = []
         for cluster in clusters:
-            cluster.neuron.good = not cluster.neuron.good
+            neuron = self.sort.neurons[cluster.id]
+            neuron.good = not neuron.good
             cids.append(cluster.id)
         self.nlist.updateAll() # nlist item coloring will change as a result
         print("Toggled 'good' flag of clusters %r" % cids)
@@ -2423,7 +2426,8 @@ class SortWindow(SpykeToolWindow):
             return
         sids = []
         for cluster in clusters:
-            sids.append(cluster.neuron.sids)
+            neuron = s.neurons[cluster.id]
+            sids.append(neuron.sids)
         sids = np.concatenate(sids)
 
         # save some undo/redo stuff
@@ -2434,7 +2438,7 @@ class SortWindow(SpykeToolWindow):
         # delete old clusters
         inserti = s.norder.index(clusters[0].id)
         # collect cluster sids before cluster deletion
-        sidss = [ cluster.neuron.sids for cluster in clusters ]
+        sidss = [ s.neurons[cluster.id].sids for cluster in clusters ]
         spw.DelClusters(clusters, update=False)
 
         # create new multiunit clusters
@@ -2442,9 +2446,9 @@ class SortWindow(SpykeToolWindow):
         for sids in sidss:
             muid = s.get_nextmuid()
             newcluster = spw.CreateCluster(update=False, id=muid, inserti=inserti)
-            neuron = newcluster.neuron
-            self.MoveSpikes2Neuron(sids, neuron, update=False)
-            newcluster.update_pos()
+            newneuron = s.neurons[newcluster.id]
+            self.MoveSpikes2Neuron(sids, newneuron, update=False)
+            newcluster.update_pos(s)
             newclusters.append(newcluster)
             inserti += 1
 
@@ -2485,6 +2489,7 @@ class SortWindow(SpykeToolWindow):
 
         cluster = spw.GetCluster() # exactly one selected cluster
         oldid = cluster.id
+        neuron = s.neurons[oldid]
         newid = max(s.norder) + 1
         newid, ok = QtWidgets.QInputDialog.getInt(self, "Renumber cluster",
                     "This will clear the undo/redo stack, and is not undoable.\n"
@@ -2494,26 +2499,27 @@ class SortWindow(SpykeToolWindow):
         if newid in s.norder:
             print("Choose a non-existing nid to renumber to")
             return
-        # deselect cluster
+        # deselect cluster:
         spw.SelectClusters(cluster, on=False)
 
-        # rename to newid
-        cluster.id = newid # this indirectly updates neuron.id
-        # update cluster and neuron dicts, and spikes array
+        # rename to newid:
+        cluster.id = newid
+        neuron.id = newid
+        # update cluster and neuron dicts, and spikes array:
         s.clusters[newid] = cluster
-        s.neurons[newid] = cluster.neuron
-        sids = cluster.neuron.sids
+        s.neurons[newid] = neuron
+        sids = neuron.sids
         spikes['nid'][sids] = newid
-        # remove duplicate oldid dict entries
+        # remove duplicate oldid dict entries:
         del s.clusters[oldid]
         del s.neurons[oldid]
-        # replace oldid with newid in norder
+        # replace oldid with newid in norder:
         s.norder[s.norder.index(oldid)] = newid
-        # update color of any relevant points in cluster plot
+        # update color of any relevant points in cluster plot:
         spw.ColorPoints(cluster)
-        # reselect cluster
+        # reselect cluster:
         spw.SelectClusters(cluster)
-        # some cluster changes in stack may no longer be applicable, reset cchanges
+        # some cluster changes in stack may no longer be applicable, reset cchanges:
         del spw.cchanges[:]
         spw.cci = -1
         print('Renumbered neuron %d to %d' % (oldid, newid))
@@ -2534,7 +2540,7 @@ class SortWindow(SpykeToolWindow):
         s = self.sort
         spikes = s.spikes
 
-        # get spatially and numerically ordered lists of new ids
+        # get spatially and numerically ordered lists of new ids:
         oldids = np.asarray(s.norder)
         oldsuids = oldids[oldids > 0]
         oldmuids = oldids[oldids < 0]
@@ -2546,58 +2552,54 @@ class SortWindow(SpykeToolWindow):
         newmuids = np.asarray([ s.clusters[cid].pos['y0']
                                 for cid in oldmuids ]).argsort().argsort() + 1
         newmuids = -newmuids
-        # multiunit, followed by single unit, no 0 junk cluster. Can't seem to do it the other
-        # way around as of Qt 4.7.2 - it seems QListViews don't like having a -ve value in
-        # the last entry. Doing so causes all 2 digit values in the list to become blank,
-        # suggests a spacing calculation bug. Reproduce by making last entry multiunit,
-        # undoing then redoing. Actually, maybe the bug is it doesn't like having a number
-        # in the last entry with fewer digits than the preceding entry. Only seems to be a
-        # problem when setting self.setUniformItemSizes(True).
+        # multiunit, followed by single unit, no 0 junk cluster:
         newids = np.concatenate([newmuids, newsuids])
 
-        # test
+        # test:
         if np.all(oldids == newids):
             print('Nothing to renumber: cluster IDs already ordered in y0 and contiguous')
             return
-        # update for replacing oldids with newids
+        # update for replacing oldids with newids:
         oldids = np.concatenate([oldmuids, oldsuids])
 
-        # deselect current selections
+        # deselect current selections:
         selclusters = spw.GetClusters()
         oldselids = [ cluster.id for cluster in selclusters ]
         spw.SelectClusters(selclusters, on=False)
 
-        # delete junk cluster, if it exists
+        # delete junk cluster, if it exists:
         if 0 in s.clusters:
             s.remove_neuron(0)
             print('Deleted junk cluster 0')
         if 0 in oldselids:
             oldselids.remove(0)
 
-        # replace old ids with new ids
+        # replace old ids with new ids:
         cw = spw.windows['Cluster']
         oldclusters = s.clusters.copy() # no need to deepcopy, just copy refs, not clusters
-        dims = spw.GetClusterPlotDims()
+        oldneurons = s.neurons.copy()
         for oldid, newid in zip(oldids, newids):
             newid = int(newid) # keep as Python int, not numpy int
             if oldid == newid:
                 continue # no need to waste time removing and recreating this cluster
-            # change all occurences of oldid to newid
+            # change all occurences of oldid to newid:
             cluster = oldclusters[oldid]
-            cluster.id = newid # this indirectly updates neuron.id
-            # update cluster and neuron dicts
+            neuron = oldneurons[oldid]
+            cluster.id = newid
+            neuron.id = newid
+            # update cluster and neuron dicts:
             s.clusters[newid] = cluster
-            s.neurons[newid] = cluster.neuron
-            sids = cluster.neuron.sids
+            s.neurons[newid] = neuron
+            sids = neuron.sids
             spikes['nid'][sids] = newid
 
-        # remove any orphaned cluster ids
+        # remove any orphaned cluster ids:
         for oldid in oldids:
             if oldid not in newids:
                 del s.clusters[oldid]
                 del s.neurons[oldid]
 
-        # reset norder
+        # reset norder:
         s.norder = []
         s.norder.extend(sorted([ int(newid) for newid in newmuids ])[::-1])
         s.norder.extend(sorted([ int(newid) for newid in newsuids ]))
@@ -2606,11 +2608,11 @@ class SortWindow(SpykeToolWindow):
         spw.UpdateClustersGUI()
         spw.ColorPoints(s.clusters.values())
         # reselect the previously selected (but now renumbered) clusters,
-        # helps user keep track
+        # helps user keep track:
         oldiis = [ list(oldids).index(oldselid) for oldselid in oldselids ]
         newselids = newids[oldiis]
         spw.SelectClusters([s.clusters[cid] for cid in newselids])
-        # all cluster changes in stack are no longer applicable, reset cchanges
+        # all cluster changes in stack are no longer applicable, reset cchanges:
         del spw.cchanges[:]
         spw.cci = -1
         print('Renumbering complete')
@@ -2789,20 +2791,21 @@ class SortWindow(SpykeToolWindow):
         max chans in common. If chans have been selected, use them as a starting set of
         chans to compare on. Also, use only the timepoint range selected in incltComboBox"""
         try:
-            source = self.getClusterComparisonSource()
+            src = self.getClusterComparisonSource()
         except RuntimeError as err:
             print(err)
             return
+        srcneuron = self.sort.neurons[src.id]
         destinations = list(self.sort.clusters.values())
-        destinations.remove(source)
+        destinations.remove(src)
         selchans = np.sort(self.panel.chans_selected)
         if len(selchans) > 0:
-            srcchans = np.intersect1d(source.neuron.wave.chans, selchans)
+            srcchans = np.intersect1d(srcneuron.wave.chans, selchans)
             if len(srcchans) == 0:
                 print("Source cluster doesn't overlap with selected chans")
                 return
         else:
-            srcchans = source.neuron.wave.chans
+            srcchans = srcneuron.wave.chans
 
         if self.spykewindow.normButton.isChecked():
             print("NOTE: findMostSimilarCluster() doesn't currently take spike amplitude "
@@ -2810,13 +2813,14 @@ class SortWindow(SpykeToolWindow):
                   "neuron pairs, turn off normalization")
 
         errors = []
-        dests = []
+        dsts = []
         t0i, t1i = self.tis # timepoint range selected in incltComboBox
         # try and compare source neuron waveform to all destination neuron waveforms
-        for dest in destinations:
-            if dest.neuron.wave.data is None: # hasn't been calculated yet
-                dest.neuron.update_wave()
-            dstchans = dest.neuron.wave.chans
+        for dst in destinations:
+            dstneuron = self.sort.neurons[dst.id]
+            if dstneuron.wave.data is None: # hasn't been calculated yet
+                dstneuron.update_wave()
+            dstchans = dstneuron.wave.chans
             if len(selchans) > 0:
                 if not set(selchans).issubset(dstchans):
                     continue
@@ -2824,20 +2828,20 @@ class SortWindow(SpykeToolWindow):
             cmpchans = np.intersect1d(srcchans, dstchans)
             if len(cmpchans) == 0: # not comparable
                 continue
-            # ensure maxchan of both source and dest neuron are both in cmpchans
-            if source.neuron.chan not in cmpchans or dest.neuron.chan not in cmpchans:
+            # ensure maxchan of both source and destination neuron are both in cmpchans
+            if srcneuron.chan not in cmpchans or dstneuron.chan not in cmpchans:
                 continue
-            srcwavedata = source.neuron.wave[cmpchans].data[:, t0i:t1i]
-            dstwavedata = dest.neuron.wave[cmpchans].data[:, t0i:t1i]
+            srcwavedata = srcneuron.wave[cmpchans].data[:, t0i:t1i]
+            dstwavedata = dstneuron.wave[cmpchans].data[:, t0i:t1i]
             error = core.rms(srcwavedata - dstwavedata)
             errors.append(error)
-            dests.append(dest)
+            dsts.append(dst)
         if len(errors) == 0:
             print("No sufficiently overlapping clusters on selected chans to compare to")
             return
         errors = np.asarray(errors)
-        dests = np.asarray(dests)
-        desterrsortis = errors.argsort()
+        dsts = np.asarray(dsts)
+        dsterrsortis = errors.argsort()
 
         if which == 'next':
             self._cmpid += 1
@@ -2845,13 +2849,13 @@ class SortWindow(SpykeToolWindow):
             self._cmpid -= 1
         else: raise ValueError('Unknown which: %r' % which)
         self._cmpid = max(self._cmpid, 0)
-        self._cmpid = min(self._cmpid, len(dests)-1)
+        self._cmpid = min(self._cmpid, len(dsts)-1)
 
-        dest = dests[desterrsortis][self._cmpid]
-        self.spykewindow.SelectClusters(dest)
-        desterr = errors[desterrsortis][self._cmpid]
+        dst = dsts[dsterrsortis][self._cmpid]
+        self.spykewindow.SelectClusters(dst)
+        dsterr = errors[dsterrsortis][self._cmpid]
         print('n%d to n%d rmserror: %.2f uV' %
-             (source.id, dest.id, self.sort.converter.AD2uV(desterr)))
+             (src.id, dst.id, self.sort.converter.AD2uV(dsterr)))
 
     def getClusterComparisonSource(self):
         selclusters = self.spykewindow.GetClusters()

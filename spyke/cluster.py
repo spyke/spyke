@@ -25,28 +25,15 @@ VIEWDISTANCE = 50.0
 class Cluster(object):
     """A container for scaled multidim cluster parameters.
     A Cluster will always correspond to a Neuron"""
-    def __init__(self, neuron):
-        self.neuron = neuron
+    def __init__(self, id):
+        assert type(id) == int # sanity check
+        self.id = id
         self.pos = {'x0':0, 'y0':0, 'sx':0, 'sy':0, 'Vpp':0, 'V0':0, 'V1':0,
                     'dt':0, 't':0}
         # cluster normpos are scaled values, suitable for plotting
         self.normpos = {'x0':0, 'y0':0, 'sx':0, 'sy':0, 'Vpp':0, 'V0':0, 'V1':0,
                         'dt':0, 't':0}
 
-    def get_id(self):
-        return self.neuron.id
-
-    def set_id(self, id):
-        self.neuron.id = id
-
-    id = property(get_id, set_id)
-    '''
-    # unused:
-    def get_color(self):
-        return CLUSTERCLRRGBDICT[self.id]
-
-    color = property(get_color)
-    '''
     def __getstate__(self):
         """Get object state for pickling"""
         d = self.__dict__.copy()
@@ -62,15 +49,14 @@ class Cluster(object):
         d['normpos'] = normpos
         return d
 
-    def update_pos(self, dims=None, nsamples=CLUSTERPARAMMAXSAMPLES):
+    def update_pos(self, sort, dims=None, nsamples=CLUSTERPARAMMAXSAMPLES):
         """Update unnormalized and normalized cluster positions for self along specified
         dims. Use median instead of mean to reduce influence of outliers on cluster
         position. Subsample for speed"""
-        sort = self.neuron.sort
         spikes = sort.spikes
         if dims is None: # use all of them
             dims = list(self.pos) # some of these might not exist in spikes array
-        sids = self.neuron.sids
+        sids = sort.neurons[self.id].sids
         nspikes = len(sids)
         if nsamples and nspikes > nsamples: # subsample spikes
             step = nspikes // nsamples + 1
@@ -123,13 +109,12 @@ class Cluster(object):
             # update normalized position:
             self.normpos[dim] = float(np.median(subdata)) # from float64 for clean jsonpickle
 
-    def update_comppos(self, X, sids, nsamples=CLUSTERPARAMMAXSAMPLES):
+    def update_comppos(self, sort, X, sids, nsamples=CLUSTERPARAMMAXSAMPLES):
         """Update unnormalized and normalized component analysis (PCA/ICA) values for
         self. Use median instead of mean to reduce influence of outliers on cluster
         position. Subsample for speed"""
-        sort = self.neuron.sort
         ncomp = X.shape[1]
-        mysids = self.neuron.sids
+        mysids = sort.neurons[self.id].sids
         # get all sids that belong to self:
         mysids = np.intersect1d(sids, mysids, assume_unique=True)
         nspikes = len(mysids)
