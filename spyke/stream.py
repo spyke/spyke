@@ -1087,23 +1087,13 @@ class SimpleStream(Stream):
 class MultiStream(object):
     """A collection of multiple streams, all from the same track/insertion/series. This is
     used to simultaneously cluster all spikes from many (or all) recordings from the same
-    track. Designed to have as similar an interface as possible to a normal Stream. fs
-    needs to be a list of open and parsed data file objects, in temporal order"""
-    def __init__(self, fs, trackfname, kind='highpass', filtmeth=None, car=None,
+    track. Designed to have as similar an interface as possible to a normal Stream. streams
+    is a list of appropriate open streams of the same kind, in temporal order"""
+    def __init__(self, streams, trackfname, kind='highpass', filtmeth=None, car=None,
                  sampfreq=None, shcorrect=None):
-        # to prevent pickling problems, don't bind fs
+        self.streams = streams # bind right away so setting sampfreq and shcorrect will work
         self.fname = trackfname
         self.kind = kind
-        streams = []
-        self.streams = streams # bind right away so setting sampfreq and shcorrect will work
-        # collect appropriate streams from fs
-        if kind == 'highpass':
-            for f in fs:
-                streams.append(f.hpstream)
-        elif kind == 'lowpass':
-            for f in fs:
-                streams.append(f.lpstream)
-        else: raise ValueError('Unknown stream kind %r' % kind)
 
         datetimes = [stream.datetime for stream in streams]
         if not (np.diff(datetimes) >= timedelta(0)).all():
@@ -1124,7 +1114,7 @@ class MultiStream(object):
             # have to do is bitshift, I think. Then, have a single converter for the
             # MultiStream whose intgain value is set to maxintgain
         self.converter = streams[0].converter # they're identical
-        self.fnames = [f.fname for f in fs]
+        self.fnames = [ stream.f.fname for stream in streams ]
         self.rawsampfreq = streams[0].rawsampfreq # assume they're identical
         self.rawtres = streams[0].rawtres # float us, assume they're identical
         contiguous = np.asarray([stream.contiguous for stream in streams])

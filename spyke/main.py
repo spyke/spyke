@@ -97,7 +97,7 @@ from . import core
 from .core import (toiter, tocontig, intround, intceil, printflush, lstrip, matlabize,
                    g, iterable, ClusterChange, SpykeToolWindow, DJS, nullwavesat)
 from . import dat, nsx, surf, stream, probes
-from .stream import SimpleStream, MultiStream
+from .stream import FakeStream, DATStream, NSXStream, SimpleStream, MultiStream
 from .sort import Sort, SortWindow, NSLISTWIDTH, MEANWAVEMAXSAMPLES, NPCSPERCHAN
 from .plot import SpikePanel, ChartPanel, LFPPanel
 from .detect import Detector, calc_SPIKEDTYPE, DEBUG
@@ -2742,8 +2742,8 @@ class SpykeWindow(QtWidgets.QMainWindow):
         ext = os.path.splitext(fname)[1]
         if ext == '.dat':
             f = dat.File(fname, self.streampath) # parses immediately
-            self.hpstream = f.hpstream # highpass record (spike) stream
-            self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
+            self.hpstream = DATStream(f, kind='highpass') # highpass (spike) stream
+            self.lpstream = DATStream(f, kind='lowpass') # lowpass (LFP) stream
             # if .din.npy file exists with same base name, open that as well and
             # assume it contains stimulus information from AG Busse Busse Open-Ephys
             base, ext = os.path.splitext(fname)
@@ -2752,15 +2752,12 @@ class SpykeWindow(QtWidgets.QMainWindow):
                 self.OpenDINNPYFile(dinnpyfname)
         elif ext == '.ns6':
             f = nsx.File(fname, self.streampath) # parses immediately
-            self.hpstream = f.hpstream # highpass record (spike) stream
-            self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
+            self.hpstream = NSXStream(f, kind='highpass') # highpass (spike) stream
+            self.lpstream = NSXStream(f, kind='lowpass') # lowpass (LFP) stream
         elif ext == '.srf':
             f = surf.File(fname, self.streampath)
-            f.parse() # TODO: parsing progress dialog
-            self.hpstream = f.hpstream # highpass record (spike) stream
-            self.lpstream = f.lpstream # lowpassmultichan record (LFP) stream
+            self.hpstream, self.lpstream = f.parse() # TODO: parsing progress dialog
         elif ext == '.track':
-            fs = []
             with open(os.path.join(self.streampath, fname), 'r') as trackfile:
                 for line in trackfile: # one filename per line
                     line = line.strip() # remove leading and trailing whitespace
@@ -2782,16 +2779,21 @@ class SpykeWindow(QtWidgets.QMainWindow):
                     fext = os.path.splitext(fn)[1]
                     if fext == '.dat':
                         f = dat.File(fn, path)
+                        hpstream = DATStream(f, kind='highpass')
+                        lpstream = DATStream(f, kind='lowpass')
                     elif fext == '.ns6':
                         f = nsx.File(fn, path)
+                        hpstream = NSXStream(f, kind='highpass')
+                        lpstream = NSXStream(f, kind='lowpass')
                     elif fext == '.srf':
                         f = surf.File(fn, path)
-                        f.parse()
+                        hpstream, lpstream = f.parse()
                     else:
                         raise ValueError('Unknown extension %r' % fext)
-                    fs.append(f) # build up list of open and parsed data file objects
-            self.hpstream = MultiStream(fs, fname, kind='highpass')
-            self.lpstream = MultiStream(fs, fname, kind='lowpass')
+                    hpstreams.append(hpstream)
+                    lpstreams.append(lpstream)
+            self.hpstream = MultiStream(hpstreams, fname, kind='highpass')
+            self.lpstream = MultiStream(lpstreams, fname, kind='lowpass')
             ext = fext # for setting *tw variables below
         elif ext == '.tsf':
             self.hpstream, self.lpstream = self.OpenTSFFile(fname)
@@ -3178,7 +3180,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         self.spiketw = -halfdt, halfdt
 
         # treat this source .eventwaves.zip file as a fake stream:
-        fakestream = stream.FakeStream()
+        fakestream = FakeStream()
         fakestream.fname = fname
         fakestream.tres = tres
         fakestream.probe = probes.findprobe(chanpos)

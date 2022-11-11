@@ -30,10 +30,6 @@ from .stream import NSXStream
 class File(dat.File):
     """Open an .nsx file and expose its header fields and data as attribs"""
 
-    def _bind_streams(self):
-        self.hpstream = NSXStream(self, kind='highpass')
-        self.lpstream = NSXStream(self, kind='lowpass')
-
     def _parseFileHeader(self):
         """Parse the file header"""
         self.fileheader = FileHeader()

@@ -172,7 +172,7 @@ class File(object):
     def parse(self, force=False, save=True):
         """Parse the .srf file, potentially unpickling parse info from
         a .parse file. If doing a new parsing, optionally save parse info
-        to a .parse file"""
+        to a .parse file. Return highpass and lowpass streams"""
         t0 = time.time()
         try: # recover self pickled in .parse file
             if force: # force a new parsing
@@ -192,21 +192,22 @@ class File(object):
             self._buildLowpassMultiChanRecords()
             self._verifyParsing()
 
-            if hasattr(self, 'highpassrecords'):
-                # highpass record (spike) stream:
-                self.hpstream = SurfStream(self, kind='highpass')
-            else:
-                self.hpstream = None
-            if hasattr(self, 'lowpassmultichanrecords'):
-                # lowpassmultichan record (LFP) stream:
-                self.lpstream = SurfStream(self, kind='lowpass')
-            else:
-                self.lpstream = None
-
             if save:
                 tsave = time.time()
                 self.pickle()
                 print('Pickling took %.3f sec' % (time.time()-tsave))
+
+        if hasattr(self, 'highpassrecords'):
+            # highpass record (spike) stream:
+            hpstream = SurfStream(self, kind='highpass')
+        else:
+            hpstream = None
+        if hasattr(self, 'lowpassmultichanrecords'):
+            # lowpassmultichan record (LFP) stream:
+            lpstream = SurfStream(self, kind='lowpass')
+        else:
+            lpstream = None
+        return hpstream, lpstream
 
     def _parseRecords(self):
         """Parse all the records in the file, but don't load any waveforms"""
@@ -487,13 +488,10 @@ class File(object):
         print('Trying to recover parse info from %r' % self.parsefname)
         with open(self.join(self.parsefname), 'rb') as pf: # can also uncompress pickle w/ gzip
             other = pickle.load(pf)
-        for thisstream in [other.hpstream, other.lpstream]: # avoid using module name `stream`
-            if thisstream:
-                thisstream.f = self # rebind self to other's non-None streams
         for name in other.__dict__:
             if name == 'f': # there should never be an other.f attrib
                 raise ValueError("Pickled srff in .parse shouldn't have an .f attrib!")
-            # don't overwrite fnames, fnames in .track files have a leading '../'
+            # don't overwrite fnames, fnames in .track files may have a leading '../'
             if name not in ['fname', 'parsefname', 'path']:
                 setattr(self, name, getattr(other, name))
         # Though empty high volume records were removed before being saved to .parse,

@@ -32,11 +32,6 @@ class File(object):
         self.t1i = self.t0i + self.nt - 1
         self.t0 = self.t0i * self.fileheader.tres # us
         self.t1 = self.t1i * self.fileheader.tres # us
-        self._bind_streams()
-
-    def _bind_streams(self):
-        self.hpstream = DATStream(self, kind='highpass')
-        self.lpstream = DATStream(self, kind='lowpass')
 
     def join(self, fname):
         """Return fname joined to self.path"""
