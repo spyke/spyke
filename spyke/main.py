@@ -2681,7 +2681,7 @@ class SpykeWindow(QtWidgets.QMainWindow):
         last fname opened or closed, which should hence go to the top of the list.
         Some of this code is taken from PySide's examples/mainwindows/recentfiles.py"""
         settings = QtCore.QSettings('spyke', 'spyke') # retrieve setting
-        fullfnames = settings.value('recentFileList')
+        fullfnames = settings.value('recentFileList') or []
         if fullfname:
             try:
                 fullfnames.remove(fullfname)
